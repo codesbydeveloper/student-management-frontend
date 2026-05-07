@@ -1,0 +1,32 @@
+export const SEED_TEACHERS = [
+  {
+    id: 't1',
+    fullName: 'Sam Morgan',
+    email: 'teacher@school.edu',
+    password: 'password123',
+    phone: '555-0101',
+    subject: 'Mathematics',
+    active: true,
+    classIds: ['c1', 'c2'],
+  },
+  {
+    id: 't2',
+    fullName: 'Riley Chen',
+    email: 'r.chen@school.edu',
+    password: 'password123',
+    phone: '555-0102',
+    subject: 'Science',
+    active: true,
+    classIds: ['c1'],
+  },
+  {
+    id: 't3',
+    fullName: 'Morgan Blake',
+    email: 'm.blake@school.edu',
+    password: 'password123',
+    phone: '555-0103',
+    subject: 'English',
+    active: false,
+    classIds: [],
+  },
+]

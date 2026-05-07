@@ -1,0 +1,80 @@
+@import "tailwindcss";
+@import "react-toastify/dist/ReactToastify.css";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    font-family: var(--font-sans);
+    height: 100%;
+    height: -webkit-fill-available;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply m-0 min-h-dvh bg-slate-50 text-slate-900 antialiased;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  #root {
+    @apply min-h-dvh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+}
+
+/* Toasts — clear notches / home indicator */
+.Toastify__toast-container {
+  --toastify-toast-width: min(22rem, calc(100vw - 1.25rem));
+  padding: max(0.5rem, env(safe-area-inset-top, 0px)) max(0.5rem, env(safe-area-inset-right, 0px))
+    max(0.5rem, env(safe-area-inset-bottom, 0px)) max(0.5rem, env(safe-area-inset-left, 0px));
+}
+.Toastify__toast-container--top-right {
+  top: max(0.35rem, env(safe-area-inset-top, 0px)) !important;
+  right: max(0.35rem, env(safe-area-inset-right, 0px)) !important;
+}
+.Toastify__toast {
+  border-radius: 1rem;
+  font-family: var(--font-sans);
+  min-height: 3.25rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(12px);
+}
+.Toastify__toast-body {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 0.125rem 0.35rem 0 0;
+}
+.Toastify__toast--success {
+  background: linear-gradient(135deg, rgb(5 150 105 / 0.96), rgb(4 120 87 / 0.99)) !important;
+  color: #fff !important;
+}
+.Toastify__toast--error {
+  background: linear-gradient(135deg, rgb(220 38 38 / 0.96), rgb(185 28 28 / 0.99)) !important;
+  color: #fff !important;
+}
+.Toastify__toast--info {
+  background: linear-gradient(135deg, rgb(79 70 229 / 0.94), rgb(109 40 217 / 0.97)) !important;
+  color: #fff !important;
+}
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, rgb(217 119 6 / 0.96), rgb(180 83 9 / 0.99)) !important;
+  color: #fff !important;
+}
+.Toastify__progress-bar {
+  background: rgb(255 255 255 / 0.35) !important;
+}
+.Toastify__close-button {
+  color: rgb(255 255 255 / 0.85);
+  opacity: 1;
+}
+.Toastify__close-button:hover {
+  color: #fff;
+}

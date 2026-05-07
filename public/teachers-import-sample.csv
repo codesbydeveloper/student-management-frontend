@@ -1,0 +1,4 @@
+name,email,number,password,subject,active,assigned_classes
+Jane Smith,jane.smith@school.test,555-0101,Secret01,Science,yes,c1
+Alex Rivera,alex.rivera@school.test,555-0102,Secret02,Mathematics,yes,
+Sam Lee,sam.lee@school.test,555-0103,Secret03,Physical Education,no,c2;c3

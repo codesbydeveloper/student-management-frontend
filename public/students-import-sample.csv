@@ -1,0 +1,4 @@
+fullName,email,classId,parentId,active
+Jordan Lee,jordan.lee@school.test,5,,yes
+Sam Patel,sam.patel@school.test,,,yes
+Alex Chen,alex.chen@school.test,5,22,no
