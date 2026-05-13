@@ -420,3 +420,81 @@ export async function fetchTeacherNotificationsMine(token, { page = 1, limit = T
     return { ok: false, error: msg, useClient: true, notifications: [], total: 0 }
   }
 }
+
+function extractNotificationPreferenceEnabled(data) {
+  if (!data || typeof data !== 'object') return null
+  const root = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data
+  const v = root.enabled ?? root.notificationEnabled ?? root.webpushEnabled ?? root.webPushEnabled
+  if (typeof v === 'boolean') return v
+  if (v === 1 || v === '1') return true
+  if (v === 0 || v === '0') return false
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase()
+    if (s === 'true' || s === 'yes') return true
+    if (s === 'false' || s === 'no') return false
+  }
+  return null
+}
+
+/**
+ * GET /api/notifications/preference — current Webpushr / push opt-in (Bearer). Optional; falls back if 404.
+ * @returns {Promise<{ ok: true, enabled: boolean } | { ok: false, error: string, enabled: null }>}
+ */
+export async function fetchNotificationPreference(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', enabled: null }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/preference`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404 || res.status === 405) {
+      return { ok: true, enabled: true }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        enabled: null,
+      }
+    }
+    const parsed = extractNotificationPreferenceEnabled(data)
+    return { ok: true, enabled: parsed ?? true }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, enabled: null }
+  }
+}
+
+/**
+ * PATCH /api/notifications/preference — set Webpushr / push opt-in (Bearer), body `{ enabled: boolean }`.
+ * @returns {Promise<{ ok: true, data: object | null } | { ok: false, error: string, useClient?: boolean }>}
+ */
+export async function patchNotificationPreference(token, enabled) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/preference`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ enabled: Boolean(enabled) }),
+    })
+    return await parsePatchMutationResponse(res)
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}

@@ -275,17 +275,29 @@ function extractPickerStudentsList(data) {
   return list.length ? list : []
 }
 
+/** Build secondary line for student pickers: email + class name and section when available. */
+export function formatStudentPickerClassSubtext(row) {
+  if (!row || typeof row !== 'object') return ''
+  const email = String(row.email ?? '').trim().toLowerCase()
+  const className = String(row.classDisplayName ?? '').trim()
+  const section = String(row.classSection ?? '').trim()
+  let classPart = ''
+  if (className && section) classPart = `${className} · Section ${section}`
+  else if (className) classPart = className
+  else if (section) classPart = `Section ${section}`
+  else if (row.classId != null && row.classId !== '') classPart = `Class ${row.classId}`
+  else classPart = 'Unassigned'
+  return [email, classPart].filter(Boolean).join(' · ')
+}
+
 /** Option shape for SearchableMultiSelect (parent form linked students). */
 export function mapPickerStudentToOption(raw) {
   const row = mapApiStudentToRow(raw)
   if (!row) return null
-  const subParts = [row.email]
-  if (row.classDisplayName) subParts.push(row.classDisplayName)
-  else if (row.classId) subParts.push(`Class ${row.classId}`)
   return {
     value: row.id,
     label: row.fullName,
-    subtext: subParts.filter(Boolean).join(' · '),
+    subtext: formatStudentPickerClassSubtext(row),
   }
 }
 

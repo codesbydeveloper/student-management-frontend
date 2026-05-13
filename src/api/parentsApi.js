@@ -28,6 +28,16 @@ function formatMyStudentsListError(data, status) {
   return `Could not load your students (${status})`
 }
 
+function formatMyDriverError(data, status) {
+  if (data == null) return `Could not load your driver (${status})`
+  if (typeof data === 'string' && data) return data
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  return `Could not load your driver (${status})`
+}
+
 function formatParentMessagesError(data, status) {
   if (data == null) return `Could not load school messages (${status})`
   if (typeof data === 'string' && data) return data
@@ -829,5 +839,231 @@ export async function fetchParentMyStudents(token) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, students: [] }
+  }
+}
+
+/** Normalize one block from GET /api/parents/my-driver into a display row. */
+function mapParentMyDriverRow(block) {
+  if (!block || typeof block !== 'object') return null
+  const d =
+    block.driver && typeof block.driver === 'object'
+      ? block.driver
+      : block.driverUser && typeof block.driverUser === 'object'
+        ? block.driverUser
+        : block.user && typeof block.user === 'object'
+          ? block.user
+          : null
+
+  const driverName = String(
+    block.driverName ?? d?.fullName ?? d?.name ?? d?.driverName ?? '',
+  ).trim()
+  const driverUserId = String(
+    d?.id ?? d?.userId ?? block.driverId ?? block.driverUserId ?? block.driver_id ?? '',
+  ).trim()
+  const assignedBus = String(
+    block.assignedBus ??
+      block.vehicleId ??
+      block.vehicle_id ??
+      block.busId ??
+      block.bus_id ??
+      (d && (d.assignedBus ?? d.vehicleId)) ??
+      '',
+  ).trim()
+  const phone = String(d?.phone ?? block.phone ?? '').trim()
+  const licenseNumber = String(
+    d?.licenseNumber ?? d?.license ?? d?.licenseNo ?? block.licenseNumber ?? '',
+  ).trim()
+
+  const st = block.student && typeof block.student === 'object' ? block.student : null
+  const studentName = String(
+    block.studentName ?? st?.fullName ?? st?.name ?? block.childName ?? '',
+  ).trim()
+  const studentId =
+    block.studentId != null
+      ? String(block.studentId)
+      : st?.id != null
+        ? String(st.id)
+        : ''
+
+  if (!driverName && !driverUserId && !assignedBus) return null
+
+  return {
+    driverName: driverName || '—',
+    driverUserId,
+    assignedBus: assignedBus || '—',
+    phone,
+    licenseNumber,
+    studentName,
+    studentId,
+  }
+}
+
+function extractParentMyDriverBlocks(data) {
+  if (!data || typeof data !== 'object') return []
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data.assignments)) return data.assignments
+  if (Array.isArray(data.items)) return data.items
+  if (Array.isArray(data.rows)) return data.rows
+  if (Array.isArray(data.drivers)) return data.drivers
+  if (Array.isArray(data.data) && data.data.every((x) => x && typeof x === 'object')) {
+    return data.data
+  }
+  if (data.driver && typeof data.driver === 'object') {
+    return [{ ...data, driver: data.driver }]
+  }
+  if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    return extractParentMyDriverBlocks(data.data)
+  }
+  return [data]
+}
+
+/**
+ * GET /api/parents/my-driver — driver / vehicle linked to this parent’s children (Bearer).
+ * @returns {Promise<{ ok: true, rows: object[] } | { ok: false, error: string, rows: [] }>}
+ */
+export async function fetchParentMyDriver(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', rows: [] }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/parents/my-driver`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: true, rows: [] }
+    }
+    if (!res.ok) {
+      return { ok: false, error: formatMyDriverError(data, res.status), rows: [] }
+    }
+    const blocks = extractParentMyDriverBlocks(data)
+    const rows = blocks.map(mapParentMyDriverRow).filter(Boolean)
+    return { ok: true, rows }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, rows: [] }
+  }
+}
+
+/** Treat common API shapes as boolean (avoids `"false"` string truthiness bugs). */
+function coerceLocationBoolean(raw) {
+  if (raw == null) return false
+  if (typeof raw === 'boolean') return raw
+  if (typeof raw === 'number') return raw !== 0
+  if (typeof raw === 'string') {
+    const s = raw.trim().toLowerCase()
+    if (s === 'true' || s === '1' || s === 'yes') return true
+    if (s === 'false' || s === '0' || s === 'no' || s === '') return false
+  }
+  return Boolean(raw)
+}
+
+/** Normalize API timestamp to ms (number, ISO string, or seconds). */
+function normalizeLocationTimestampMs(raw) {
+  if (raw == null) return null
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw < 1e12 ? Math.round(raw * 1000) : Math.round(raw)
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    const n = Date.parse(raw)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+/**
+ * Map GET /api/parents/my-driver/location JSON to a normalized point + flags.
+ * @param {unknown} data
+ * @returns {{ lat: number, lng: number, ts: number, busId: string | null, busNumericId: number | null, tripActive: boolean, isRunning: boolean } | null}
+ */
+export function mapParentMyDriverLocationPayload(data) {
+  if (!data || typeof data !== 'object') return null
+  const root = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data
+  const loc =
+    root.location && typeof root.location === 'object'
+      ? root.location
+      : root.lastLocation && typeof root.lastLocation === 'object'
+        ? root.lastLocation
+        : root.position && typeof root.position === 'object'
+          ? root.position
+          : root.lat != null && root.lng != null
+            ? root
+            : null
+  if (!loc || typeof loc !== 'object') return null
+  const lat = Number(loc.lat ?? loc.latitude ?? root.lat)
+  const lng = Number(loc.lng ?? loc.longitude ?? loc.lon ?? root.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  const tsRaw =
+    loc.ts ?? loc.timestamp ?? loc.updatedAt ?? loc.time ?? root.ts ?? root.updatedAt ?? root.lastUpdated
+  const tsMs = normalizeLocationTimestampMs(tsRaw) ?? Date.now()
+  const busId = String(loc.busId ?? loc.vehicleId ?? root.busId ?? root.assignedBus ?? '').trim()
+  const tripActive = coerceLocationBoolean(
+    root.tripActive ??
+      root.isTripActive ??
+      root.trip_in_progress ??
+      loc.tripActive ??
+      loc.isTripActive ??
+      false,
+  )
+  const isRunning = coerceLocationBoolean(
+    root.isRunning ??
+      root.is_running ??
+      root.running ??
+      loc.isRunning ??
+      loc.is_running ??
+      loc.running ??
+      tripActive,
+  )
+  const busNumericRaw =
+    root.busNumericId ?? root.busIdNumeric ?? loc.busNumericId ?? loc.bus_id ?? root.location?.busNumericId
+  const busNumericIdN = Number(busNumericRaw)
+  const busNumericId = Number.isFinite(busNumericIdN) && busNumericIdN > 0 ? busNumericIdN : null
+
+  return {
+    lat,
+    lng,
+    ts: tsMs,
+    busId: busId || null,
+    busNumericId,
+    tripActive,
+    isRunning,
+  }
+}
+
+/**
+ * GET /api/parents/my-driver/location — last known driver/bus position for this parent (Bearer).
+ * @returns {Promise<{ ok: true, location: object | null } | { ok: false, error: string, location: null }>}
+ */
+export async function fetchParentMyDriverLocation(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', location: null }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/parents/my-driver/location`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: true, location: null }
+    }
+    if (!res.ok) {
+      return { ok: false, error: formatMyDriverError(data, res.status), location: null }
+    }
+    const location = mapParentMyDriverLocationPayload(data)
+    return { ok: true, location }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, location: null }
   }
 }

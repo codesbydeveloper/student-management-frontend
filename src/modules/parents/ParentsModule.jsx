@@ -10,7 +10,7 @@ import {
   mapApiParentToRow,
   updateParent,
 } from '../../api/parentsApi'
-import { fetchStudentsPicker } from '../../api/studentsApi'
+import { fetchStudentsPicker, formatStudentPickerClassSubtext } from '../../api/studentsApi'
 import { useAuth } from '../../context/AuthContext'
 import { useConfirm } from '../../context/ConfirmContext'
 import { useAppData } from '../../context/AppDataContext'
@@ -212,12 +212,23 @@ export function ParentsModule() {
     () =>
       students.map((s) => {
         const cls = classes.find((c) => String(c.id) === String(s.classId))
-        const classLabel =
-          s.classDisplayName?.trim() || (cls ? cls.name : s.classId ? String(s.classId) : 'Unassigned')
+        const classDisplayName =
+          (s.classDisplayName && String(s.classDisplayName).trim()) ||
+          (cls?.name && String(cls.name).trim()) ||
+          ''
+        const classSection =
+          (s.classSection && String(s.classSection).trim()) ||
+          (cls?.section != null && String(cls.section).trim()) ||
+          ''
         return {
           value: s.id,
           label: s.fullName,
-          subtext: [s.email, classLabel].filter(Boolean).join(' · '),
+          subtext: formatStudentPickerClassSubtext({
+            email: s.email,
+            classDisplayName,
+            classSection,
+            classId: s.classId,
+          }),
         }
       }),
     [students, classes],
@@ -232,12 +243,23 @@ export function ParentsModule() {
       const s = students.find((x) => String(x.id) === sid)
       if (s) {
         const cls = classes.find((c) => String(c.id) === String(s.classId))
-        const classLabel =
-          s.classDisplayName?.trim() || (cls ? cls.name : s.classId ? String(s.classId) : 'Unassigned')
+        const classDisplayName =
+          (s.classDisplayName && String(s.classDisplayName).trim()) ||
+          (cls?.name && String(cls.name).trim()) ||
+          ''
+        const classSection =
+          (s.classSection && String(s.classSection).trim()) ||
+          (cls?.section != null && String(cls.section).trim()) ||
+          ''
         byValue.set(sid, {
           value: s.id,
           label: s.fullName,
-          subtext: [s.email, classLabel].filter(Boolean).join(' · '),
+          subtext: formatStudentPickerClassSubtext({
+            email: s.email,
+            classDisplayName,
+            classSection,
+            classId: s.classId,
+          }),
         })
       } else {
         byValue.set(sid, {
@@ -1195,7 +1217,7 @@ export function ParentsModule() {
               value={form.studentIds}
               onChange={(studentIds) => setForm((f) => ({ ...f, studentIds }))}
               disabled={!manage}
-              searchPlaceholder="Search students by name, email, or class…"
+              searchPlaceholder="Search students by name, email, class, or section…"
               emptyText="No students match your search."
             />
           </div>

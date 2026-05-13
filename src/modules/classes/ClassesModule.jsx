@@ -22,7 +22,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Label } from '../../components/ui/Label'
-import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
+import { SearchableSingleSelect } from '../../components/SearchableSingleSelect'
 import { canManageClasses } from '../../utils/permissions'
 import { ROLES } from '../../utils/constants'
 import { syncClassToTeachers } from '../../utils/dataSync'
@@ -51,6 +51,7 @@ function csvRowToClassDraft(row) {
     .split(/[;,]/)
     .map((s) => s.trim())
     .filter(Boolean)
+    .slice(0, 1)
   return { name, gradeLevel, section, room, teacherIds }
 }
 
@@ -241,6 +242,14 @@ export function ClassesModule() {
     teachers,
     teacherNameById,
   ])
+
+  /** Single-select value must match option `value` type for SearchableSingleSelect. */
+  const classFormTeacherSelectValue = useMemo(() => {
+    const raw = form.teacherIds?.[0]
+    if (raw === undefined || raw === null || raw === '') return ''
+    const opt = classTeacherSelectOptions.find((o) => String(o.value) === String(raw))
+    return opt ? opt.value : raw
+  }, [form.teacherIds, classTeacherSelectOptions])
 
   const rows = useMemo(
     () =>
@@ -473,7 +482,7 @@ export function ClassesModule() {
       }
       if (!drafts.length) {
         toast.error(
-          skipped ? 'No valid rows (need class name, grade, and at least one teacher id).' : 'Nothing to import.',
+          skipped ? 'No valid rows (need class name, grade, and one teacher id).' : 'Nothing to import.',
         )
         return
       }
@@ -485,7 +494,7 @@ export function ClassesModule() {
           gradeLevel: d.gradeLevel,
           section: d.section,
           room: d.room,
-          teacherIds: d.teacherIds,
+          teacherIds: d.teacherIds.slice(0, 1),
         })
         if (!res.ok) {
           toast.error(res.error)
@@ -537,7 +546,8 @@ export function ClassesModule() {
         section: c.section,
         gradeLevel: c.gradeLevel,
         room: c.room,
-        teacherIds: Array.isArray(c.teacherIds) ? [...c.teacherIds] : [],
+        teacherIds:
+          Array.isArray(c.teacherIds) && c.teacherIds.length ? [c.teacherIds[0]] : [],
       })
       setErrors({})
       setModalOpen(true)
@@ -550,7 +560,8 @@ export function ClassesModule() {
       section: row.section,
       gradeLevel: row.gradeLevel,
       room: row.room,
-      teacherIds: [...(row.teacherIds || [])],
+      teacherIds:
+        Array.isArray(row.teacherIds) && row.teacherIds.length ? [row.teacherIds[0]] : [],
     })
     setErrors({})
     setModalOpen(true)
@@ -562,9 +573,7 @@ export function ClassesModule() {
     const e1 = required(form.name, 'Class name')
     const e2 = required(form.gradeLevel, 'Grade level')
     const e3 =
-      !Array.isArray(form.teacherIds) || form.teacherIds.length === 0
-        ? 'Select at least one teacher'
-        : ''
+      !Array.isArray(form.teacherIds) || form.teacherIds.length === 0 ? 'Select a teacher' : ''
     setErrors({ name: e1, gradeLevel: e2, teacherIds: e3 })
     if (e1 || e2 || e3) return
 
@@ -698,7 +707,7 @@ export function ClassesModule() {
     { key: 'room', header: 'Room' },
     {
       key: '_teacherLabel',
-      header: 'Teachers',
+      header: 'Teacher',
       render: (row) => <span className="text-slate-600">{row._teacherLabel}</span>,
     },
     {
@@ -839,7 +848,7 @@ export function ClassesModule() {
               <span className="font-medium text-slate-900">gradeLevel</span>, optional{' '}
               <span className="font-medium text-slate-900">section</span> and{' '}
               <span className="font-medium text-slate-900">room</span>, and required{' '}
-              <span className="font-medium text-slate-900">teacherIds</span> (semicolon-separated teacher ids) for the fallback import.
+              <span className="font-medium text-slate-900">teacherIds</span> (one teacher id per row) for the fallback import.
             </p>
           </div>
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
@@ -1068,17 +1077,21 @@ export function ClassesModule() {
               />
             </div>
             <div className="sm:col-span-2">
-              <SearchableMultiSelect
+              <SearchableSingleSelect
                 key={editing?.id ?? 'new-class'}
                 id="class-teachers"
-                label="Assigned teachers "
+                label="Assigned teacher"
                 options={classTeacherSelectOptions}
-                value={form.teacherIds}
-                onChange={(teacherIds) => {
-                  setForm((f) => ({ ...f, teacherIds }))
+                value={classFormTeacherSelectValue}
+                onChange={(id) => {
+                  setForm((f) => ({
+                    ...f,
+                    teacherIds: id === '' || id == null ? [] : [id],
+                  }))
                   setErrors((errs) => ({ ...errs, teacherIds: '' }))
                 }}
                 disabled={!manage}
+                placeholder="Select teacher…"
                 searchPlaceholder="Search teachers by name, email, or subject…"
                 emptyText="No teachers match your search."
               />
@@ -1117,7 +1130,7 @@ export function ClassesModule() {
             </dl>
 
             <div className="rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/80 px-4 py-5 shadow-sm shadow-slate-900/[0.03]">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Teachers</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Teacher</p>
               <ul className="mt-3 flex flex-wrap gap-2">
                 {(() => {
                   const fromApi = editing?.teacherNames

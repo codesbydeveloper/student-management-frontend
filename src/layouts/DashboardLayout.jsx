@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../utils/constants'
 import { getNavItemsForRole } from '../utils/navigation'
 import { RoleBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { MobileDockNav } from '../components/layout/MobileDockNav'
+import { HeaderWebPushToggle } from '../components/layout/HeaderWebPushToggle'
 
 function navClass({ isActive }) {
   return `group flex min-h-[2.75rem] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
@@ -20,6 +22,7 @@ export function DashboardLayout() {
   const [open, setOpen] = useState(false)
 
   const items = getNavItemsForRole(user.role)
+  const showHeaderSettings = user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL
 
   const onLogout = () => {
     logout()
@@ -63,7 +66,24 @@ export function DashboardLayout() {
               key={item.to}
               to={item.to}
               className={navClass}
-              end={item.to === '/dashboard' || item.to === '/notifications'}
+              end={
+                item.to === '/dashboard' ||
+                item.to === '/notifications' ||
+                item.to === '/parent-bus' ||
+                item.to === '/parent/ptm/request' ||
+                item.to === '/parent/ptm/history' ||
+                item.to === '/driver-transport' ||
+                item.to === '/transport-assignments' ||
+                item.to === '/drivers' ||
+                item.to === '/visitor-logs' ||
+                item.to === '/leads' ||
+                item.to === '/ptm-requests' ||
+                item.to === '/ptm-requests/staff' ||
+                item.to === '/ptm-requests/admin/history' ||
+                item.to === '/assigned-leads' ||
+                item.to === '/create-lead' ||
+                item.to === '/settings/login-branding'
+              }
               onClick={() => setOpen(false)}
             >
               {({ isActive }) => (
@@ -113,6 +133,34 @@ export function DashboardLayout() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+              {showHeaderSettings ? (
+                <NavLink
+                  to="/settings/login-branding"
+                  end
+                  title="Login page — logo, title, subtitle"
+                  aria-label="Login page appearance settings"
+                  className={({ isActive }) =>
+                    `flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 ${
+                      isActive ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200/80'
+                    }`
+                  }
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </NavLink>
+              ) : null}
+              <HeaderWebPushToggle />
               <div className="hidden text-right sm:block">
                 <p className="text-sm font-bold text-slate-900">{user.fullName}</p>
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-2">

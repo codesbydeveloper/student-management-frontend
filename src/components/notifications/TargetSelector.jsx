@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Label } from '../ui/Label'
 import { SearchableMultiSelect } from '../SearchableMultiSelect'
+import { formatStudentPickerClassSubtext } from '../../api/studentsApi'
 import { NOTIFICATION_TARGET_TYPES } from '../../utils/notificationConstants'
 
 export function TargetSelector({ targetType, value, onChange, disabled, classes, students }) {
@@ -27,11 +28,18 @@ export function TargetSelector({ targetType, value, onChange, disabled, classes,
   const studentOptions = useMemo(
     () =>
       students.map((s) => {
-        const cls = classes.find((c) => c.id === s.classId)
+        const cls = classes.find((c) => String(c.id) === String(s.classId))
+        const classDisplayName =
+          String(s.classDisplayName ?? '').trim() || String(cls?.name ?? '').trim()
+        const classSection = String(s.classSection ?? '').trim() || String(cls?.section ?? '').trim()
         return {
           value: s.id,
           label: s.fullName,
-          subtext: [s.email, cls?.name].filter(Boolean).join(' · '),
+          subtext: formatStudentPickerClassSubtext({
+            ...s,
+            classDisplayName,
+            classSection,
+          }),
         }
       }),
     [students, classes],

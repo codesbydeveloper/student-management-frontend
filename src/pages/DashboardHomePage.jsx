@@ -45,10 +45,22 @@ export default function DashboardHomePage() {
   const quickLinks = [
     { to: '/parent-dashboard', label: 'Family dashboard', key: 'parent_dashboard' },
     { to: '/parent-notifications', label: 'School messages', key: 'parent_notifications' },
+    { to: '/parent-bus', label: 'Bus tracking', key: 'parent_bus' },
+    { to: '/driver-transport', label: 'My trip', key: 'driver_transport' },
     { to: '/teachers', label: 'Teachers', key: 'teachers' },
+    { to: '/drivers', label: 'Bus drivers', key: 'drivers' },
     { to: '/students', label: 'Students', key: 'students' },
     { to: '/classes', label: 'Classes', key: 'classes' },
     { to: '/parents', label: 'Parents', key: 'parents' },
+    { to: '/transport-assignments', label: 'Transport', key: 'transport_assignments' },
+    { to: '/parent/ptm/request', label: 'PTM request', key: 'parent_ptm_request' },
+    { to: '/parent/ptm/history', label: 'PTM history', key: 'parent_ptm_history' },
+    { to: '/ptm-requests', label: 'PTM requests', key: 'teacher_ptm_requests' },
+    { to: '/ptm-requests/staff', label: 'PTM request', key: 'staff_ptm_requests' },
+    { to: '/ptm-requests/admin/history', label: 'PTM history', key: 'staff_ptm_history' },
+    { to: '/assigned-leads', label: 'Assigned leads', key: 'teacher_assigned_leads' },
+    { to: '/visitor-logs', label: 'Visitor log', key: 'admin_visitor_logs' },
+    { to: '/leads', label: 'Leads (CRM)', key: 'admin_leads' },
   ].filter((l) => canAccessRoute(user.role, l.key))
 
   return (
@@ -74,23 +86,34 @@ export default function DashboardHomePage() {
         <Card>
           <h2 className="text-lg font-bold text-slate-900">Transport</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Route planning, vehicle checks, and student manifests can live here. You are signed in with a transport
-            profile — contact your administrator if you need access to additional modules.
+            Start and end your trip: the driver map uses real device GPS. Parents with the same assigned bus see your
+            position on an OpenStreetMap + Leaflet map when a trip is active (same browser demo, or Socket.IO when
+            configured) — not Google Maps.
           </p>
+          <div className="mt-4">
+            <Link
+              to="/driver-transport"
+              className="inline-flex items-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-slate-800"
+            >
+              Open my trip
+            </Link>
+          </div>
         </Card>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="Teachers"
-          value={stats.teachers}
-          hint={`${stats.activeTeachers} active`}
-          accent="indigo"
-        />
-        <Stat label="Students" value={stats.students} accent="emerald" />
-        <Stat label="Classes" value={stats.classes} accent="amber" />
-        <Stat label="Parents / guardians" value={stats.parents} accent="rose" />
-      </div>
+      {user.role === ROLES.DRIVER ? null : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Stat
+            label="Teachers"
+            value={stats.teachers}
+            hint={`${stats.activeTeachers} active`}
+            accent="indigo"
+          />
+          <Stat label="Students" value={stats.students} accent="emerald" />
+          <Stat label="Classes" value={stats.classes} accent="amber" />
+          <Stat label="Parents / guardians" value={stats.parents} accent="rose" />
+        </div>
+      )}
 
       {quickLinks.length ? (
         <Card>

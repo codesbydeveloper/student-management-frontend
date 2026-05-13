@@ -22,7 +22,24 @@ export function MobileDockNav({ role, onNavigate }) {
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/dashboard' || item.to === '/notifications'}
+            end={
+              item.to === '/dashboard' ||
+              item.to === '/notifications' ||
+              item.to === '/parent-bus' ||
+              item.to === '/parent/ptm/request' ||
+              item.to === '/parent/ptm/history' ||
+              item.to === '/driver-transport' ||
+              item.to === '/transport-assignments' ||
+              item.to === '/drivers' ||
+              item.to === '/visitor-logs' ||
+              item.to === '/leads' ||
+              item.to === '/ptm-requests' ||
+              item.to === '/ptm-requests/staff' ||
+              item.to === '/ptm-requests/admin/history' ||
+              item.to === '/assigned-leads' ||
+              item.to === '/create-lead' ||
+              item.to === '/settings/login-branding'
+            }
             onClick={() => onNavigate?.()}
             className={({ isActive }) =>
               `flex min-h-[3.25rem] min-w-[4.25rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 transition active:scale-[0.97] ${

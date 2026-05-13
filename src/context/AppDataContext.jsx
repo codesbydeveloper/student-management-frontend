@@ -10,6 +10,7 @@ import { SEED_TEACHERS } from '../data/seedTeachers'
 import { SEED_CLASSES } from '../data/seedClasses'
 import { SEED_STUDENTS } from '../data/seedStudents'
 import { SEED_PARENTS } from '../data/seedParents'
+import { SEED_DRIVERS } from '../data/seedDrivers'
 import { STORAGE_KEYS } from '../utils/constants'
 
 const AppDataContext = createContext(null)
@@ -19,6 +20,7 @@ const defaultState = () => ({
   classes: SEED_CLASSES.map((c) => ({ ...c, teacherIds: [...c.teacherIds] })),
   students: SEED_STUDENTS.map((s) => ({ ...s })),
   parents: SEED_PARENTS.map((p) => ({ ...p, studentIds: [...p.studentIds] })),
+  drivers: SEED_DRIVERS.map((d) => ({ ...d })),
 })
 
 function loadPersisted() {
@@ -28,6 +30,9 @@ function loadPersisted() {
     const data = JSON.parse(raw)
     if (!data?.teachers || !data?.classes || !data?.students || !data?.parents) {
       return null
+    }
+    if (!Array.isArray(data.drivers)) {
+      data.drivers = SEED_DRIVERS.map((d) => ({ ...d }))
     }
     return data
   } catch {
@@ -82,6 +87,13 @@ export function AppDataProvider({ children }) {
     }))
   }, [])
 
+  const setDrivers = useCallback((updater) => {
+    setState((s) => ({
+      ...s,
+      drivers: typeof updater === 'function' ? updater(s.drivers) : updater,
+    }))
+  }, [])
+
   const value = useMemo(
     () => ({
       ...state,
@@ -90,8 +102,9 @@ export function AppDataProvider({ children }) {
       setClasses,
       setStudents,
       setParents,
+      setDrivers,
     }),
-    [state, hydrated, setTeachers, setClasses, setStudents, setParents],
+    [state, hydrated, setTeachers, setClasses, setStudents, setParents, setDrivers],
   )
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>

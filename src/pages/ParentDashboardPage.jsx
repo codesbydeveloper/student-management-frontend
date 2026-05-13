@@ -6,7 +6,7 @@ import { useAppData } from '../context/AppDataContext'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ParentDashboard } from '../components/parent/ParentDashboard'
-import { fetchParentMyStudents } from '../api/parentsApi'
+import { fetchParentMyDriver, fetchParentMyStudents } from '../api/parentsApi'
 import { SEED_CLASSES } from '../data/seedClasses'
 import { SEED_STUDENTS } from '../data/seedStudents'
 import { ROLES } from '../utils/constants'
@@ -33,12 +33,18 @@ export default function ParentDashboardPage() {
 
   /** `null` = not loaded yet; `[]` = loaded, no students from API. */
   const [myStudents, setMyStudents] = useState(null)
+  const [myDriverRows, setMyDriverRows] = useState([])
+  const [myDriverLoading, setMyDriverLoading] = useState(false)
+  const [myDriverError, setMyDriverError] = useState('')
 
   useEffect(() => {
     if (!token || user?.role !== ROLES.PARENT) {
       // Clear server list when leaving parent session (sync reset is intentional here).
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset queue when token/role no longer loads my-students
       setMyStudents(null)
+      setMyDriverRows([])
+      setMyDriverLoading(false)
+      setMyDriverError('')
       return
     }
     let cancelled = false
@@ -50,6 +56,32 @@ export default function ParentDashboardPage() {
       } else {
         setMyStudents([])
         toast.error(res.error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.role])
+
+  useEffect(() => {
+    if (!token || user?.role !== ROLES.PARENT) {
+      setMyDriverRows([])
+      setMyDriverLoading(false)
+      setMyDriverError('')
+      return
+    }
+    let cancelled = false
+    setMyDriverLoading(true)
+    setMyDriverError('')
+    void (async () => {
+      const res = await fetchParentMyDriver(token)
+      if (cancelled) return
+      setMyDriverLoading(false)
+      if (res.ok) {
+        setMyDriverRows(res.rows)
+      } else {
+        setMyDriverRows([])
+        setMyDriverError(res.error)
       }
     })()
     return () => {
@@ -123,6 +155,36 @@ export default function ParentDashboardPage() {
             School messages
           </Button>
         </Link>
+        <Link to="/parent-bus">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="border-indigo-200/80 bg-white !text-indigo-900 hover:border-indigo-300 hover:bg-indigo-50 hover:!text-indigo-950"
+          >
+            Bus tracking
+          </Button>
+        </Link>
+        <Link to="/parent/ptm/request">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="border-violet-200/80 bg-white !text-violet-900 hover:border-violet-300 hover:bg-violet-50 hover:!text-violet-950"
+          >
+            Request PTM
+          </Button>
+        </Link>
+        <Link to="/parent/ptm/history">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="border-violet-200/80 bg-white !text-violet-900 hover:border-violet-300 hover:bg-violet-50 hover:!text-violet-950"
+          >
+            PTM history
+          </Button>
+        </Link>
         <Link to="/dashboard">
           <Button
             type="button"
@@ -140,6 +202,9 @@ export default function ParentDashboardPage() {
           childRows={childRows}
           childrenLoading={childrenLoading}
           childrenSubtitle={childrenSubtitle}
+          myDriverRows={myDriverRows}
+          myDriverLoading={myDriverLoading}
+          myDriverError={myDriverError}
         />
       </Card>
     </div>

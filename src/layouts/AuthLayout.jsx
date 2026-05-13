@@ -1,6 +1,36 @@
+import { useCallback, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { fetchPublicLoginBranding } from '../api/settingsApi'
+import {
+  DEFAULT_LOGIN_BRANDING,
+  getLoginBrandingSnapshot,
+  normalizeLoginBranding,
+} from '../utils/loginBranding'
 
 export function AuthLayout() {
+  const [branding, setBranding] = useState(() => ({ ...DEFAULT_LOGIN_BRANDING }))
+
+  const load = useCallback(async () => {
+    const remote = await fetchPublicLoginBranding()
+    if (remote.ok && remote.branding) {
+      setBranding(normalizeLoginBranding(remote.branding))
+      return
+    }
+    setBranding(getLoginBrandingSnapshot())
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    const onRefresh = () => {
+      void load()
+    }
+    window.addEventListener('sm-login-branding-changed', onRefresh)
+    return () => window.removeEventListener('sm-login-branding-changed', onRefresh)
+  }, [load])
+
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-slate-950">
       <div
@@ -25,14 +55,25 @@ export function AuthLayout() {
         }}
       >
         <div className="mb-8 text-center sm:mb-10">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 text-xl font-bold text-white shadow-xl shadow-indigo-500/40 ring-2 ring-white/20 sm:mb-5">
-            S
-          </div>
+          {branding.logoImage ? (
+            <div className="mx-auto mb-4 flex max-h-32 max-w-[min(18rem,calc(100vw-2rem))] items-center justify-center sm:mb-5">
+              <img
+                src={branding.logoImage}
+                alt=""
+                className="max-h-32 max-w-full object-contain drop-shadow-[0_8px_24px_rgb(0_0_0/0.35)]"
+                decoding="async"
+              />
+            </div>
+          ) : (
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 text-xl font-bold text-white shadow-xl shadow-indigo-500/40 ring-2 ring-white/20 sm:mb-5">
+              {branding.logoLetter}
+            </div>
+          )}
           <h1 className="bg-gradient-to-r from-white via-indigo-100 to-violet-200 bg-clip-text text-xl font-bold tracking-tight text-transparent sm:text-3xl">
-            School Management Suite
+            {branding.title}
           </h1>
           <p className="mx-auto mt-2 max-w-md px-2 text-sm leading-relaxed text-slate-400 sm:mt-3">
-            Secure access to schedules, people, and classes — sign in to continue to your workspace.
+            {branding.subtitle}
           </p>
         </div>
         <div className="relative w-full max-w-md">

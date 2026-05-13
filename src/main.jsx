@@ -7,6 +7,7 @@ import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
 import { AppDataProvider } from './context/AppDataContext'
+import { Phase6Provider } from './context/Phase6Context'
 import { NotificationProvider } from './context/NotificationContext'
 import { ConfirmProvider } from './context/ConfirmContext'
 
@@ -17,11 +18,12 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <AppDataProvider>
-          <ConfirmProvider>
-            <NotificationProvider>
-              <App />
-            </NotificationProvider>
-            <ToastContainer
+          <Phase6Provider>
+            <ConfirmProvider>
+              <NotificationProvider>
+                <App />
+              </NotificationProvider>
+              <ToastContainer
               position="top-right"
               autoClose={4200}
               limit={4}
@@ -34,6 +36,7 @@ createRoot(document.getElementById('root')).render(
               className="!p-0"
             />
           </ConfirmProvider>
+          </Phase6Provider>
         </AppDataProvider>
       </AuthProvider>
     </BrowserRouter>

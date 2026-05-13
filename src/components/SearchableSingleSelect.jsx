@@ -16,6 +16,8 @@ export function SearchableSingleSelect({
   searchPlaceholder = 'Search…',
   emptyText = 'No matches.',
   error,
+  /** Tailwind max-height utility for the popup panel. Override to make the list shorter or taller. */
+  panelMaxHeightClass = 'max-h-[min(50vh,22rem)]',
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -76,7 +78,7 @@ export function SearchableSingleSelect({
 
       {open && !disabled ? (
         <div
-          className="flex max-h-[min(50vh,22rem)] w-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg ring-1 ring-slate-900/[0.04]"
+          className={`flex w-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg ring-1 ring-slate-900/[0.04] ${panelMaxHeightClass}`}
           onWheel={(e) => e.stopPropagation()}
         >
           <div className="shrink-0 border-b border-slate-100 p-2">

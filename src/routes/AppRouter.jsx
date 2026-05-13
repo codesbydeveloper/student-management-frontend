@@ -4,6 +4,7 @@ import { ROLES } from '../utils/constants'
 import { AuthLayout } from '../layouts/AuthLayout'
 import { DashboardLayout } from '../layouts/DashboardLayout'
 import { ProtectedRoute } from './ProtectedRoute'
+import DriversPage from '../pages/DriversPage.jsx'
 
 const LoginPage = lazy(() => import('../pages/LoginPage.jsx'))
 const RegisterPage = lazy(() => import('../pages/RegisterPage.jsx'))
@@ -18,6 +19,20 @@ const NotificationAdminApprovalPage = lazy(() => import('../pages/NotificationAd
 const NotificationPrincipalApprovalPage = lazy(() => import('../pages/NotificationPrincipalApprovalPage.jsx'))
 const ParentDashboardPage = lazy(() => import('../pages/ParentDashboardPage.jsx'))
 const ParentNotificationsPage = lazy(() => import('../pages/ParentNotificationsPage.jsx'))
+const ParentBusTrackingPage = lazy(() => import('../pages/ParentBusTrackingPage.jsx'))
+const DriverTransportPage = lazy(() => import('../pages/DriverTransportPage.jsx'))
+const TransportAssignmentsPage = lazy(() => import('../pages/TransportAssignmentsPage.jsx'))
+const ParentPtmRequestPage = lazy(() => import('../pages/ptm/ParentPtmRequestPage.jsx'))
+const ParentPtmHistoryPage = lazy(() => import('../pages/ptm/ParentPtmHistoryPage.jsx'))
+const TeacherPtmRequestsPage = lazy(() => import('../pages/ptm/TeacherPtmRequestsPage.jsx'))
+const StaffPtmRequestsPage = lazy(() => import('../pages/ptm/StaffPtmRequestsPage.jsx'))
+const StaffPtmHistoryPage = lazy(() => import('../pages/ptm/StaffPtmHistoryPage.jsx'))
+const AdminVisitorLogsPage = lazy(() => import('../pages/crm/AdminVisitorLogsPage.jsx'))
+const AdminLeadsPage = lazy(() => import('../pages/crm/AdminLeadsPage.jsx'))
+const TeacherAssignedLeadsPage = lazy(() => import('../pages/crm/TeacherAssignedLeadsPage.jsx'))
+const LeadDetailPage = lazy(() => import('../pages/crm/LeadDetailPage.jsx'))
+const CreateLeadPage = lazy(() => import('../pages/crm/CreateLeadPage.jsx'))
+const LoginBrandingSettingsPage = lazy(() => import('../pages/settings/LoginBrandingSettingsPage.jsx'))
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'))
 
 function SuspenseFallback() {
@@ -32,22 +47,36 @@ export function AppRouter() {
   return (
     <Suspense fallback={<SuspenseFallback />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
         </Route>
 
+        {/*
+          Dashboard routes must live under path="/" with relative segments so React Router v7
+          matches /drivers, /teachers, etc. A pathless parent + only absolute children can miss
+          matches and fall through to 404.
+        */}
         <Route
+          path="/"
           element={
             <ProtectedRoute>
               <DashboardLayout />
             </ProtectedRoute>
           }
         >
-          <Route path="/dashboard" element={<DashboardHomePage />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardHomePage />} />
           <Route
-            path="/teachers"
+            path="settings/login-branding"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <LoginBrandingSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="teachers"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
                 <TeachersPage />
@@ -55,7 +84,15 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/students"
+            path="drivers"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <DriversPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="students"
             element={
               <ProtectedRoute
                 allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER, ROLES.PARENT]}
@@ -65,7 +102,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/classes"
+            path="classes"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
                 <ClassesPage />
@@ -73,7 +110,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/parents"
+            path="parents"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <ParentsPage />
@@ -81,7 +118,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/notifications"
+            path="notifications"
             element={
               <ProtectedRoute allowedRoles={[ROLES.TEACHER]}>
                 <NotificationsPage />
@@ -89,7 +126,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/notifications/create"
+            path="notifications/create"
             element={
               <ProtectedRoute allowedRoles={[ROLES.TEACHER]}>
                 <NotificationCreatePage />
@@ -97,7 +134,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/notifications/admin-approval"
+            path="notifications/admin-approval"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                 <NotificationAdminApprovalPage />
@@ -105,7 +142,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/notifications/principal-approval"
+            path="notifications/principal-approval"
             element={
               <ProtectedRoute allowedRoles={[ROLES.PRINCIPAL]}>
                 <NotificationPrincipalApprovalPage />
@@ -113,7 +150,7 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/parent-dashboard"
+            path="parent-dashboard"
             element={
               <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
                 <ParentDashboardPage />
@@ -121,10 +158,114 @@ export function AppRouter() {
             }
           />
           <Route
-            path="/parent-notifications"
+            path="parent-notifications"
             element={
               <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
                 <ParentNotificationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="parent-bus"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
+                <ParentBusTrackingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="parent/ptm/request"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
+                <ParentPtmRequestPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="parent/ptm/history"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
+                <ParentPtmHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="ptm-requests"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.TEACHER]}>
+                <TeacherPtmRequestsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="ptm-requests/staff"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <StaffPtmRequestsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="ptm-requests/admin/history"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <StaffPtmHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="assigned-leads"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.TEACHER]}>
+                <TeacherAssignedLeadsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="create-lead"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.TEACHER, ROLES.PARENT, ROLES.DRIVER]}>
+                <CreateLeadPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="visitor-logs"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+                <AdminVisitorLogsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="leads"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <AdminLeadsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="leads/:leadId"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+                <LeadDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="driver-transport"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.DRIVER]}>
+                <DriverTransportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport-assignments"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <TransportAssignmentsPage />
               </ProtectedRoute>
             }
           />
