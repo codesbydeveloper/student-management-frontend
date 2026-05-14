@@ -18,7 +18,10 @@ export const ROUTE_ACCESS = {
   parent_ptm_request: [ROLES.PARENT],
   parent_ptm_history: [ROLES.PARENT],
   driver_transport: [ROLES.DRIVER],
-  transport_assignments: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Admin / principal — assign students to a bus (UI shell). */
+  admin_assign_bus: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Admin / principal — register buses (local until API). */
+  admin_create_buses: [ROLES.ADMIN, ROLES.PRINCIPAL],
   teacher_ptm_requests: [ROLES.TEACHER],
   teacher_assigned_leads: [ROLES.TEACHER],
   /** Intake without assign-teacher (admin/principal use `/leads`). */

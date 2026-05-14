@@ -2,11 +2,17 @@ import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
+import { Modal } from '../components/Modal'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
-import { email, required } from '../utils/validators'
+import {
+  requestForgotPassword,
+  verifyForgotPasswordOtp,
+  resetForgottenPassword,
+} from '../api/authForgotPassword'
+import { email, minLength, required } from '../utils/validators'
 
 function initialLoginForm(locationState) {
   const regEmail = locationState?.registeredEmail
@@ -24,6 +30,140 @@ export default function LoginPage() {
   const [form, setForm] = useState(() => initialLoginForm(location.state))
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+
+  const [forgotOpen, setForgotOpen] = useState(false)
+  /** @type {'email' | 'verify' | 'reset'} */
+  const [forgotStep, setForgotStep] = useState('email')
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotOtp, setForgotOtp] = useState('')
+  const [forgotNewPassword, setForgotNewPassword] = useState('')
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('')
+  const [forgotErrors, setForgotErrors] = useState({})
+  const [forgotSending, setForgotSending] = useState(false)
+
+  const openForgotModal = () => {
+    setForgotEmail(form.email.trim())
+    setForgotStep('email')
+    setForgotOtp('')
+    setForgotNewPassword('')
+    setForgotConfirmPassword('')
+    setForgotErrors({})
+    setForgotOpen(true)
+  }
+
+  const closeForgotModal = () => {
+    setForgotOpen(false)
+    setForgotStep('email')
+    setForgotEmail('')
+    setForgotOtp('')
+    setForgotNewPassword('')
+    setForgotConfirmPassword('')
+    setForgotErrors({})
+    setForgotSending(false)
+  }
+
+  const goBackForgotStep = () => {
+    if (forgotStep === 'reset') {
+      setForgotStep('verify')
+      setForgotNewPassword('')
+      setForgotConfirmPassword('')
+      setForgotErrors({})
+      return
+    }
+    if (forgotStep === 'verify') {
+      setForgotStep('email')
+      setForgotOtp('')
+      setForgotErrors({})
+    }
+  }
+
+  const onForgotOtpInput = (e) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 4)
+    setForgotOtp(raw)
+  }
+
+  const onForgotSubmit = async (e) => {
+    e.preventDefault()
+    if (forgotStep === 'email') {
+      const e1 = required(forgotEmail, 'Email')
+      const e2 = email(forgotEmail)
+      const next = { email: e1 || e2 }
+      setForgotErrors(next)
+      if (e1 || e2) return
+
+      setForgotSending(true)
+      try {
+        const res = await requestForgotPassword(forgotEmail)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        const serverMsg =
+          res.data && typeof res.data === 'object' && typeof res.data.message === 'string'
+            ? res.data.message.trim()
+            : ''
+        toast.success(
+          serverMsg ||
+            'If that email is registered, check your inbox for a 4-digit code. Enter it on the next step.',
+        )
+        setForgotStep('verify')
+        setForgotOtp('')
+        setForgotNewPassword('')
+        setForgotConfirmPassword('')
+        setForgotErrors({})
+      } finally {
+        setForgotSending(false)
+      }
+      return
+    }
+
+    if (forgotStep === 'verify') {
+      const eOtp = required(forgotOtp, 'Code')
+      const eOtpFmt =
+        !eOtp && !/^\d{4}$/.test(forgotOtp.trim()) ? 'Enter the 4-digit code from your email' : ''
+      const next = { otp: eOtp || eOtpFmt }
+      setForgotErrors(next)
+      if (next.otp) return
+
+      setForgotSending(true)
+      try {
+        const res = await verifyForgotPasswordOtp(forgotEmail, forgotOtp.trim())
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success('Code verified. Choose a new password.')
+        setForgotStep('reset')
+        setForgotNewPassword('')
+        setForgotConfirmPassword('')
+        setForgotErrors({})
+      } finally {
+        setForgotSending(false)
+      }
+      return
+    }
+
+    const ePass = required(forgotNewPassword, 'New password') || minLength(forgotNewPassword, 6, 'New password')
+    const eConfirm =
+      required(forgotConfirmPassword, 'Confirm password') ||
+      (forgotNewPassword !== forgotConfirmPassword ? 'Passwords do not match' : '')
+    const next = { newPassword: ePass, confirmPassword: eConfirm }
+    setForgotErrors(next)
+    if (next.newPassword || next.confirmPassword) return
+
+    setForgotSending(true)
+    try {
+      const res = await resetForgottenPassword(forgotEmail, forgotNewPassword)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Password updated. Sign in with your new password.')
+      closeForgotModal()
+    } finally {
+      setForgotSending(false)
+    }
+  }
 
   if (ready && isAuthenticated) {
     return <Navigate to={from} replace />
@@ -86,6 +226,15 @@ export default function LoginPage() {
           {errors.password ? (
             <p className="mt-1.5 text-xs font-medium text-red-600">{errors.password}</p>
           ) : null}
+          <p className="mt-1.5 text-right text-sm text-slate-600">
+            <button
+              type="button"
+              className="font-semibold text-indigo-600 hover:text-indigo-500 focus:outline-none focus-visible:underline"
+              onClick={openForgotModal}
+            >
+              Forgot password?
+            </button>
+          </p>
         </div>
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
@@ -94,6 +243,148 @@ export default function LoginPage() {
       <div className="mt-8 flex justify-center pb-1" aria-hidden="true">
         <div className="h-1 w-24 rounded-full bg-gradient-to-r from-indigo-200 via-violet-500 to-indigo-200 shadow-sm shadow-violet-500/20" />
       </div>
+
+      <Modal
+        open={forgotOpen}
+        title={
+          forgotStep === 'email' ? 'Forgot password' : forgotStep === 'verify' ? 'Enter code' : 'New password'
+        }
+        onClose={closeForgotModal}
+        size="sm"
+        footer={
+          <>
+            {forgotStep !== 'email' ? (
+              <Button type="button" variant="secondary" onClick={goBackForgotStep}>
+                Back
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={closeForgotModal}>
+              Cancel
+            </Button>
+            <Button type="submit" form="forgot-password-form" disabled={forgotSending}>
+              {forgotStep === 'email'
+                ? forgotSending
+                  ? 'Sending…'
+                  : 'Send code'
+                : forgotStep === 'verify'
+                  ? forgotSending
+                    ? 'Checking…'
+                    : 'Verify code'
+                  : forgotSending
+                    ? 'Saving…'
+                    : 'Set new password'}
+            </Button>
+          </>
+        }
+      >
+        <form id="forgot-password-form" className="space-y-4" onSubmit={onForgotSubmit} noValidate>
+          {forgotStep === 'email' ? (
+            <>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Enter your account email. If it is valid, we will send a 4-digit code to that inbox (same message
+                whether or not the account exists).
+              </p>
+              <div>
+                <Label htmlFor="forgot-email">Email</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  autoComplete="email"
+                  className="mt-1.5"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  error={forgotErrors.email}
+                />
+                {forgotErrors.email ? (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">{forgotErrors.email}</p>
+                ) : null}
+              </div>
+            </>
+          ) : forgotStep === 'verify' ? (
+            <>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Enter the 4-digit code from your email. After it is verified, you will set a new password.
+              </p>
+              <div>
+                <Label htmlFor="forgot-email-readonly">Email</Label>
+                <Input
+                  id="forgot-email-readonly"
+                  type="email"
+                  className="mt-1.5 bg-slate-50 text-slate-600"
+                  value={forgotEmail}
+                  readOnly
+                  disabled={forgotSending}
+                />
+              </div>
+              <div>
+                <Label htmlFor="forgot-otp">4-digit code</Label>
+                <Input
+                  id="forgot-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={4}
+                  placeholder="0000"
+                  className="mt-1.5 font-mono tracking-widest"
+                  value={forgotOtp}
+                  onChange={onForgotOtpInput}
+                  error={forgotErrors.otp}
+                />
+                {forgotErrors.otp ? (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">{forgotErrors.otp}</p>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Choose a new password (at least 6 characters), then sign in with it.
+              </p>
+              <div>
+                <Label htmlFor="forgot-email-readonly-reset">Email</Label>
+                <Input
+                  id="forgot-email-readonly-reset"
+                  type="email"
+                  className="mt-1.5 bg-slate-50 text-slate-600"
+                  value={forgotEmail}
+                  readOnly
+                  disabled={forgotSending}
+                />
+              </div>
+              <div>
+                <Label htmlFor="forgot-new-password">New password</Label>
+                <Input
+                  id="forgot-new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  className="mt-1.5"
+                  value={forgotNewPassword}
+                  onChange={(e) => setForgotNewPassword(e.target.value)}
+                  error={forgotErrors.newPassword}
+                />
+                {forgotErrors.newPassword ? (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">{forgotErrors.newPassword}</p>
+                ) : null}
+              </div>
+              <div>
+                <Label htmlFor="forgot-confirm-password">Confirm new password</Label>
+                <Input
+                  id="forgot-confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  className="mt-1.5"
+                  value={forgotConfirmPassword}
+                  onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                  error={forgotErrors.confirmPassword}
+                />
+                {forgotErrors.confirmPassword ? (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">{forgotErrors.confirmPassword}</p>
+                ) : null}
+              </div>
+            </>
+          )}
+        </form>
+      </Modal>
     </Card>
   )
 }

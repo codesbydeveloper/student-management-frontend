@@ -36,11 +36,13 @@ export function mapApiDriverToRow(raw) {
   const r = nested || raw
   const id = r.id ?? r.userId ?? r.driverId ?? raw.id ?? raw.userId
   const assigned =
+    r.plate ??
+    r.busPlate ??
     r.assignedBus ??
     r.assigned_bus ??
     r.busId ??
     r.bus_id ??
-    (r.bus && typeof r.bus === 'object' ? r.bus.number ?? r.bus.id : null) ??
+    (r.bus && typeof r.bus === 'object' ? r.bus.plate ?? r.bus.number ?? r.bus.id : null) ??
     ''
   const assignedStr = String(assigned ?? '').trim()
   return {
@@ -94,12 +96,30 @@ function extractPickerDriversList(data) {
   if (Array.isArray(data.data)) return data.data
   if (Array.isArray(data.results)) return data.results
   if (Array.isArray(data.picker)) return data.picker
+  if (Array.isArray(data.items)) return data.items
+  if (
+    data.data &&
+    typeof data.data === 'object' &&
+    !Array.isArray(data.data) &&
+    Array.isArray(data.data.drivers)
+  ) {
+    return data.data.drivers
+  }
+  if (
+    data.data &&
+    typeof data.data === 'object' &&
+    !Array.isArray(data.data) &&
+    Array.isArray(data.data.picker)
+  ) {
+    return data.data.picker
+  }
   return []
 }
 
 /**
- * Vehicle id exactly as returned by GET /api/drivers/picker (assignedBus, vehicleId, etc.).
- * @returns {{ userId: string, vehicleId: string, fullName: string } | null}
+ * One row from GET /api/drivers/picker. `vehicleId` may be empty when the driver has no bus assigned yet
+ * (still valid for Create bus → driverUserId).
+ * @returns {{ userId: string, vehicleId: string, fullName: string, busId: string } | null}
  */
 export function mapPickerDriverRow(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -117,16 +137,17 @@ export function mapPickerDriverRow(raw) {
   ).trim()
   if (!userId) return null
   const vehicleId = String(
-    raw.vehicleId ??
+    raw.plate ??
+      raw.busPlate ??
+      raw.vehicleId ??
       raw.vehicle_id ??
       raw.assignedBus ??
       raw.assigned_bus ??
       raw.busId ??
       raw.bus_id ??
-      (raw.bus && (raw.bus.id ?? raw.bus.number)) ??
+      (raw.bus && (raw.bus.plate ?? raw.bus.number ?? raw.bus.id)) ??
       '',
   ).trim()
-  if (!vehicleId) return null
   const fullName = String(raw.driverName ?? raw.fullName ?? raw.name ?? 'Driver').trim()
   return { userId, vehicleId, fullName, busId: vehicleId }
 }
@@ -162,6 +183,7 @@ export async function fetchDriversPicker(token) {
 
 /**
  * POST /api/drivers/location — driver live GPS ping (Bearer). Body matches backend contract (no driver id in body; JWT identifies driver).
+ * **`body.busId`** should be the same registration string stored in **`buses.plate`** (and in `driver_profiles.assigned_bus` / `bus_parents.bus_label`), not a separate display label — the server joins parents/drivers into `bus-<numericId>` only when that string resolves to one row.
  * @param {string} token
  * @param {{ lat: number, lng: number, speed: number | null, busId: string, ts: number, isRunning?: boolean }} body
  */
@@ -216,16 +238,46 @@ function formatMyRouteError(data, status) {
   return `Could not load your route (${status})`
 }
 
+/**
+ * Vehicle string for live GPS (`busId` in POST / emit). Backend resolves Socket rooms via
+ * **exact** `buses.plate` match — prefer plate / bus_label shapes over demo ids like `bus-1`.
+ */
 function vehicleIdFromMyRoutePayload(o) {
   if (!o || typeof o !== 'object') return ''
-  return String(
-    o.assignedBus ??
-      o.vehicleId ??
-      o.vehicle_id ??
-      o.busId ??
-      (o.bus && typeof o.bus === 'object' ? o.bus.id ?? o.bus.number : null) ??
-      '',
-  ).trim()
+  const bus = o.bus && typeof o.bus === 'object' ? o.bus : null
+  const vehicle = o.vehicle && typeof o.vehicle === 'object' ? o.vehicle : null
+  const driver = o.driver && typeof o.driver === 'object' ? o.driver : null
+  const candidates = [
+    o.plate,
+    o.busPlate,
+    o.vehiclePlate,
+    o.registration,
+    o.registrationNumber,
+    bus?.plate,
+    vehicle?.plate,
+    o.bus_label,
+    o.busLabel,
+    o.assignedBus,
+    o.assigned_bus,
+    o.vehicleId,
+    o.vehicle_id,
+    o.busId,
+    o.bus_id,
+    driver?.assignedBus,
+    driver?.assigned_bus,
+    driver?.vehicleId,
+    driver?.vehicle_id,
+    bus?.number,
+    vehicle?.number,
+    bus?.id,
+    vehicle?.id,
+  ]
+  for (const c of candidates) {
+    if (c == null || c === '') continue
+    const s = String(c).trim()
+    if (s) return s
+  }
+  return ''
 }
 
 /**

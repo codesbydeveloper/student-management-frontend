@@ -8,8 +8,9 @@ import { Button } from '../components/ui/Button'
 import { LiveTripMap } from '../components/transport/LiveTripMap'
 import { getDriverBusIdForUser } from '../modules/transport/transportAssignmentStore'
 import { useTransportAssignmentRevision } from '../modules/transport/useTransportAssignmentRevision'
-import { startLiveTrip, stopTrip } from '../modules/transport/transportMockStore'
+import { startLiveTrip, stopTrip, loadTrips, saveTrips } from '../modules/transport/transportMockStore'
 import { isSocketTransportEnabled } from '../modules/transport/transportSocketConfig'
+import { isDemoTransportBusKey } from '../modules/transport/transportMapConstants'
 import { useDriverIdleMapGeolocation } from '../modules/transport/useDriverIdleMapGeolocation'
 import { useDriverLiveTracking } from '../modules/transport/useDriverLiveTracking'
 import { useTransportTrips } from '../modules/transport/useTransportTrips'
@@ -20,7 +21,7 @@ export default function DriverTransportPage() {
   const trips = useTransportTrips()
   const assignRev = useTransportAssignmentRevision()
 
-  const busId = useMemo(() => getDriverBusIdForUser(user), [user, assignRev])
+  const localBusId = useMemo(() => getDriverBusIdForUser(user), [user, assignRev])
 
   const [myRouteRows, setMyRouteRows] = useState([])
   const [myRouteAssignedBus, setMyRouteAssignedBus] = useState('')
@@ -56,15 +57,44 @@ export default function DriverTransportPage() {
     }
   }, [token, user?.role])
 
-  const vehicleLabel = myRouteAssignedBus || busId || ''
-  const trip = trips[busId] && trips[busId].active ? trips[busId] : null
   const driverId = user?.id != null ? String(user.id) : ''
+
+  const apiAssignedBus = String(myRouteAssignedBus ?? '').trim()
+  const liveBusId = apiAssignedBus || localBusId
+
+  /** If my-route loads after a trip started on the mock id, move the active trip to the real vehicle key so GPS uses the same busId the server resolves to `buses.plate`. */
+  useEffect(() => {
+    if (myRouteLoading) return
+    if (!driverId) return
+    const all = loadTrips()
+    let changed = false
+    for (const key of Object.keys(all)) {
+      const t = all[key]
+      if (!t?.active || String(t.driverUserId) !== String(driverId)) continue
+      if (key !== liveBusId) {
+        delete all[key]
+        all[liveBusId] = { ...t, busId: liveBusId }
+        changed = true
+      }
+    }
+    if (changed) saveTrips(all)
+  }, [myRouteLoading, liveBusId, driverId])
+
+  const vehicleLabel = liveBusId || ''
+  const trip = trips[liveBusId] && trips[liveBusId].active ? trips[liveBusId] : null
+
+  const plateContractIssue = useMemo(() => {
+    if (!token || myRouteLoading || myRouteError) return null
+    if (!apiAssignedBus && isDemoTransportBusKey(localBusId)) return 'fallback-demo'
+    if (apiAssignedBus && isDemoTransportBusKey(apiAssignedBus)) return 'api-demo-plate'
+    return null
+  }, [token, myRouteLoading, myRouteError, apiAssignedBus, localBusId])
 
   const socketMode = isSocketTransportEnabled()
   const gpsTripActive = Boolean(trip?.active)
 
   const { livePosition, socketConnected, geoError } = useDriverLiveTracking({
-    busId,
+    busId: liveBusId,
     driverUserId: driverId,
     tripActive: gpsTripActive,
     token,
@@ -83,7 +113,15 @@ export default function DriverTransportPage() {
   }, [gpsTripActive, livePosition, idleMapPosition])
 
   const onStart = useCallback(() => {
-    const res = startLiveTrip(busId, driverId)
+    if (plateContractIssue) {
+      toast.error(
+        plateContractIssue === 'api-demo-plate'
+          ? 'Your school returned a demo vehicle id (e.g. bus-1) instead of the real registration plate. Parents join live rooms using the exact plate in buses.plate — update driver_profiles.assigned_bus / my-route to that plate.'
+          : 'No vehicle from GET /api/drivers/my-route while this browser is still on a demo bus id. Parents and the server match live GPS using the exact plate in buses.plate — fix the driver assignment first, then refresh.',
+      )
+      return
+    }
+    const res = startLiveTrip(liveBusId, driverId)
     if (!res.ok) {
       toast.error(res.error)
       return
@@ -95,16 +133,16 @@ export default function DriverTransportPage() {
         ? 'Trip started. Map follows your real GPS. Parents get bus:location over Socket.IO once your device returns a position.'
         : 'Trip started. Map follows your real GPS. Set VITE_API_URL so Socket.IO matches your backend.',
     )
-  }, [busId, driverId, socketMode])
+  }, [liveBusId, driverId, socketMode, plateContractIssue])
 
   const onStop = useCallback(() => {
-    const res = stopTrip(busId, driverId)
+    const res = stopTrip(liveBusId, driverId)
     if (!res.ok) {
       toast.error(res.error)
       return
     }
     toast.success('Trip ended.')
-  }, [busId, driverId])
+  }, [liveBusId, driverId])
 
   return (
     <div className="space-y-6">
@@ -121,7 +159,7 @@ export default function DriverTransportPage() {
           title="My trip"
           subtitle={
             socketMode
-              ? 'While moving, GPS is sent with emit(bus:location) when the socket is connected, otherwise POST /api/drivers/location (same body). End trip sends isRunning false the same way. Parents receive bus:location from the server. Socket host = VITE_API_URL unless VITE_SOCKET_TRANSPORT_URL is set. OpenStreetMap + Leaflet. Trip auto-ends after ~90s with no GPS updates if you leave this screen.'
+              ? 'While moving, GPS is sent with emit(bus:location) or POST /api/drivers/location using busId = the vehicle registration string that matches buses.plate on the server (same value as driver_profiles.assigned_bus / bus_parents.bus_label). Socket rooms are bus-<numericId> from that plate — demo ids like bus-1 will not reach parents. OpenStreetMap + Leaflet. Trip auto-ends after ~90s with no GPS updates if you leave this screen.'
               : 'Start trip sends POST /api/drivers/location with isRunning true (then ~every 15s). End trip sends one final POST with isRunning false. OpenStreetMap + Leaflet.'
           }
         />
@@ -130,10 +168,26 @@ export default function DriverTransportPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assigned vehicle</p>
             <p className="mt-1 text-lg font-bold text-slate-900">{vehicleLabel || '—'}</p>
             {myRouteAssignedBus ? (
-              <p className="mt-1 text-xs text-slate-500">Vehicle id from GET /api/drivers/my-route</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Vehicle string from GET /api/drivers/my-route (should match buses.plate for live parents)
+              </p>
             ) : null}
           </div>
 
+          {plateContractIssue ? (
+            <div
+              className="rounded-2xl border border-amber-300/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-950"
+              role="status"
+            >
+              <p className="font-semibold">Live parents need the real number plate</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                The server puts parents in Socket.IO room <span className="font-mono">bus-&lt;id&gt;</span> only
+                when it can match the same plate string in <span className="font-mono">buses.plate</span>. If the
+                driver GPS uses a different label (for example <span className="font-mono">bus-1</span> or a nickname),
+                parents will see no live map even though you are connected.
+              </p>
+            </div>
+          ) : null}
           <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/35 px-4 py-4 sm:px-5">
             <h3 className="text-sm font-bold text-slate-900">Families on your route</h3>
             <p className="mt-1 text-xs text-slate-600">
@@ -191,7 +245,7 @@ export default function DriverTransportPage() {
 
           <div className="flex flex-wrap gap-2">
             {!trip?.active ? (
-              <Button type="button" onClick={onStart}>
+              <Button type="button" onClick={onStart} disabled={Boolean(plateContractIssue)}>
                 Start trip
               </Button>
             ) : (

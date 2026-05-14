@@ -8,7 +8,7 @@ import {
 
 /**
  * @typedef {{ lat: number, lng: number, speed?: number | null, ts: number, receivedAt: number, hydrated?: boolean }} ParentSocketPoint
- * @typedef {{ busNumericId?: number | null }} ParentBusLiveMapOptions
+ * @typedef {{ busNumericId?: number | null, reconnectNonce?: number }} ParentBusLiveMapOptions
  * @typedef {{ room: string | null, busId: number | string | null, role?: string } | null} ParentJoinedInfo
  */
 
@@ -137,7 +137,7 @@ function writePersistedLastLocation(busId, point) {
  * @param {ParentBusLiveMapOptions} [options]
  */
 export function useParentBusLiveMap(busId, token, options = {}) {
-  const { busNumericId: optionBusNumericId = null } = options
+  const { busNumericId: optionBusNumericId = null, reconnectNonce = 0 } = options
   const optionNumericId = toPositiveNumber(optionBusNumericId)
 
   const [socketPoint, setSocketPoint] = useState(() => readPersistedLastLocation(busId))
@@ -293,7 +293,7 @@ export function useParentBusLiveMap(busId, token, options = {}) {
       setJoinedInfo(null)
       setConnError(null)
     }
-  }, [busId, socketUrl, token])
+  }, [busId, socketUrl, token, reconnectNonce])
 
   /** `null` when no real location has ever been received for this bus. */
   const position = useMemo(() => {

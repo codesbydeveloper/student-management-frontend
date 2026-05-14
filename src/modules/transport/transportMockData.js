@@ -10,6 +10,8 @@
  * use the arrays here until you load polylines from your backend per `busId`.
  */
 
+import { findCustomBusById, loadCustomBuses } from './busRegistryStore'
+
 /** Shown to parents for the assigned bus (demo — backend will join driver user later). */
 export const MOCK_DRIVER_INFO_BY_BUS = {
   'bus-1': {
@@ -96,7 +98,25 @@ export function getDefaultMapCenter() {
 }
 
 export function getMockBus(busId) {
-  return MOCK_BUSES[busId] || null
+  if (MOCK_BUSES[busId]) return MOCK_BUSES[busId]
+  const custom = findCustomBusById(busId)
+  if (!custom) return null
+  return { id: custom.id, number: custom.number, routeName: custom.routeName }
+}
+
+/**
+ * Built-in demo buses + admin-created buses (localStorage) for dropdowns.
+ * @returns {{ id: string, number: string, routeName: string, isCustom?: boolean }[]}
+ */
+export function getAllBusSelectOptions() {
+  const base = Object.values(MOCK_BUSES).map((b) => ({ ...b, isCustom: false }))
+  const extra = loadCustomBuses().map((b) => ({
+    id: b.id,
+    number: b.number,
+    routeName: b.routeName,
+    isCustom: true,
+  }))
+  return [...base, ...extra]
 }
 
 export function getRouteCenter(busId) {

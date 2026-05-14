@@ -73,7 +73,8 @@ export function DashboardLayout() {
                 item.to === '/parent/ptm/request' ||
                 item.to === '/parent/ptm/history' ||
                 item.to === '/driver-transport' ||
-                item.to === '/transport-assignments' ||
+                item.to === '/transport/buses' ||
+                item.to === '/transport/assign-bus' ||
                 item.to === '/drivers' ||
                 item.to === '/visitor-logs' ||
                 item.to === '/leads' ||

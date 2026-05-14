@@ -860,13 +860,20 @@ function mapParentMyDriverRow(block) {
   const driverUserId = String(
     d?.id ?? d?.userId ?? block.driverId ?? block.driverUserId ?? block.driver_id ?? '',
   ).trim()
+  const bus = block.bus && typeof block.bus === 'object' ? block.bus : null
   const assignedBus = String(
-    block.assignedBus ??
+    block.plate ??
+      block.busPlate ??
+      block.bus_label ??
+      block.busLabel ??
+      block.assignedBus ??
       block.vehicleId ??
       block.vehicle_id ??
       block.busId ??
       block.bus_id ??
-      (d && (d.assignedBus ?? d.vehicleId)) ??
+      bus?.plate ??
+      bus?.number ??
+      (d && (d.plate ?? d.assignedBus ?? d.assigned_bus ?? d.vehicleId ?? d.vehicle_id)) ??
       '',
   ).trim()
   const phone = String(d?.phone ?? block.phone ?? '').trim()

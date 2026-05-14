@@ -18,10 +18,9 @@ import {
   clearParentBusOverride,
   clearDriverBusOverride,
 } from '../modules/transport/transportAssignmentStore'
-import { MOCK_BUSES, STATIC_DRIVER_BUS_BY_USER_ID, STATIC_PARENT_BUS_BY_USER_ID } from '../modules/transport/transportMockData'
+import { STATIC_DRIVER_BUS_BY_USER_ID, STATIC_PARENT_BUS_BY_USER_ID, getAllBusSelectOptions } from '../modules/transport/transportMockData'
+import { useBusRegistryRevision } from '../modules/transport/busRegistryStore'
 import { useTransportAssignmentRevision } from '../modules/transport/useTransportAssignmentRevision'
-
-const BUS_OPTIONS = Object.values(MOCK_BUSES)
 
 const SUGGESTED_PARENT_LOGINS = [{ id: '7', label: 'Demo parent (users.id 7)' }]
 const SUGGESTED_DRIVER_LOGINS = [{ id: '41', label: 'Demo driver (users.id 41)' }]
@@ -42,6 +41,8 @@ function parseBulkUserIds(text) {
 export default function TransportAssignmentsPage() {
   const { token } = useAuth()
   const revision = useTransportAssignmentRevision()
+  const busRegistryRev = useBusRegistryRevision()
+  const allBusOptions = useMemo(() => getAllBusSelectOptions(), [revision, busRegistryRev])
 
   const [routeBusId, setRouteBusId] = useState('bus-1')
   const [routeDriverUserId, setRouteDriverUserId] = useState(SUGGESTED_DRIVER_LOGINS[0].id)
@@ -342,7 +343,7 @@ export default function TransportAssignmentsPage() {
                     onChange={(e) => setRouteBusId(e.target.value)}
                     className="mt-1.5"
                   >
-                    {BUS_OPTIONS.map((b) => (
+                    {allBusOptions.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.id} — {b.number} — {b.routeName}
                       </option>

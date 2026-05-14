@@ -10,14 +10,18 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Label } from '../../components/ui/Label'
+import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { canManageDrivers } from '../../utils/permissions'
 import { email, minLength, required } from '../../utils/validators'
 import { createDriver, deleteDriver, fetchDriversList, updateDriver } from '../../api/driversApi'
+import { fetchBuses } from '../../api/busesApi'
 
 const SEARCH_KEYS = ['fullName', 'email', 'phone', 'licenseNumber']
 const DRIVER_LIST_PAGE = 1
 const DRIVER_LIST_LIMIT = 50
+const ASSIGNED_BUS_PICKER_PAGE = 1
+const ASSIGNED_BUS_PICKER_LIMIT = 20
 
 const emptyForm = () => ({
   fullName: '',
@@ -74,6 +78,42 @@ export function DriversModule() {
   const [togglingActiveId, setTogglingActiveId] = useState(null)
   /** Row id while DELETE /api/drivers/:id is in flight. */
   const [deletingDriverId, setDeletingDriverId] = useState(null)
+
+  const [pickerBuses, setPickerBuses] = useState([])
+  const [busesLoading, setBusesLoading] = useState(false)
+
+  useEffect(() => {
+    if (!modalOpen) return
+    if (!token) {
+      setPickerBuses([])
+      setBusesLoading(false)
+      return
+    }
+    let cancelled = false
+    setBusesLoading(true)
+    setPickerBuses([])
+    void (async () => {
+      const res = await fetchBuses(token, {
+        page: ASSIGNED_BUS_PICKER_PAGE,
+        limit: ASSIGNED_BUS_PICKER_LIMIT,
+      })
+      if (cancelled) return
+      setBusesLoading(false)
+      if (res.ok) {
+        setPickerBuses(res.buses)
+      } else {
+        setPickerBuses([])
+        toast.error(res.error || 'Could not load buses.')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [modalOpen, token])
+
+  const busIdVal = String(form.busId ?? '').trim()
+  const busInPickerList = busIdVal !== '' && pickerBuses.some((b) => String(b.id) === busIdVal)
+  const showUnlistedBusOption = busIdVal !== '' && !busInPickerList
 
   const openCreate = useCallback(() => {
     setEditing(null)
@@ -521,18 +561,44 @@ export function DriversModule() {
           </div>
           <div>
             <Label htmlFor="drv-bus">Assigned bus</Label>
-            <Input
-              id="drv-bus"
-              value={form.busId}
-              onChange={(e) => setForm((f) => ({ ...f, busId: e.target.value }))}
-              placeholder="e.g. MH-12-AB-1234, bus-1, or your API bus id"
-              className="mt-1.5"
-              autoComplete="off"
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Free text: vehicle plate, route label, or backend <span className="font-mono">bus_id</span>. Leave empty if
-              not assigned.
-            </p>
+            {token ? (
+              <>
+                <Select
+                  id="drv-bus"
+                  value={busIdVal}
+                  onChange={(e) => setForm((f) => ({ ...f, busId: e.target.value }))}
+                  disabled={busesLoading}
+                  className="mt-1.5"
+                >
+                  <option value="">{busesLoading ? 'Loading buses…' : 'No bus assigned'}</option>
+                  {pickerBuses.map((b) => (
+                    <option key={b.id} value={String(b.id)}>
+                      {b.name} — {b.plate}
+                    </option>
+                  ))}
+                  {showUnlistedBusOption ? (
+                    <option value={busIdVal}>
+                      Current assignment ({displayAssignedBus({ busId: form.busId, assignedBus: form.busId })})
+                    </option>
+                  ) : null}
+                </Select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Each row shows the bus name and number plate. Leave unassigned if you do not need a bus yet.
+                </p>
+              </>
+            ) : (
+              <>
+                <Input
+                  id="drv-bus"
+                  value={form.busId}
+                  onChange={(e) => setForm((f) => ({ ...f, busId: e.target.value }))}
+                  placeholder="Bus id or plate (sign in to pick from list)"
+                  className="mt-1.5"
+                  autoComplete="off"
+                />
+                <p className="mt-1 text-xs text-slate-500">Sign in to choose a bus from the directory.</p>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <input

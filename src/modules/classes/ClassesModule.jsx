@@ -134,7 +134,6 @@ export function ClassesModule() {
   }, [token, classPage, loadClassesPage])
 
   const [modalOpen, setModalOpen] = useState(false)
-  const [rosterClass, setRosterClass] = useState(null)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({
     name: '',
@@ -264,11 +263,10 @@ export function ClassesModule() {
             .join(', ') || ''
         return {
           ...c,
-          _studentCount: students.filter((s) => s.classId === c.id).length,
           _teacherLabel: fromApi || fromContext || '—',
         }
       }),
-    [baseClasses, students, teacherNameById],
+    [baseClasses, teacherNameById],
   )
 
   const exportTotalPages = useMemo(() => {
@@ -567,8 +565,6 @@ export function ClassesModule() {
     setModalOpen(true)
   }
 
-  const rosterFor = (classId) => students.filter((s) => s.classId === classId)
-
   const save = async () => {
     const e1 = required(form.name, 'Class name')
     const e2 = required(form.gradeLevel, 'Grade level')
@@ -711,20 +707,12 @@ export function ClassesModule() {
       render: (row) => <span className="text-slate-600">{row._teacherLabel}</span>,
     },
     {
-      key: '_studentCount',
-      header: 'Students',
-      render: (row) => <span className="font-medium text-slate-800">{row._studentCount}</span>,
-    },
-    {
       key: 'actions',
       header: '',
       thClassName: 'text-right',
       tdClassName: 'text-right',
       render: (row) => (
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={() => setRosterClass(row)}>
-            Roster
-          </Button>
           {manage ? (
             <Button type="button" size="sm" variant="secondary" onClick={() => void openEdit(row)}>
               Edit
@@ -761,7 +749,7 @@ export function ClassesModule() {
       <Card>
         <CardHeader
           title="Classes"
-          subtitle="Organize cohorts, assign educators, and review rosters."
+          subtitle="Organize cohorts, assign educators, and manage assignments."
           action={
             manage ? (
               <div className="flex flex-wrap gap-2">
@@ -975,32 +963,6 @@ export function ClassesModule() {
             </div>
           ) : null}
         </div>
-      </Modal>
-
-      <Modal
-        open={Boolean(rosterClass)}
-        title={rosterClass ? `Students — ${rosterClass.name}` : 'Roster'}
-        onClose={() => setRosterClass(null)}
-        footer={
-          <Button type="button" variant="secondary" onClick={() => setRosterClass(null)}>
-            Close
-          </Button>
-        }
-      >
-        {rosterClass ? (
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-            {rosterFor(rosterClass.id).length === 0 ? (
-              <li className="px-4 py-6 text-sm text-slate-500">No students assigned to this class.</li>
-            ) : (
-              rosterFor(rosterClass.id).map((s) => (
-                <li key={s.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span className="font-medium text-slate-900">{s.fullName}</span>
-                  <span className="text-slate-500">{s.email}</span>
-                </li>
-              ))
-            )}
-          </ul>
-        ) : null}
       </Modal>
 
       <Modal

@@ -52,7 +52,7 @@ export default function DashboardHomePage() {
     { to: '/students', label: 'Students', key: 'students' },
     { to: '/classes', label: 'Classes', key: 'classes' },
     { to: '/parents', label: 'Parents', key: 'parents' },
-    { to: '/transport-assignments', label: 'Transport', key: 'transport_assignments' },
+    { to: '/transport/buses', label: 'Create buses', key: 'admin_create_buses' },
     { to: '/parent/ptm/request', label: 'PTM request', key: 'parent_ptm_request' },
     { to: '/parent/ptm/history', label: 'PTM history', key: 'parent_ptm_history' },
     { to: '/ptm-requests', label: 'PTM requests', key: 'teacher_ptm_requests' },
