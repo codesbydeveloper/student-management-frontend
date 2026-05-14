@@ -23,7 +23,8 @@ export const LOGIN_ROLE_OPTIONS = [
   ROLES.PRINCIPAL,
 ]
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+/** Live backend; override for local dev with `VITE_API_URL` in `.env` / `.env.local` (no trailing slash). */
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://sms.raomtech.com').replace(/\/$/, '')
 
 export const STORAGE_KEYS = {
   TOKEN: 'token',
