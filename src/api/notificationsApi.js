@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../utils/constants'
+import { API_BASE_URL, ROLES } from '../utils/constants'
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_STATUSES,
@@ -115,6 +115,387 @@ export async function postTeacherNotification(token, body) {
         error: formatMutationError(data, res.status),
         useClient,
       }
+    }
+    return { ok: true, data: data && typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}
+
+/** Admin `{ name }`, principal `{ categoryName }` — same shape as POST/PATCH bodies. */
+function buildNoticeCategoryMutationBody(role, label) {
+  const trimmed = String(label || '').trim()
+  if (!trimmed) return null
+  if (role === ROLES.PRINCIPAL) return { categoryName: trimmed }
+  if (role === ROLES.ADMIN) return { name: trimmed }
+  return null
+}
+
+/**
+ * POST /api/notifications/notice-categories — Bearer JSON.
+ * Admin: `{ name }` (administrative). Principal: `{ categoryName }` (academic).
+ * @param {string} token
+ * @param {string} label — display name for the category
+ * @param {string} role — `ROLES.ADMIN` | `ROLES.PRINCIPAL`
+ * @returns {Promise<{ ok: true, data: object | null } | { ok: false, error: string, useClient?: boolean }>}
+ */
+export async function postNoticeCategory(token, label, role) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  const trimmed = String(label || '').trim()
+  if (!trimmed) {
+    return { ok: false, error: 'Enter a category name.' }
+  }
+  const body = buildNoticeCategoryMutationBody(role, trimmed)
+  if (!body) {
+    return { ok: false, error: 'Only admin or principal can create notice categories.' }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/notice-categories`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    return { ok: true, data: data && typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}
+
+/**
+ * POST /api/notifications/create — multipart (same field names as curl: title, message, category,
+ * optional subCategoryId, targetType, targetClassIds / targetStudentIds / targetSections as JSON strings,
+ * optional videoUrls, externalLinks, banner_image file).
+ * @param {string} token
+ * @param {{
+ *   title: string,
+ *   message: string,
+ *   category: string,
+ *   targetType: string,
+ *   targetIds: (string|number)[],
+ *   subCategoryId?: string,
+ *   videoUrlsText?: string,
+ *   externalLinksText?: string,
+ *   bannerFile?: File | null,
+ * }} fields
+ * @returns {Promise<{ ok: true, data: object | null } | { ok: false, error: string, useClient?: boolean }>}
+ */
+export async function postNotificationCreate(token, fields) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  const core = buildTeacherNotificationBody({
+    title: fields.title,
+    message: fields.message,
+    category: fields.category,
+    targetType: fields.targetType,
+    targetIds: fields.targetIds,
+  })
+  const form = new FormData()
+  form.append('title', core.title)
+  form.append('message', core.message)
+  form.append('category', String(core.category || '').trim())
+  form.append('targetType', String(core.targetType || '').trim())
+
+  const sub = String(fields.subCategoryId ?? '').trim()
+  if (sub) {
+    form.append('subCategoryId', sub)
+  }
+
+  if (core.targetClassIds && core.targetClassIds.length) {
+    form.append('targetClassIds', JSON.stringify(core.targetClassIds))
+  }
+  if (core.targetStudentIds && core.targetStudentIds.length) {
+    form.append('targetStudentIds', JSON.stringify(core.targetStudentIds))
+  }
+  if (core.targetSections && core.targetSections.length) {
+    form.append('targetSections', JSON.stringify(core.targetSections))
+  }
+
+  const videoLines = String(fields.videoUrlsText || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (videoLines.length) {
+    form.append('videoUrls', videoLines.join('\n'))
+  }
+
+  const linkLines = String(fields.externalLinksText || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (linkLines.length) {
+    form.append('externalLinks', linkLines.join('\n'))
+  }
+
+  if (fields.bannerFile instanceof File) {
+    form.append('banner_image', fields.bannerFile, fields.bannerFile.name)
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/create`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    if (res.status === 204 || data == null) {
+      return { ok: true, data: null }
+    }
+    return { ok: true, data: typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}
+
+const NOTICE_CATEGORIES_DEFAULT_LIMIT = 10
+
+function extractNoticeCategoryList(data) {
+  if (Array.isArray(data)) return data
+  if (!data || typeof data !== 'object') return []
+  const inner = data.data
+  if (Array.isArray(inner)) return inner
+  if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+    for (const key of ['categories', 'noticeCategories', 'items', 'results']) {
+      if (Array.isArray(inner[key])) return inner[key]
+    }
+  }
+  for (const key of ['categories', 'noticeCategories', 'items', 'results', 'data']) {
+    if (Array.isArray(data[key])) return data[key]
+  }
+  return []
+}
+
+function mapNoticeCategoryRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id ?? raw._id ?? raw.uuid
+  const displayName = String(
+    raw.name ?? raw.categoryName ?? raw.title ?? raw.label ?? '',
+  ).trim()
+  if (!displayName && id == null) return null
+  return {
+    id: id != null ? String(id) : displayName,
+    displayName: displayName || `ID ${id}`,
+  }
+}
+
+/**
+ * GET /api/notifications/notice-categories?page=&limit= — Bearer (admin / principal lists from server).
+ * @returns {Promise<
+ *   | { ok: true, categories: { id: string, displayName: string }[], total: number, page: number, limit: number, hasNext: boolean }
+ *   | { ok: false, error: string, useClient?: boolean, categories: [], total: 0 }
+ * >}
+ */
+export async function fetchNoticeCategories(token, { page = 1, limit = NOTICE_CATEGORIES_DEFAULT_LIMIT } = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true, categories: [], total: 0 }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || NOTICE_CATEGORIES_DEFAULT_LIMIT))
+  const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/notice-categories?${params}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        useClient,
+        categories: [],
+        total: 0,
+      }
+    }
+    const list = extractNoticeCategoryList(data)
+    const categories = list.map(mapNoticeCategoryRow).filter(Boolean)
+    const envelope =
+      data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? { ...data, ...data.data }
+        : data
+    const total = extractPagedTotal(envelope, categories.length)
+    const explicitNext = envelope?.hasNextPage ?? envelope?.hasNext ?? envelope?.meta?.hasNextPage
+    let hasNext = typeof explicitNext === 'boolean' ? explicitNext : page * lim < total
+    if (typeof explicitNext !== 'boolean' && total === 0 && categories.length >= lim) {
+      hasNext = true
+    }
+    return { ok: true, categories, total, page: p, limit: lim, hasNext }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true, categories: [], total: 0 }
+  }
+}
+
+/**
+ * GET /api/notifications/notice-categories/:categoryKind?page=&limit=
+ * — `administrative` (admin JWT) or `academic` (principal JWT). Others typically receive 403.
+ * @param {string} categoryKind — {@link NOTIFICATION_CATEGORIES.ADMINISTRATIVE} | {@link NOTIFICATION_CATEGORIES.ACADEMIC}
+ * @returns {Promise<
+ *   | { ok: true, categories: { id: string, displayName: string }[], total: number, page: number, limit: number, hasNext: boolean }
+ *   | { ok: false, error: string, useClient?: boolean, categories: [], total: 0, httpStatus?: number }
+ * >}
+ */
+export async function fetchNoticeCategoriesByCategoryKind(
+  token,
+  categoryKind,
+  { page = 1, limit = NOTICE_CATEGORIES_DEFAULT_LIMIT } = {},
+) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true, categories: [], total: 0 }
+  }
+  const kind = String(categoryKind || '').trim().toLowerCase()
+  if (kind !== NOTIFICATION_CATEGORIES.ADMINISTRATIVE && kind !== NOTIFICATION_CATEGORIES.ACADEMIC) {
+    return { ok: false, error: 'Invalid notice category.', categories: [], total: 0 }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || NOTICE_CATEGORIES_DEFAULT_LIMIT))
+  const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/api/notifications/notice-categories/${encodeURIComponent(kind)}?${params}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    )
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        useClient,
+        categories: [],
+        total: 0,
+        httpStatus: res.status,
+      }
+    }
+    const list = extractNoticeCategoryList(data)
+    const categories = list.map(mapNoticeCategoryRow).filter(Boolean)
+    const envelope =
+      data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? { ...data, ...data.data }
+        : data
+    const total = extractPagedTotal(envelope, categories.length)
+    const explicitNext = envelope?.hasNextPage ?? envelope?.hasNext ?? envelope?.meta?.hasNextPage
+    let hasNext = typeof explicitNext === 'boolean' ? explicitNext : p * lim < total
+    if (typeof explicitNext !== 'boolean' && total === 0 && categories.length >= lim) {
+      hasNext = true
+    }
+    return { ok: true, categories, total, page: p, limit: lim, hasNext }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true, categories: [], total: 0 }
+  }
+}
+
+/**
+ * PATCH /api/notifications/notice-categories/:id — Bearer JSON `{ name }` (matches server).
+ */
+export async function patchNoticeCategory(token, categoryId, label) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  const name = String(label || '').trim()
+  if (!name) {
+    return { ok: false, error: 'Enter a category name.' }
+  }
+  const body = { name }
+  const id = encodeURIComponent(String(categoryId))
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/notice-categories/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    return { ok: true, data: data && typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}
+
+/**
+ * DELETE /api/notifications/notice-categories/:id — Bearer only (no body).
+ */
+export async function deleteNoticeCategory(token, categoryId) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  const id = encodeURIComponent(String(categoryId))
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/notice-categories/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    if (res.status === 204) {
+      return { ok: true, data: null }
     }
     return { ok: true, data: data && typeof data === 'object' ? data : null }
   } catch (e) {
@@ -298,6 +679,64 @@ export async function fetchPendingAdminNotifications(token) {
  */
 export async function fetchPendingPrincipalNotifications(token) {
   return fetchPendingNotificationList(token, '/api/notifications/pending/principal')
+}
+
+const APPROVAL_QUEUE_DEFAULT_LIMIT = 10
+
+/**
+ * GET /api/notifications/approval-queue?page=&limit= — admin / principal notice history (paginated).
+ * @returns {Promise<
+ *   | { ok: true, notifications: object[], total: number, page: number, limit: number, hasNext: boolean }
+ *   | { ok: false, error: string, useClient?: boolean, notifications: [], total: 0 }
+ * >}
+ */
+export async function fetchNotificationApprovalQueue(
+  token,
+  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT } = {},
+) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || APPROVAL_QUEUE_DEFAULT_LIMIT))
+  const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/approval-queue?${params}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        useClient,
+        notifications: [],
+        total: 0,
+      }
+    }
+    const list = extractNotificationList(data)
+    const notifications = list.map(mapPendingAdminNotificationFromApi).filter(Boolean)
+    const envelope =
+      data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? { ...data, ...data.data }
+        : data
+    const total = extractPagedTotal(envelope, notifications.length)
+    const explicitNext = envelope?.hasNextPage ?? envelope?.hasNext ?? envelope?.meta?.hasNextPage
+    let hasNext = typeof explicitNext === 'boolean' ? explicitNext : p * lim < total
+    if (typeof explicitNext !== 'boolean' && total === 0 && notifications.length >= lim) {
+      hasNext = true
+    }
+    return { ok: true, notifications, total, page: p, limit: lim, hasNext }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true, notifications: [], total: 0 }
+  }
 }
 
 async function parsePatchMutationResponse(res) {

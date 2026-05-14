@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../utils/constants'
 import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
+import { pickNotificationMediaUrl } from '../utils/notificationFormat'
 import { extractPagedStudentsResponse, mapApiStudentToRow } from './studentsApi'
 
 function formatMutationError(data, status) {
@@ -594,6 +595,19 @@ function normalizeParentMessageCategory(raw) {
   return NOTIFICATION_CATEGORIES.ADMINISTRATIVE
 }
 
+/** Turn `/uploads/...` into full URL using API origin. */
+function resolvePublicAssetUrl(url) {
+  const s = String(url || '').trim()
+  if (!s) return ''
+  if (s.startsWith('//')) return `https:${s}`
+  if (/^https?:\/\//i.test(s)) return s
+  if (s.startsWith('/')) {
+    const base = String(API_BASE_URL || '').replace(/\/$/, '')
+    return `${base}${s}`
+  }
+  return s
+}
+
 /**
  * Map one GET /api/parents/messages row into the shape expected by {@link NotificationCard}.
  * @param {object} raw
@@ -609,12 +623,39 @@ export function mapApiParentMessageToFeedItem(raw) {
   const category = normalizeParentMessageCategory(raw.category)
   const { ids, names } = childNamesAndIdsFromMessageRaw(raw)
   const displayNames = names.length ? names : ['Your children']
+
+  const pickedBanner = pickNotificationMediaUrl(raw)
+  const bannerDisplayUrl = resolvePublicAssetUrl(pickedBanner) || undefined
+  const targetUrl = String(raw.targetUrl ?? '').trim() || undefined
+  const videoUrls = String(raw.videoUrls ?? '').trim() || undefined
+  const externalLinks = String(raw.externalLinks ?? raw.external_links ?? '').trim() || undefined
+  let sender = null
+  if (raw.sender && typeof raw.sender === 'object' && !Array.isArray(raw.sender)) {
+    const fullName = String(raw.sender.fullName ?? raw.sender.name ?? '').trim()
+    const email = String(raw.sender.email ?? '').trim()
+    if (fullName || email) {
+      sender = {
+        id: raw.sender.id ?? raw.sender.userId,
+        fullName,
+        email,
+      }
+    }
+  }
+
   return {
     id,
     title,
     message,
     category,
     status: 'approved',
+    bannerDisplayUrl,
+    targetUrl,
+    videoUrls,
+    externalLinks,
+    sender,
+    submittedAt: raw.submittedAt ?? raw.createdAt ?? raw.sentAt ?? null,
+    approvedAt: raw.approvedAt ?? null,
+    updatedAt: raw.updatedAt ?? null,
     _feedMatchingStudentIds: ids,
     _feedChildNames: displayNames,
     _feedChildNamesLabel: displayNames.join(', '),

@@ -24,7 +24,7 @@ export default function NotificationAdminApprovalPage() {
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState(null)
 
-  const [delivery, setDelivery] = useState({ open: false, parentCount: 0, title: '' })
+  const [delivery, setDelivery] = useState({ open: false, title: '' })
   /** Rows removed from the pending API after approve/reject; kept so actions stay visible (disabled). */
   const [settledRows, setSettledRows] = useState([])
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
@@ -86,14 +86,8 @@ export default function NotificationAdminApprovalPage() {
       if (res.ok) {
         toast.success('Approved successfully.')
         const d = res.data
-        const parentCount =
-          typeof d?.parentCount === 'number'
-            ? d.parentCount
-            : typeof d?.recipientCount === 'number'
-              ? d.recipientCount
-              : 0
         const title = typeof d?.title === 'string' ? d.title : serverPending.find((n) => n.id === id)?.title || ''
-        setDelivery({ open: true, parentCount, title })
+        setDelivery({ open: true, title })
         if (snapshot) {
           setSettledRows((prev) => [
             { ...snapshot, status: NOTIFICATION_STATUSES.APPROVED },
@@ -118,7 +112,6 @@ export default function NotificationAdminApprovalPage() {
     toast.success('Approved successfully.')
     setDelivery({
       open: true,
-      parentCount: res.parentCount ?? 0,
       title: res.notification?.title || '',
     })
   }
@@ -209,7 +202,6 @@ export default function NotificationAdminApprovalPage() {
       <DeliveryModal
         open={delivery.open}
         onClose={() => setDelivery((d) => ({ ...d, open: false }))}
-        parentCount={delivery.parentCount}
         title={delivery.title}
       />
 

@@ -24,7 +24,7 @@ export default function NotificationPrincipalApprovalPage() {
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState(null)
 
-  const [delivery, setDelivery] = useState({ open: false, parentCount: 0, title: '' })
+  const [delivery, setDelivery] = useState({ open: false, title: '' })
   const [settledRows, setSettledRows] = useState([])
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
@@ -85,14 +85,8 @@ export default function NotificationPrincipalApprovalPage() {
       if (res.ok) {
         toast.success('Approved successfully.')
         const d = res.data
-        const parentCount =
-          typeof d?.parentCount === 'number'
-            ? d.parentCount
-            : typeof d?.recipientCount === 'number'
-              ? d.recipientCount
-              : 0
         const title = typeof d?.title === 'string' ? d.title : serverPending.find((n) => n.id === id)?.title || ''
-        setDelivery({ open: true, parentCount, title })
+        setDelivery({ open: true, title })
         if (snapshot) {
           setSettledRows((prev) => [
             { ...snapshot, status: NOTIFICATION_STATUSES.APPROVED },
@@ -117,7 +111,6 @@ export default function NotificationPrincipalApprovalPage() {
     toast.success('Approved successfully.')
     setDelivery({
       open: true,
-      parentCount: res.parentCount ?? 0,
       title: res.notification?.title || '',
     })
   }
@@ -208,7 +201,6 @@ export default function NotificationPrincipalApprovalPage() {
       <DeliveryModal
         open={delivery.open}
         onClose={() => setDelivery((d) => ({ ...d, open: false }))}
-        parentCount={delivery.parentCount}
         title={delivery.title}
       />
 

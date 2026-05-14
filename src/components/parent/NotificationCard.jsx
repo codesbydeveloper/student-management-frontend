@@ -53,6 +53,18 @@ export function NotificationCard({ item, showViewButton = false, onViewClick, vi
         </div>
       </div>
 
+      {item.bannerDisplayUrl ? (
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50">
+          <img
+            src={item.bannerDisplayUrl}
+            alt=""
+            className="max-h-40 w-full object-cover sm:max-h-48"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+      ) : null}
+
       <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{item.message}</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">

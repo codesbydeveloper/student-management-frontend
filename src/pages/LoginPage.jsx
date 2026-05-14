@@ -4,7 +4,6 @@ import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import { Modal } from '../components/Modal'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import {
@@ -195,12 +194,10 @@ export default function LoginPage() {
   }
 
   return (
-    <Card>
-      <h2 className="text-xl font-bold tracking-tight text-slate-900">Sign in</h2>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        Enter your school email and password. Your role and access come from the account on the server.
-      </p>
-      <form className="mt-8 space-y-5" onSubmit={onSubmit} noValidate>
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <h2 className="text-lg font-semibold text-slate-900">Sign in</h2>
+      <p className="mt-1.5 text-sm text-slate-600">Use the email and password for your school account.</p>
+      <form className="mt-6 space-y-5" onSubmit={onSubmit} noValidate>
         <div>
           <Label htmlFor="email">Email</Label>
           <Input
@@ -226,10 +223,10 @@ export default function LoginPage() {
           {errors.password ? (
             <p className="mt-1.5 text-xs font-medium text-red-600">{errors.password}</p>
           ) : null}
-          <p className="mt-1.5 text-right text-sm text-slate-600">
+          <p className="mt-1.5 text-right text-sm">
             <button
               type="button"
-              className="font-semibold text-indigo-600 hover:text-indigo-500 focus:outline-none focus-visible:underline"
+              className="text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2"
               onClick={openForgotModal}
             >
               Forgot password?
@@ -240,9 +237,6 @@ export default function LoginPage() {
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
-      <div className="mt-8 flex justify-center pb-1" aria-hidden="true">
-        <div className="h-1 w-24 rounded-full bg-gradient-to-r from-indigo-200 via-violet-500 to-indigo-200 shadow-sm shadow-violet-500/20" />
-      </div>
 
       <Modal
         open={forgotOpen}
@@ -385,6 +379,7 @@ export default function LoginPage() {
           )}
         </form>
       </Modal>
-    </Card>
+    </div>
   )
 }
+

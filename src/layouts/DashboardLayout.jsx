@@ -30,9 +30,9 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="relative flex min-h-dvh bg-slate-100">
+    <div className="relative flex min-h-dvh bg-slate-200 lg:h-dvh lg:max-h-dvh lg:overflow-hidden">
       <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgb(99_102_241/0.12),transparent)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgb(99_102_241/0.08),transparent)]"
         aria-hidden
       />
 
@@ -46,12 +46,12 @@ export function DashboardLayout() {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[min(20rem,calc(100vw-1.25rem))] transform border-r border-slate-800/80 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-2xl shadow-slate-950/50 transition-transform duration-300 ease-out lg:static lg:w-72 lg:max-w-none lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[min(20rem,calc(100vw-1.25rem))] flex-col overflow-hidden border-r border-slate-800 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-xl transition-transform duration-300 ease-out lg:static lg:h-dvh lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
-        <div className="flex min-h-[3.5rem] items-center gap-3 border-b border-slate-800/80 px-5 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:min-h-[4.25rem] lg:px-6 lg:pt-0">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
+        <div className="flex shrink-0 items-center gap-3 border-b border-slate-800/80 px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:min-h-[4.25rem] lg:px-6 lg:py-4 lg:pt-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-indigo-500/30">
             S
           </div>
@@ -60,7 +60,7 @@ export function DashboardLayout() {
             <p className="truncate text-xs font-medium text-indigo-300/90">Operations hub</p>
           </div>
         </div>
-        <nav className="space-y-1 overflow-y-auto p-3 pb-24 lg:pb-4" style={{ maxHeight: 'calc(100dvh - 9rem)' }}>
+        <nav className="scrollbar-none min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3 lg:p-4">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -100,15 +100,15 @@ export function DashboardLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 border-t border-slate-800/80 bg-slate-950/80 px-5 py-3 backdrop-blur-sm lg:py-4">
+        <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/90 px-5 py-3 backdrop-blur-sm lg:py-3.5">
           <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
             School year 2026
           </p>
         </div>
       </aside>
 
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
+      <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col overflow-hidden bg-white lg:min-h-0 lg:shadow-[-12px_0_32px_-8px_rgba(15,23,42,0.12)]">
+        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-[backdrop-filter]:bg-white/85">
           <div className="flex min-h-[3.5rem] items-center justify-between gap-3 px-3 sm:min-h-[4.25rem] sm:gap-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
               <Button
@@ -192,7 +192,7 @@ export function DashboardLayout() {
           </div>
         </header>
 
-        <main className="relative flex-1 px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-8 lg:px-10 lg:pb-8">
+        <main className="scrollbar-none relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/80 px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-8 lg:px-10 lg:pb-8">
           <Outlet />
         </main>
 

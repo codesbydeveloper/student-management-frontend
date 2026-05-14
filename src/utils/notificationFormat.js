@@ -39,3 +39,42 @@ export function formatTargetTypeLabel(targetType) {
   }
   return targetType || '—'
 }
+
+/**
+ * Banner / hero image URL from API payloads (parent messages, notices).
+ * Prefer absolute `bannerImageFullUrl` when present.
+ */
+export function pickNotificationMediaUrl(obj) {
+  if (!obj || typeof obj !== 'object') return ''
+  const candidates = [
+    obj.bannerImageFullUrl,
+    obj.bannerImageUrl,
+    obj.imageUrl,
+    obj.coverUrl,
+    obj.coverImageUrl,
+    obj.thumbnailUrl,
+    obj.banner_image,
+    typeof obj.banner === 'string' ? obj.banner : null,
+    obj.banner && typeof obj.banner === 'object' ? obj.banner.url : null,
+    obj.media && typeof obj.media === 'object' ? obj.media.url : null,
+    Array.isArray(obj.attachments) && obj.attachments[0] && typeof obj.attachments[0] === 'object'
+      ? obj.attachments[0].url
+      : null,
+  ]
+  for (const c of candidates) {
+    const s = String(c ?? '').trim()
+    if (!s) continue
+    const probe = s.slice(0, 12).toLowerCase()
+    if (probe.startsWith('javascript:')) continue
+    if (
+      s.startsWith('https://') ||
+      s.startsWith('http://') ||
+      s.startsWith('/') ||
+      s.startsWith('//') ||
+      probe.startsWith('data:image/')
+    ) {
+      return s.startsWith('//') ? `https:${s}` : s
+    }
+  }
+  return ''
+}

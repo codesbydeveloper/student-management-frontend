@@ -3,7 +3,6 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { registerAccount } from '../api/authRegister'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { Select } from '../components/ui/Select'
@@ -73,12 +72,12 @@ export default function RegisterPage() {
   const isTeacher = form.role === ROLES.TEACHER
 
   return (
-    <Card>
-      <h2 className="text-xl font-bold tracking-tight text-slate-900">Create account</h2>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <h2 className="text-lg font-semibold text-slate-900">Create account</h2>
+      <p className="mt-1.5 text-sm text-slate-600">
         Create your school account, then sign in with the same email and password.
       </p>
-      <form className="mt-8 space-y-5" onSubmit={onSubmit} noValidate>
+      <form className="mt-6 space-y-5" onSubmit={onSubmit} noValidate>
         <div>
           <Label htmlFor="reg-role">I am registering as</Label>
           <Select
@@ -160,12 +159,15 @@ export default function RegisterPage() {
           {submitting ? 'Creating account…' : 'Create account'}
         </Button>
       </form>
-      <p className="mt-8 border-t border-slate-100 pt-6 text-center text-sm text-slate-600">
+      <p className="mt-8 border-t border-slate-200 pt-6 text-center text-sm text-slate-600">
         Already have an account?{' '}
-        <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-500">
+        <Link
+          to="/login"
+          className="font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
+        >
           Sign in
         </Link>
       </p>
-    </Card>
+    </div>
   )
 }

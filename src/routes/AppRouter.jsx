@@ -17,6 +17,9 @@ const NotificationsPage = lazy(() => import('../pages/NotificationsPage.jsx'))
 const NotificationCreatePage = lazy(() => import('../pages/NotificationCreatePage.jsx'))
 const NotificationAdminApprovalPage = lazy(() => import('../pages/NotificationAdminApprovalPage.jsx'))
 const NotificationPrincipalApprovalPage = lazy(() => import('../pages/NotificationPrincipalApprovalPage.jsx'))
+const NoticeHistoryPage = lazy(() => import('../pages/NoticeHistoryPage.jsx'))
+const CreateCategoryPage = lazy(() => import('../pages/CreateCategoryPage.jsx'))
+const CreateNoticePage = lazy(() => import('../pages/CreateNoticePage.jsx'))
 const ParentDashboardPage = lazy(() => import('../pages/ParentDashboardPage.jsx'))
 const ParentNotificationsPage = lazy(() => import('../pages/ParentNotificationsPage.jsx'))
 const ParentBusTrackingPage = lazy(() => import('../pages/ParentBusTrackingPage.jsx'))
@@ -148,6 +151,30 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.PRINCIPAL]}>
                 <NotificationPrincipalApprovalPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="notifications/history"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <NoticeHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="create-category"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <CreateCategoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="create-notice"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+                <CreateNoticePage />
               </ProtectedRoute>
             }
           />

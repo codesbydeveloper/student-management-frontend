@@ -37,6 +37,7 @@ export function MobileDockNav({ role, onNavigate }) {
               item.to === '/ptm-requests' ||
               item.to === '/ptm-requests/staff' ||
               item.to === '/ptm-requests/admin/history' ||
+              item.to === '/notifications/history' ||
               item.to === '/assigned-leads' ||
               item.to === '/create-lead' ||
               item.to === '/settings/login-branding'

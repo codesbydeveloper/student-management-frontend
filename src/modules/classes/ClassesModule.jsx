@@ -568,10 +568,8 @@ export function ClassesModule() {
   const save = async () => {
     const e1 = required(form.name, 'Class name')
     const e2 = required(form.gradeLevel, 'Grade level')
-    const e3 =
-      !Array.isArray(form.teacherIds) || form.teacherIds.length === 0 ? 'Select a teacher' : ''
-    setErrors({ name: e1, gradeLevel: e2, teacherIds: e3 })
-    if (e1 || e2 || e3) return
+    setErrors({ name: e1, gradeLevel: e2, teacherIds: '' })
+    if (e1 || e2) return
 
     if (editing) {
       const id = editing.id
@@ -1042,7 +1040,7 @@ export function ClassesModule() {
               <SearchableSingleSelect
                 key={editing?.id ?? 'new-class'}
                 id="class-teachers"
-                label="Assigned teacher"
+                label="Assigned teacher (optional)"
                 options={classTeacherSelectOptions}
                 value={classFormTeacherSelectValue}
                 onChange={(id) => {
@@ -1053,7 +1051,7 @@ export function ClassesModule() {
                   setErrors((errs) => ({ ...errs, teacherIds: '' }))
                 }}
                 disabled={!manage}
-                placeholder="Select teacher…"
+                placeholder="None — add later in Edit…"
                 searchPlaceholder="Search teachers by name, email, or subject…"
                 emptyText="No teachers match your search."
               />

@@ -24,7 +24,13 @@ export function Modal({ open, title, children, footer, onClose, size = 'md' }) {
   if (!open) return null
 
   const width =
-    size === 'lg' ? 'max-w-2xl' : size === 'sm' ? 'max-w-md' : 'max-w-lg'
+    size === 'xl'
+      ? 'max-w-4xl'
+      : size === 'lg'
+        ? 'max-w-2xl'
+        : size === 'sm'
+          ? 'max-w-md'
+          : 'max-w-lg'
 
   /** Portal to body so overlay is not clipped by parent `overflow-hidden` (e.g. Card). */
   return createPortal(

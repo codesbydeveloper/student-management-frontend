@@ -12,6 +12,8 @@ export const ROUTE_ACCESS = {
   notifications_create: [ROLES.TEACHER],
   notifications_admin: [ROLES.ADMIN],
   notifications_principal: [ROLES.PRINCIPAL],
+  /** GET /api/notifications/approval-queue — paginated notice history (admin / principal). */
+  notice_history: [ROLES.ADMIN, ROLES.PRINCIPAL],
   parent_dashboard: [ROLES.PARENT],
   parent_notifications: [ROLES.PARENT],
   parent_bus: [ROLES.PARENT],
@@ -32,6 +34,10 @@ export const ROUTE_ACCESS = {
   staff_ptm_requests: [ROLES.ADMIN, ROLES.PRINCIPAL],
   /** Full PTM list (GET /api/ptm-requests/admin/all). */
   staff_ptm_history: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Notice category name — UI shell until API (admin / principal). */
+  create_category: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Create notice form — UI shell until API (admin / principal / teacher). */
+  create_notice: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER],
 }
 
 export function canAccessRoute(role, routeKey) {
