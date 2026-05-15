@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utils/constants'
-import { getNavItemsForRole } from '../utils/navigation'
+import { getNavItemsForRole, getNavSidebarEntries } from '../utils/navigation'
 import { RoleBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { MobileDockNav } from '../components/layout/MobileDockNav'
+import { PwaMobileInstallBanner } from '../components/layout/PwaMobileInstallBanner'
 import { HeaderWebPushToggle } from '../components/layout/HeaderWebPushToggle'
 
 function navClass({ isActive }) {
@@ -16,13 +17,112 @@ function navClass({ isActive }) {
   }`
 }
 
+function navChildClass({ isActive }) {
+  return `group flex min-h-[2.5rem] items-center gap-2.5 rounded-lg py-2 pl-9 pr-3 text-[13px] font-semibold transition-all duration-200 active:scale-[0.99] ${
+    isActive
+      ? 'bg-indigo-600/25 text-white ring-1 ring-indigo-400/35'
+      : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
+  }`
+}
+
+function navGroupPathActive(
+  entryKey,
+  academicsPathActive,
+  transportPathActive,
+  noticesPathActive,
+  operationsPathActive,
+  ptmPathActive,
+) {
+  if (entryKey === 'academics') return academicsPathActive
+  if (entryKey === 'transport') return transportPathActive
+  if (entryKey === 'notices') return noticesPathActive
+  if (entryKey === 'operations') return operationsPathActive
+  if (entryKey === 'ptm') return ptmPathActive
+  return false
+}
+
+function navLinkUsesEnd(to) {
+  return (
+    to === '/dashboard' ||
+    to === '/parent-dashboard' ||
+    to === '/classes' ||
+    to === '/teachers' ||
+    to === '/students' ||
+    to === '/parents' ||
+    to === '/notifications' ||
+    to === '/notifications/admin-approval' ||
+    to === '/notifications/principal-approval' ||
+    to === '/create-category' ||
+    to === '/create-notice' ||
+    to === '/parent-bus' ||
+    to === '/parent/ptm/request' ||
+    to === '/parent/ptm/history' ||
+    to === '/driver-transport' ||
+    to === '/transport/buses' ||
+    to === '/transport/assign-bus' ||
+    to === '/drivers' ||
+    to === '/visitor-logs' ||
+    to === '/leads' ||
+    to === '/ptm-requests' ||
+    to === '/ptm-requests/staff' ||
+    to === '/ptm-requests/admin/history' ||
+    to === '/notifications/history' ||
+    to === '/assigned-leads' ||
+    to === '/create-lead' ||
+    to === '/settings/login-branding'
+  )
+}
+
 export function DashboardLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
 
-  const items = getNavItemsForRole(user.role)
+  const sidebarEntries = getNavSidebarEntries(user.role)
+  const dockItems = getNavItemsForRole(user.role)
   const showHeaderSettings = user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL
+
+  const academicsPathActive = ['/classes', '/teachers', '/students', '/parents'].some(
+    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
+  )
+  const transportPathActive = ['/drivers', '/transport/assign-bus', '/transport/buses'].some(
+    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
+  )
+  const noticesPathActive = ['/create-category', '/create-notice', '/notifications/history'].some(
+    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
+  )
+  const operationsPathActive = [
+    '/notifications/admin-approval',
+    '/notifications/principal-approval',
+    '/visitor-logs',
+    '/leads',
+  ].some((base) => location.pathname === base || location.pathname.startsWith(`${base}/`))
+  const ptmPathActive = ['/ptm-requests/staff', '/ptm-requests/admin/history'].some(
+    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
+  )
+  const [navGroupOpen, setNavGroupOpen] = useState({
+    academics: academicsPathActive,
+    transport: transportPathActive,
+    notices: noticesPathActive,
+    operations: operationsPathActive,
+    ptm: ptmPathActive,
+  })
+  useEffect(() => {
+    if (academicsPathActive) setNavGroupOpen((g) => ({ ...g, academics: true }))
+  }, [academicsPathActive])
+  useEffect(() => {
+    if (transportPathActive) setNavGroupOpen((g) => ({ ...g, transport: true }))
+  }, [transportPathActive])
+  useEffect(() => {
+    if (noticesPathActive) setNavGroupOpen((g) => ({ ...g, notices: true }))
+  }, [noticesPathActive])
+  useEffect(() => {
+    if (operationsPathActive) setNavGroupOpen((g) => ({ ...g, operations: true }))
+  }, [operationsPathActive])
+  useEffect(() => {
+    if (ptmPathActive) setNavGroupOpen((g) => ({ ...g, ptm: true }))
+  }, [ptmPathActive])
 
   const onLogout = () => {
     logout()
@@ -30,7 +130,7 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="relative flex min-h-dvh bg-slate-200 lg:h-dvh lg:max-h-dvh lg:overflow-hidden">
+    <div className="relative flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-slate-200">
       <div
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgb(99_102_241/0.08),transparent)]"
         aria-hidden
@@ -61,44 +161,92 @@ export function DashboardLayout() {
           </div>
         </div>
         <nav className="scrollbar-none min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3 lg:p-4">
-          {items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={navClass}
-              end={
-                item.to === '/dashboard' ||
-                item.to === '/notifications' ||
-                item.to === '/parent-bus' ||
-                item.to === '/parent/ptm/request' ||
-                item.to === '/parent/ptm/history' ||
-                item.to === '/driver-transport' ||
-                item.to === '/transport/buses' ||
-                item.to === '/transport/assign-bus' ||
-                item.to === '/drivers' ||
-                item.to === '/visitor-logs' ||
-                item.to === '/leads' ||
-                item.to === '/ptm-requests' ||
-                item.to === '/ptm-requests/staff' ||
-                item.to === '/ptm-requests/admin/history' ||
-                item.to === '/assigned-leads' ||
-                item.to === '/create-lead' ||
-                item.to === '/settings/login-branding'
-              }
-              onClick={() => setOpen(false)}
-            >
-              {({ isActive }) => (
-                <>
+          {sidebarEntries.map((entry) =>
+            entry.type === 'link' ? (
+              <NavLink
+                key={entry.to}
+                to={entry.to}
+                className={navClass}
+                end={navLinkUsesEnd(entry.to)}
+                onClick={() => setOpen(false)}
+              >
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
+                        isActive ? 'bg-white shadow-sm shadow-white/50' : 'bg-slate-600 group-hover:bg-indigo-400'
+                      }`}
+                    />
+                    <span className="truncate">{entry.label}</span>
+                  </>
+                )}
+              </NavLink>
+            ) : (
+              <div key={entry.key} className="space-y-1">
+                <button
+                  type="button"
+                  className={`flex w-full min-h-[2.75rem] items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
+                    navGroupPathActive(
+                      entry.key,
+                      academicsPathActive,
+                      transportPathActive,
+                      noticesPathActive,
+                      operationsPathActive,
+                      ptmPathActive,
+                    )
+                      ? 'bg-slate-800/90 text-white ring-1 ring-indigo-500/40'
+                      : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                  aria-expanded={navGroupOpen[entry.key] ?? false}
+                  onClick={() =>
+                    setNavGroupOpen((g) => ({
+                      ...g,
+                      [entry.key]: !g[entry.key],
+                    }))
+                  }
+                >
                   <span
-                    className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
-                      isActive ? 'bg-white shadow-sm shadow-white/50' : 'bg-slate-600 group-hover:bg-indigo-400'
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center text-slate-500 transition-transform ${
+                      navGroupOpen[entry.key] ? 'rotate-90 text-indigo-300' : ''
                     }`}
-                  />
-                  <span className="truncate">{item.label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
+                    aria-hidden
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <span className="truncate">{entry.label}</span>
+                </button>
+                {entry.hint ? (
+                  <p className="ml-8 mr-2 pb-1.5 text-[10px] leading-snug text-slate-500">{entry.hint}</p>
+                ) : null}
+                {navGroupOpen[entry.key] ? (
+                  <div className="space-y-0.5 border-l border-slate-700/80 pl-1 ml-3">
+                    {entry.children.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={navChildClass}
+                        end={navLinkUsesEnd(item.to)}
+                        onClick={() => setOpen(false)}
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
+                                isActive ? 'bg-indigo-300 shadow-sm' : 'bg-slate-600 group-hover:bg-slate-400'
+                              }`}
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ),
+          )}
         </nav>
         <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/90 px-5 py-3 backdrop-blur-sm lg:py-3.5">
           <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
@@ -107,7 +255,7 @@ export function DashboardLayout() {
         </div>
       </aside>
 
-      <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col overflow-hidden bg-white lg:min-h-0 lg:shadow-[-12px_0_32px_-8px_rgba(15,23,42,0.12)]">
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white lg:shadow-[-12px_0_32px_-8px_rgba(15,23,42,0.12)]">
         <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-[backdrop-filter]:bg-white/85">
           <div className="flex min-h-[3.5rem] items-center justify-between gap-3 px-3 sm:min-h-[4.25rem] sm:gap-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
@@ -192,11 +340,13 @@ export function DashboardLayout() {
           </div>
         </header>
 
+        <PwaMobileInstallBanner />
+
         <main className="scrollbar-none relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/80 px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-8 lg:px-10 lg:pb-8">
           <Outlet />
         </main>
 
-        <MobileDockNav role={user.role} onNavigate={() => setOpen(false)} />
+        <MobileDockNav items={dockItems} onNavigate={() => setOpen(false)} />
       </div>
     </div>
   )

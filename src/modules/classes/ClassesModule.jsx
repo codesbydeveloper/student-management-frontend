@@ -12,7 +12,6 @@ import {
   mapApiClassToRow,
   updateClass,
 } from '../../api/classesApi'
-import { fetchTeachersPicker } from '../../api/teachersApi'
 import { useAuth } from '../../context/AuthContext'
 import { useConfirm } from '../../context/ConfirmContext'
 import { useAppData } from '../../context/AppDataContext'
@@ -22,10 +21,8 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Label } from '../../components/ui/Label'
-import { SearchableSingleSelect } from '../../components/SearchableSingleSelect'
 import { canManageClasses } from '../../utils/permissions'
 import { ROLES } from '../../utils/constants'
-import { syncClassToTeachers } from '../../utils/dataSync'
 import { required } from '../../utils/validators'
 import { parseCsv } from '../../utils/csvParse'
 
@@ -51,7 +48,6 @@ function csvRowToClassDraft(row) {
     .split(/[;,]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .slice(0, 1)
   return { name, gradeLevel, section, room, teacherIds }
 }
 
@@ -147,9 +143,6 @@ export function ClassesModule() {
   const [deletingClassId, setDeletingClassId] = useState(null)
   /** Teacher “View” — row id while GET /api/classes/:id is in flight. */
   const [viewLoadingClassId, setViewLoadingClassId] = useState(null)
-  /** `null` = use app teachers; non-null array = options from GET /api/teachers/picker */
-  const [pickerTeacherOptions, setPickerTeacherOptions] = useState(null)
-
   const displayedClassesRef = useRef([])
   const onDisplayedRowsChange = useCallback((r) => {
     displayedClassesRef.current = r
@@ -177,78 +170,6 @@ export function ClassesModule() {
     })
     return m
   }, [teachers])
-
-  const contextTeacherOptions = useMemo(
-    () =>
-      teachers.map((t) => ({
-        value: t.id,
-        label: t.fullName,
-        subtext: [t.email, t.subject].filter(Boolean).join(' · '),
-      })),
-    [teachers],
-  )
-
-  useEffect(() => {
-    if (!modalOpen) {
-      setPickerTeacherOptions(null)
-      return
-    }
-    if (!token || !manage) return
-    let cancelled = false
-    void (async () => {
-      const res = await fetchTeachersPicker(token)
-      if (cancelled) return
-      if (res.ok) {
-        setPickerTeacherOptions(res.options)
-      } else {
-        toast.error(res.error)
-        setPickerTeacherOptions(null)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [modalOpen, token, manage])
-
-  const classTeacherSelectOptions = useMemo(() => {
-    const base =
-      token && pickerTeacherOptions !== null ? pickerTeacherOptions : contextTeacherOptions
-    const byValue = new Map(base.map((o) => [String(o.value), o]))
-    for (const id of form.teacherIds) {
-      const sid = String(id)
-      if (byValue.has(sid)) continue
-      const t = teachers.find((x) => String(x.id) === sid)
-      if (t) {
-        byValue.set(sid, {
-          value: t.id,
-          label: t.fullName,
-          subtext: [t.email, t.subject].filter(Boolean).join(' · '),
-        })
-      } else {
-        byValue.set(sid, {
-          value: id,
-          label: teacherNameById.get(id) || sid,
-          subtext: '',
-        })
-      }
-    }
-    return Array.from(byValue.values())
-  }, [
-    token,
-    pickerTeacherOptions,
-    contextTeacherOptions,
-    form.teacherIds,
-    teachers,
-    teacherNameById,
-  ])
-
-  /** Single-select value must match option `value` type for SearchableSingleSelect. */
-  const classFormTeacherSelectValue = useMemo(() => {
-    const raw = form.teacherIds?.[0]
-    if (raw === undefined || raw === null || raw === '') return ''
-    const opt = classTeacherSelectOptions.find((o) => String(o.value) === String(raw))
-    return opt ? opt.value : raw
-  }, [form.teacherIds, classTeacherSelectOptions])
 
   const rows = useMemo(
     () =>
@@ -472,15 +393,11 @@ export function ClassesModule() {
           skipped++
           continue
         }
-        if (!d.teacherIds.length) {
-          skipped++
-          continue
-        }
-        drafts.push(d)
+        drafts.push({ ...d, teacherIds: Array.isArray(d.teacherIds) ? d.teacherIds : [] })
       }
       if (!drafts.length) {
         toast.error(
-          skipped ? 'No valid rows (need class name, grade, and one teacher id).' : 'Nothing to import.',
+          skipped ? 'No valid rows (need class name and grade level).' : 'Nothing to import.',
         )
         return
       }
@@ -492,7 +409,7 @@ export function ClassesModule() {
           gradeLevel: d.gradeLevel,
           section: d.section,
           room: d.room,
-          teacherIds: d.teacherIds.slice(0, 1),
+          teacherIds: d.teacherIds,
         })
         if (!res.ok) {
           toast.error(res.error)
@@ -544,8 +461,7 @@ export function ClassesModule() {
         section: c.section,
         gradeLevel: c.gradeLevel,
         room: c.room,
-        teacherIds:
-          Array.isArray(c.teacherIds) && c.teacherIds.length ? [c.teacherIds[0]] : [],
+        teacherIds: Array.isArray(c.teacherIds) ? [...c.teacherIds] : [],
       })
       setErrors({})
       setModalOpen(true)
@@ -558,8 +474,7 @@ export function ClassesModule() {
       section: row.section,
       gradeLevel: row.gradeLevel,
       room: row.room,
-      teacherIds:
-        Array.isArray(row.teacherIds) && row.teacherIds.length ? [row.teacherIds[0]] : [],
+      teacherIds: [],
     })
     setErrors({})
     setModalOpen(true)
@@ -568,7 +483,7 @@ export function ClassesModule() {
   const save = async () => {
     const e1 = required(form.name, 'Class name')
     const e2 = required(form.gradeLevel, 'Grade level')
-    setErrors({ name: e1, gradeLevel: e2, teacherIds: '' })
+    setErrors({ name: e1, gradeLevel: e2 })
     if (e1 || e2) return
 
     if (editing) {
@@ -581,7 +496,6 @@ export function ClassesModule() {
             gradeLevel: form.gradeLevel.trim(),
             section: form.section.trim(),
             room: form.room.trim(),
-            teacherIds: form.teacherIds,
           })
           if (!res.ok) {
             toast.error(res.error)
@@ -600,12 +514,15 @@ export function ClassesModule() {
                 section: form.section.trim(),
                 gradeLevel: form.gradeLevel.trim(),
                 room: form.room.trim(),
-                teacherIds: [...form.teacherIds],
+                teacherIds: Array.isArray(editing?.teacherIds)
+                  ? [...editing.teacherIds]
+                  : Array.isArray(c.teacherIds)
+                    ? [...c.teacherIds]
+                    : [],
               }
             : c,
         ),
       )
-      setTeachers((prev) => syncClassToTeachers(prev, id, form.teacherIds))
       toast.success('Class updated.')
       setModalOpen(false)
       if (remoteClasses !== undefined) {
@@ -626,7 +543,7 @@ export function ClassesModule() {
         gradeLevel: form.gradeLevel.trim(),
         section: form.section.trim(),
         room: form.room.trim(),
-        teacherIds: form.teacherIds,
+        teacherIds: [],
       })
       if (!res.ok) {
         toast.error(res.error)
@@ -640,9 +557,8 @@ export function ClassesModule() {
       const classRow = {
         ...mapped,
         name: mapped.name || form.name.trim(),
-        teacherIds: [...form.teacherIds],
+        teacherIds: Array.isArray(mapped.teacherIds) ? [...mapped.teacherIds] : [],
       }
-      setTeachers((prev) => syncClassToTeachers(prev, classRow.id, form.teacherIds))
       if (remoteClasses !== undefined) {
         setClassPage(1)
         await loadClassesPage(1)
@@ -701,7 +617,7 @@ export function ClassesModule() {
     { key: 'room', header: 'Room' },
     {
       key: '_teacherLabel',
-      header: 'Teacher',
+      header: 'Teachers',
       render: (row) => <span className="text-slate-600">{row._teacherLabel}</span>,
     },
     {
@@ -747,7 +663,7 @@ export function ClassesModule() {
       <Card>
         <CardHeader
           title="Classes"
-          subtitle="Organize cohorts, assign educators, and manage assignments."
+          subtitle="Manage grade, section, and room for each class here."
           action={
             manage ? (
               <div className="flex flex-wrap gap-2">
@@ -833,8 +749,9 @@ export function ClassesModule() {
               Columns: <span className="font-medium text-slate-900">name</span> (or displayName),{' '}
               <span className="font-medium text-slate-900">gradeLevel</span>, optional{' '}
               <span className="font-medium text-slate-900">section</span> and{' '}
-              <span className="font-medium text-slate-900">room</span>, and required{' '}
-              <span className="font-medium text-slate-900">teacherIds</span> (one teacher id per row) for the fallback import.
+              <span className="font-medium text-slate-900">room</span>, and optional{' '}
+              <span className="font-medium text-slate-900">teacherIds</span> (semicolon-separated ids — or leave
+              blank and link teachers on Teachers).
             </p>
           </div>
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
@@ -1036,29 +953,7 @@ export function ClassesModule() {
                 onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))}
               />
             </div>
-            <div className="sm:col-span-2">
-              <SearchableSingleSelect
-                key={editing?.id ?? 'new-class'}
-                id="class-teachers"
-                label="Assigned teacher (optional)"
-                options={classTeacherSelectOptions}
-                value={classFormTeacherSelectValue}
-                onChange={(id) => {
-                  setForm((f) => ({
-                    ...f,
-                    teacherIds: id === '' || id == null ? [] : [id],
-                  }))
-                  setErrors((errs) => ({ ...errs, teacherIds: '' }))
-                }}
-                disabled={!manage}
-                placeholder="None — add later in Edit…"
-                searchPlaceholder="Search teachers by name, email, or subject…"
-                emptyText="No teachers match your search."
-              />
-              {errors.teacherIds ? (
-                <p className="mt-1 text-xs text-red-600">{errors.teacherIds}</p>
-              ) : null}
-            </div>
+          
           </div>
         ) : (
           <div className="space-y-6">
@@ -1090,7 +985,7 @@ export function ClassesModule() {
             </dl>
 
             <div className="rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/80 px-4 py-5 shadow-sm shadow-slate-900/[0.03]">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Teacher</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Teachers</p>
               <ul className="mt-3 flex flex-wrap gap-2">
                 {(() => {
                   const fromApi = editing?.teacherNames
@@ -1102,7 +997,6 @@ export function ClassesModule() {
                           (tid) =>
                             teacherNameById.get(tid) ??
                             teacherNameById.get(String(tid)) ??
-                            classTeacherSelectOptions.find((o) => String(o.value) === String(tid))?.label ??
                             null,
                         )
                   labels = labels.filter(Boolean)

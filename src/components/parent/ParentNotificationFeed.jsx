@@ -5,6 +5,7 @@ import { useAppData } from '../../context/AppDataContext'
 import { useNotifications } from '../../context/NotificationContext'
 import { fetchParentMessageById, fetchParentMessages } from '../../api/parentsApi'
 import { getLinkedStudentIdsForParent } from '../../utils/parentUtils'
+import { onParentMessagesRefreshRequested } from '../../utils/parentMessagesRefreshBus'
 import { ROLES } from '../../utils/constants'
 import { ChildFilter } from './ChildFilter'
 import { NotificationCard } from './NotificationCard'
@@ -38,6 +39,22 @@ export function ParentNotificationFeed() {
   const [viewDetail, setViewDetail] = useState(null)
   const [viewError, setViewError] = useState(null)
   const viewFetchSeq = useRef(0)
+
+  useEffect(() => {
+    let debounceTimer = null
+    const schedule = () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null
+        setRefreshKey((k) => k + 1)
+      }, 200)
+    }
+    const unsub = onParentMessagesRefreshRequested(schedule)
+    return () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      unsub()
+    }
+  }, [])
 
   useEffect(() => {
     if (!useServerFeed) {

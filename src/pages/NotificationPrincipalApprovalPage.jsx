@@ -14,6 +14,7 @@ import {
 } from '../api/notificationsApi'
 import { ROLES } from '../utils/constants'
 import { NOTIFICATION_STATUSES } from '../utils/notificationConstants'
+import { requestParentMessagesRefresh } from '../utils/parentMessagesRefreshBus'
 
 export default function NotificationPrincipalApprovalPage() {
   const { user, token } = useAuth()
@@ -93,6 +94,7 @@ export default function NotificationPrincipalApprovalPage() {
             ...prev.filter((x) => String(x.id) !== sid),
           ])
         }
+        requestParentMessagesRefresh()
         await loadPending()
         return
       }
@@ -109,6 +111,7 @@ export default function NotificationPrincipalApprovalPage() {
       return
     }
     toast.success('Approved successfully.')
+    requestParentMessagesRefresh()
     setDelivery({
       open: true,
       title: res.notification?.title || '',

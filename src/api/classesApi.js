@@ -444,7 +444,7 @@ export async function createClass(token, body) {
  * PATCH /api/classes/:id — Bearer + JSON body (displayName, gradeLevel, section, room, teacherIds).
  * @param {string} token
  * @param {string|number} classId
- * @param {{ displayName: string, gradeLevel: string, section: string, room: string, teacherIds?: string[] }} body
+ * @param {{ displayName: string, gradeLevel: string, section: string, room: string, teacherIds?: string[] }} body — omit `teacherIds` to leave existing teachers unchanged.
  */
 export async function updateClass(token, classId, body) {
   if (!token) {
@@ -452,6 +452,15 @@ export async function updateClass(token, classId, body) {
   }
   const id = encodeURIComponent(String(classId))
   try {
+    const payload = {
+      displayName: body.displayName,
+      gradeLevel: body.gradeLevel,
+      section: body.section,
+      room: body.room,
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'teacherIds')) {
+      payload.teacherIds = teacherIdsForApi(body.teacherIds)
+    }
     const res = await fetch(`${API_BASE_URL}/api/classes/${id}`, {
       method: 'PATCH',
       headers: {
@@ -459,13 +468,7 @@ export async function updateClass(token, classId, body) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        displayName: body.displayName,
-        gradeLevel: body.gradeLevel,
-        section: body.section,
-        room: body.room,
-        teacherIds: teacherIdsForApi(body.teacherIds),
-      }),
+      body: JSON.stringify(payload),
     })
     const data = await res.json().catch(() => null)
     if (!res.ok) {

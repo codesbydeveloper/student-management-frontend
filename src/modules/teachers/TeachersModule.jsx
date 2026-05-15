@@ -875,7 +875,7 @@ export function TeachersModule() {
           title="Teachers"
           subtitle={
             manage
-              ? 'Directory of teaching staff, assignments, availability, and sign-in passwords.'
+              ? 'Directory of teaching staff. Assign each teacher to one or more classes here — class records no longer include a teacher picker.'
               : 'School staff directory — browse all teachers; editing is limited to admin or principal.'
           }
           action={
@@ -1277,11 +1277,12 @@ export function TeachersModule() {
               <SearchableMultiSelect
                 key={editing?.id ?? 'new-teacher'}
                 id="teacher-classes"
-                label="Assigned classes"
+                label="Assigned classes (optional)"
                 options={teacherClassSelectOptions}
                 value={form.classIds}
                 onChange={(classIds) => setForm((f) => ({ ...f, classIds }))}
                 disabled={!manage}
+                collapsedHint="None — add classes later when editing…"
                 searchPlaceholder="Search classes by name, grade, section, or room…"
                 emptyText="No classes match your search."
               />

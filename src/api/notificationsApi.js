@@ -124,24 +124,32 @@ export async function postTeacherNotification(token, body) {
   }
 }
 
-/** Admin `{ name }`, principal `{ categoryName }` — same shape as POST/PATCH bodies. */
-function buildNoticeCategoryMutationBody(role, label) {
+/** Admin `{ name, categoryKind }`, principal `{ categoryName, categoryKind }`. */
+function buildNoticeCategoryMutationBody(role, label, categoryKind) {
   const trimmed = String(label || '').trim()
   if (!trimmed) return null
-  if (role === ROLES.PRINCIPAL) return { categoryName: trimmed }
-  if (role === ROLES.ADMIN) return { name: trimmed }
+  if (
+    categoryKind !== NOTIFICATION_CATEGORIES.ADMINISTRATIVE &&
+    categoryKind !== NOTIFICATION_CATEGORIES.ACADEMIC
+  ) {
+    return null
+  }
+  if (role === ROLES.PRINCIPAL) return { categoryName: trimmed, categoryKind }
+  if (role === ROLES.ADMIN) return { name: trimmed, categoryKind }
   return null
 }
 
 /**
  * POST /api/notifications/notice-categories — Bearer JSON.
- * Admin: `{ name }` (administrative). Principal: `{ categoryName }` (academic).
+ * Admin: `{ name, categoryKind }` (`administrative` | `academic`).
+ * Principal: `{ categoryName, categoryKind }` (typically `academic`).
  * @param {string} token
  * @param {string} label — display name for the category
- * @param {string} role — `ROLES.ADMIN` | `ROLES.PRINCIPAL`
+ * @param {string} role — `ROLES.ADMIN` | `ROLES.PRINCIPAL` (controls `name` vs `categoryName`)
+ * @param {string} [categoryKind] — {@link NOTIFICATION_CATEGORIES.ADMINISTRATIVE} | {@link NOTIFICATION_CATEGORIES.ACADEMIC}; omitted value is inferred from `role`
  * @returns {Promise<{ ok: true, data: object | null } | { ok: false, error: string, useClient?: boolean }>}
  */
-export async function postNoticeCategory(token, label, role) {
+export async function postNoticeCategory(token, label, role, categoryKind) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true }
   }
@@ -149,7 +157,14 @@ export async function postNoticeCategory(token, label, role) {
   if (!trimmed) {
     return { ok: false, error: 'Enter a category name.' }
   }
-  const body = buildNoticeCategoryMutationBody(role, trimmed)
+  const resolvedKind =
+    categoryKind === NOTIFICATION_CATEGORIES.ADMINISTRATIVE ||
+    categoryKind === NOTIFICATION_CATEGORIES.ACADEMIC
+      ? categoryKind
+      : role === ROLES.PRINCIPAL
+        ? NOTIFICATION_CATEGORIES.ACADEMIC
+        : NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+  const body = buildNoticeCategoryMutationBody(role, trimmed, resolvedKind)
   if (!body) {
     return { ok: false, error: 'Only admin or principal can create notice categories.' }
   }

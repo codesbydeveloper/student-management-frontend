@@ -7,9 +7,10 @@ function initial(label) {
 
 /**
  * Bottom dock for small screens — app-style primary navigation (PWA / mobile).
+ * Pass `items` from the parent (same order as sidebar flat list) or `role` to build items here.
  */
-export function MobileDockNav({ role, onNavigate }) {
-  const items = getNavItemsForRole(role)
+export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
+  const items = itemsProp ?? getNavItemsForRole(role)
 
   return (
     <nav
@@ -24,7 +25,16 @@ export function MobileDockNav({ role, onNavigate }) {
             to={item.to}
             end={
               item.to === '/dashboard' ||
+              item.to === '/parent-dashboard' ||
+              item.to === '/classes' ||
+              item.to === '/teachers' ||
+              item.to === '/students' ||
+              item.to === '/parents' ||
               item.to === '/notifications' ||
+              item.to === '/notifications/admin-approval' ||
+              item.to === '/notifications/principal-approval' ||
+              item.to === '/create-category' ||
+              item.to === '/create-notice' ||
               item.to === '/parent-bus' ||
               item.to === '/parent/ptm/request' ||
               item.to === '/parent/ptm/history' ||

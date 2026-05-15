@@ -5,10 +5,13 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import { ROLES } from '../utils/constants'
+import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
 import {
   deleteNoticeCategory,
   fetchNoticeCategories,
+  fetchNoticeCategoriesByCategoryKind,
   patchNoticeCategory,
   postNoticeCategory,
 } from '../api/notificationsApi'
@@ -17,6 +20,9 @@ const PAGE_LIMIT = 10
 
 export default function CreateCategoryPage() {
   const { user, token } = useAuth()
+  const confirm = useConfirm()
+  /** Admin only: which notice-category stream to create and list (`admin` = administrative, `principal` = academic). */
+  const [adminCategoryScope, setAdminCategoryScope] = useState('admin')
   const [categoryName, setCategoryName] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -42,7 +48,16 @@ export default function CreateCategoryPage() {
     setListLoading(true)
     setListError(null)
     try {
-      const res = await fetchNoticeCategories(token, { page, limit: PAGE_LIMIT })
+      const res =
+        user?.role === ROLES.ADMIN
+          ? await fetchNoticeCategoriesByCategoryKind(
+              token,
+              adminCategoryScope === 'principal'
+                ? NOTIFICATION_CATEGORIES.ACADEMIC
+                : NOTIFICATION_CATEGORIES.ADMINISTRATIVE,
+              { page, limit: PAGE_LIMIT },
+            )
+          : await fetchNoticeCategories(token, { page, limit: PAGE_LIMIT })
       if (!res.ok) {
         setCategories([])
         setTotal(0)
@@ -59,7 +74,7 @@ export default function CreateCategoryPage() {
     } finally {
       setListLoading(false)
     }
-  }, [token, page])
+  }, [token, page, user?.role, adminCategoryScope])
 
   useEffect(() => {
     void loadCategories()
@@ -69,6 +84,13 @@ export default function CreateCategoryPage() {
     setEditingId(null)
     setEditValue('')
   }, [page])
+
+  useEffect(() => {
+    if (user?.role === ROLES.ADMIN) {
+      setEditingId(null)
+      setEditValue('')
+    }
+  }, [adminCategoryScope, user?.role])
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_LIMIT))
   const canPrev = page > 1
@@ -90,9 +112,19 @@ export default function CreateCategoryPage() {
       return
     }
 
+    const createAsRole =
+      user.role === ROLES.ADMIN && adminCategoryScope === 'principal' ? ROLES.PRINCIPAL : user.role
+
+    const createCategoryKind =
+      user.role === ROLES.ADMIN
+        ? adminCategoryScope === 'principal'
+          ? NOTIFICATION_CATEGORIES.ACADEMIC
+          : NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+        : NOTIFICATION_CATEGORIES.ACADEMIC
+
     setSubmitting(true)
     try {
-      const res = await postNoticeCategory(token, name, user.role)
+      const res = await postNoticeCategory(token, name, createAsRole, createCategoryKind)
       if (res.ok) {
         const msg =
           (res.data && typeof res.data === 'object' && typeof res.data.message === 'string' && res.data.message) ||
@@ -142,12 +174,19 @@ export default function CreateCategoryPage() {
 
   const onDelete = async (row) => {
     if (!token) return
-    if (!window.confirm(`Delete category “${row.displayName}”?`)) return
+    const ok = await confirm({
+      title: 'Delete this category?',
+      message: `Remove “${row.displayName}”? `,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      variant: 'danger',
+    })
+    if (!ok) return
     setMutatingId(row.id)
     try {
       const res = await deleteNoticeCategory(token, row.id)
       if (res.ok) {
-        toast.success('Category deleted.')
+        toast.success(`“${row.displayName}” was deleted.`)
         if (editingId === row.id) cancelEdit()
         await loadCategories()
         return
@@ -160,17 +199,65 @@ export default function CreateCategoryPage() {
 
   const scopeHint =
     user?.role === ROLES.ADMIN
-      ? 'POST uses `{ name }` (administrative). PATCH uses `{ name }`. DELETE removes by id.'
+      ? adminCategoryScope === 'principal'
+        ? 'Principal stream (academic): POST uses `{ categoryName, categoryKind: \"academic\" }`. PATCH uses `{ name }`. DELETE removes by id.'
+        : 'Admin stream (administrative): POST uses `{ name, categoryKind: \"administrative\" }`. PATCH uses `{ name }`. DELETE removes by id.'
       : user?.role === ROLES.PRINCIPAL
-        ? 'POST uses `{ categoryName }` (academic). PATCH uses `{ name }` per API. DELETE removes by id.'
+        ? 'POST uses `{ categoryName, categoryKind: \"academic\" }`. PATCH uses `{ name }` per API. DELETE removes by id.'
         : ''
 
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_LIMIT + 1
   const rangeEnd = total === 0 ? 0 : Math.min(page * PAGE_LIMIT, total)
 
+  const listGetPathSuffix =
+    user?.role === ROLES.ADMIN
+      ? adminCategoryScope === 'principal'
+        ? NOTIFICATION_CATEGORIES.ACADEMIC
+        : NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+      : null
+
   return (
     <div className="space-y-6">
       <Card>
+        {user?.role === ROLES.ADMIN ? (
+          <div className="mb-5">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Category scope</p>
+            <div className="flex max-w-md rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner">
+              <button
+                type="button"
+                className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                  adminCategoryScope === 'admin'
+                    ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={() => {
+                  setAdminCategoryScope('admin')
+                  setPage(1)
+                }}
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                  adminCategoryScope === 'principal'
+                    ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={() => {
+                  setAdminCategoryScope('principal')
+                  setPage(1)
+                }}
+              >
+                Principal
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Switch to create and manage administrative categories (admin notices) or academic categories (principal
+              notices).
+            </p>
+          </div>
+        ) : null}
         <CardHeader
           title="Create Category"
           subtitle={
@@ -213,8 +300,20 @@ export default function CreateCategoryPage() {
             </Button>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            GET <span className="font-mono">/api/notifications/notice-categories</span> — page {page}, {PAGE_LIMIT}{' '}
-            per page.
+            {listGetPathSuffix ? (
+              <>
+                GET{' '}
+                <span className="font-mono">
+                  /api/notifications/notice-categories/{listGetPathSuffix}
+                </span>{' '}
+                — page {page}, {PAGE_LIMIT} per page.
+              </>
+            ) : (
+              <>
+                GET <span className="font-mono">/api/notifications/notice-categories</span> — page {page},{' '}
+                {PAGE_LIMIT} per page.
+              </>
+            )}
           </p>
 
           {listError ? (

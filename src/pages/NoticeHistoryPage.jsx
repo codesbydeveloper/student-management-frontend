@@ -20,6 +20,7 @@ import {
   NOTIFICATION_STATUSES,
   NOTIFICATION_TARGET_LABELS,
 } from '../utils/notificationConstants'
+import { requestParentMessagesRefresh } from '../utils/parentMessagesRefreshBus'
 
 const PAGE_LIMIT = 10
 
@@ -37,6 +38,39 @@ function truncate(s, max = 96) {
   if (!t) return '—'
   if (t.length <= max) return t
   return `${t.slice(0, max - 1)}…`
+}
+
+/** Same data as the API string; splits `name · email` or `name email@…` onto two lines for readability. */
+function formatSubmittedBy(name) {
+  const s = String(name || '').trim()
+  if (!s) return '—'
+  if (s.includes(' · ')) {
+    const i = s.indexOf(' · ')
+    const left = s.slice(0, i).trim()
+    const right = s.slice(i + 3).trim()
+    return (
+      <span className="inline-flex flex-col gap-0.5">
+        <span className="font-medium text-slate-900">{left}</span>
+        <span className="text-xs text-slate-500">{right}</span>
+      </span>
+    )
+  }
+  const idx = s.lastIndexOf(' ')
+  if (idx > 0) {
+    const maybeEmail = s.slice(idx + 1).trim()
+    if (maybeEmail.includes('@') && maybeEmail.includes('.')) {
+      const namePart = s.slice(0, idx).trim()
+      if (namePart) {
+        return (
+          <span className="inline-flex flex-col gap-0.5">
+            <span className="font-medium text-slate-900">{namePart}</span>
+            <span className="text-xs text-slate-500">{maybeEmail}</span>
+          </span>
+        )
+      }
+    }
+  }
+  return truncate(s, 56)
 }
 
 function categoryLabel(cat) {
@@ -63,9 +97,7 @@ function isFinalStatus(status) {
   return status === NOTIFICATION_STATUSES.APPROVED || status === NOTIFICATION_STATUSES.REJECTED
 }
 
-/**
- * Admin / principal: notice history from GET /api/notifications/approval-queue.
- */
+/** Admin / principal: notice history (approval queue). */
 export default function NoticeHistoryPage() {
   const { user, token } = useAuth()
   const [rows, setRows] = useState([])
@@ -139,6 +171,7 @@ export default function NoticeHistoryPage() {
             ? d.title.trim()
             : snapshot?.title || ''
         setDelivery({ open: true, title })
+        requestParentMessagesRefresh()
         await load()
         return
       }
@@ -209,104 +242,135 @@ export default function NoticeHistoryPage() {
       </div>
 
       <Card>
-        <CardHeader
-          title="Notice history"
-          subtitle="GET /api/notifications/approval-queue — notices in the approval pipeline (paginated)."
-        />
+        <CardHeader title="Notice history" />
 
         <div className="border-t border-slate-100 px-4 py-6 sm:px-6">
           {error ? (
-            <div className="mb-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
+            <div className="mb-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-center text-sm text-amber-950">
               {error}
             </div>
           ) : null}
 
           {loading && rows.length === 0 && !error ? (
-            <p className="text-sm text-slate-500">Loading notice history…</p>
+            <p className="text-center text-sm text-slate-500">Loading notice history…</p>
           ) : null}
 
           {!loading && rows.length === 0 && !error ? (
-            <p className="text-sm text-slate-600">No notices on this page.</p>
+            <p className="text-center text-sm text-slate-600">No notices on this page.</p>
           ) : null}
 
           {sorted.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
               <div className="overflow-x-auto">
-                <table className="min-w-[64rem] text-left text-sm">
+                <table className="min-w-[64rem] w-full border-collapse text-sm">
                   <thead>
-                    <tr className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white">
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Title</th>
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Targets</th>
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Submitted by</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wider">
+                    <tr className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white shadow-sm">
+                      <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">Title</th>
+                      <th className="w-36 px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th className="w-36 px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="max-w-[13rem] px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
+                        Targets
+                      </th>
+                      <th className="max-w-[11rem] px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
+                        Submitted by
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                         Submitted
                       </th>
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Message</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
+                      <th className="max-w-[14rem] px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
+                        Message
+                      </th>
+                      <th className="min-w-[9.5rem] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100/90 text-slate-700">
                     {sorted.map((row, idx) => {
                       const locked = isFinalStatus(row.status)
                       const busyApprove = approvingId != null && String(approvingId) === String(row.id)
                       const rowBusy = busyApprove || rejectSubmitting
                       return (
-                      <tr key={row.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                        <td className="max-w-[14rem] px-4 py-3 align-top font-medium text-slate-900">
-                          {truncate(row.title, 120)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 align-top text-slate-700">
-                          {categoryLabel(row.category)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 align-top">
-                          <StatusBadge status={row.status} />
-                        </td>
-                        <td className="max-w-[12rem] px-4 py-3 align-top text-slate-600">{truncate(targetSummary(row), 140)}</td>
-                        <td className="max-w-[10rem] px-4 py-3 align-top text-slate-600">
-                          {truncate(row.createdByName, 48)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-slate-500">
-                          {fmtCreatedAt(row.createdAt)}
-                        </td>
-                        <td className="max-w-xl px-4 py-3 align-top text-slate-600">{truncate(row.message, 200)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 align-top text-right">
-                          {locked ? (
-                            <div className="flex justify-end">
-                              <Badge
-                                className={
-                                  row.status === NOTIFICATION_STATUSES.APPROVED
-                                    ? 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
-                                    : 'bg-slate-100 text-slate-700 ring-slate-500/20'
-                                }
-                              >
-                                {row.status === NOTIFICATION_STATUSES.APPROVED ? 'Approved' : 'Rejected'}
-                              </Badge>
-                            </div>
-                          ) : (
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                disabled={rowBusy || loading || !token}
-                                onClick={() => onRejectClick(row.id)}
-                              >
-                                Reject
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                disabled={rowBusy || loading || !token}
-                                onClick={() => void onApprove(row.id)}
-                              >
-                                {busyApprove ? 'Approving…' : 'Approve'}
-                              </Button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                        <tr
+                          key={row.id}
+                          className={`align-middle transition-colors hover:bg-indigo-50/35 ${
+                            idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/45'
+                          }`}
+                        >
+                          <td className="max-w-[16rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top">
+                            <p
+                              className="line-clamp-2 font-medium leading-snug text-slate-900"
+                              title={row.title || ''}
+                            >
+                              {truncate(row.title, 140)}
+                            </p>
+                          </td>
+                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-slate-700">
+                            {categoryLabel(row.category)}
+                          </td>
+                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top">
+                            <StatusBadge status={row.status} variant="stack" />
+                          </td>
+                          <td className="max-w-[13rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top text-slate-600">
+                            <p
+                              className="line-clamp-2 text-xs leading-relaxed"
+                              title={targetSummary(row)}
+                            >
+                              {truncate(targetSummary(row), 160)}
+                            </p>
+                          </td>
+                          <td className="max-w-[11rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top text-slate-600">
+                            {formatSubmittedBy(row.createdByName)}
+                          </td>
+                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-xs tabular-nums text-slate-500">
+                            {fmtCreatedAt(row.createdAt)}
+                          </td>
+                          <td
+                            className="max-w-[14rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top text-xs leading-relaxed text-slate-600"
+                            title={row.message || ''}
+                          >
+                            <p className="line-clamp-2">{truncate(row.message, 200)}</p>
+                          </td>
+                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top">
+                            {locked ? (
+                              <div className="flex justify-center pt-0.5">
+                                <Badge
+                                  className={
+                                    row.status === NOTIFICATION_STATUSES.APPROVED
+                                      ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600/25'
+                                      : 'bg-slate-100 text-slate-700 ring-1 ring-slate-500/20'
+                                  }
+                                >
+                                  {row.status === NOTIFICATION_STATUSES.APPROVED ? 'Approved' : 'Rejected'}
+                                </Badge>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap justify-center gap-2 pt-0.5">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={rowBusy || loading || !token}
+                                  onClick={() => onRejectClick(row.id)}
+                                >
+                                  Reject
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={rowBusy || loading || !token}
+                                  onClick={() => void onApprove(row.id)}
+                                >
+                                  {busyApprove ? 'Approving…' : 'Approve'}
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                       )
                     })}
                   </tbody>
