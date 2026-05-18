@@ -147,3 +147,121 @@ export async function updateLoginBranding(token, body) {
     return { ok: false, error: msg }
   }
 }
+
+function unwrapSmtpPayload(data) {
+  if (!data || typeof data !== 'object') return {}
+  if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) return data.data
+  if (data.settings && typeof data.settings === 'object') return data.settings
+  return data
+}
+
+/**
+ * Map GET /api/smtp-settings JSON for the settings form (password is never returned).
+ */
+export function mapSmtpSettingsResponse(data) {
+  const raw = unwrapSmtpPayload(data)
+  const smtpUser = String(raw.smtpUser ?? raw.smtp_user ?? raw.user ?? raw.username ?? '').trim()
+  const smtpFrom = String(
+    raw.smtpFrom ?? raw.smtp_from ?? raw.from ?? raw.fromEmail ?? raw.from_email ?? raw.mailFrom ?? '',
+  ).trim()
+  const hasPassword = Boolean(
+    raw.hasPassword ??
+      raw.hasSmtpPass ??
+      raw.smtpPassSet ??
+      raw.passwordSet ??
+      raw.smtp_pass_set,
+  )
+  return { smtpUser, smtpFrom, hasPassword }
+}
+
+/**
+ * GET /api/smtp-settings — Bearer (admin / principal).
+ */
+export async function fetchSmtpSettings(token) {
+  if (!token) return { ok: false, error: 'Not signed in', settings: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/smtp-settings`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), settings: null }
+    return { ok: true, settings: mapSmtpSettingsResponse(data), data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, settings: null }
+  }
+}
+
+/**
+ * PUT /api/smtp-settings — Bearer (admin / principal).
+ * @param {string} token
+ * @param {{ smtpUser?: string, smtpPass?: string, smtpFrom?: string }} body
+ */
+export async function updateSmtpSettings(token, body) {
+  if (!token) return { ok: false, error: 'Not signed in', settings: null }
+  const apiBody = {}
+  if (body.smtpUser != null) apiBody.smtpUser = String(body.smtpUser).trim()
+  if (body.smtpFrom != null) {
+    const from = String(body.smtpFrom).trim()
+    apiBody.smtpFrom = from
+    apiBody.from = from
+  }
+  if (body.smtpPass != null && String(body.smtpPass).length > 0) {
+    apiBody.smtpPass = String(body.smtpPass)
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/smtp-settings`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(apiBody),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), settings: null }
+    return { ok: true, settings: mapSmtpSettingsResponse(data), data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, settings: null }
+  }
+}
+
+/**
+ * POST /api/smtp-settings/test — Bearer (admin / principal).
+ * @param {string} token
+ * @param {string} toEmail
+ */
+export async function testSmtpSettings(token, toEmail) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const email = String(toEmail ?? '').trim()
+  if (!email) return { ok: false, error: 'Recipient email is required.' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/smtp-settings/test`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ toEmail: email }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status) }
+    const message =
+      (data && typeof data === 'object' && typeof data.message === 'string' && data.message) ||
+      'Test email sent. Check the inbox (and spam folder).'
+    return { ok: true, message }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}

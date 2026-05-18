@@ -416,11 +416,11 @@ export default function TransportAssignmentsPage() {
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Who is assigned to which bus</h3>
-                <p className="mt-1 text-xs text-slate-600">
+                {/* <p className="mt-1 text-xs text-slate-600">
                   {token && assignmentsStatus === 'success'
                     ? 'Loaded from GET /api/drivers/assignments (first 50 rows, onlyWithParents=1). Vehicle id as returned by your API.'
                     : 'Vehicle id as returned by the API / picker. Sign in to load the live list from the server.'}
-                </p>
+                </p> */}
               </div>
               {token ? (
                 <Button

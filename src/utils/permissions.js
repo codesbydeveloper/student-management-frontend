@@ -3,6 +3,7 @@ import { ROLES } from './constants'
 /** Route keys used for nav + access */
 export const ROUTE_ACCESS = {
   dashboard: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER, ROLES.PARENT, ROLES.DRIVER],
+  profile: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER, ROLES.PARENT, ROLES.DRIVER],
   teachers: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER],
   drivers: [ROLES.ADMIN, ROLES.PRINCIPAL],
   students: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER, ROLES.PARENT],
@@ -26,6 +27,8 @@ export const ROUTE_ACCESS = {
   admin_create_buses: [ROLES.ADMIN, ROLES.PRINCIPAL],
   teacher_ptm_requests: [ROLES.TEACHER],
   teacher_assigned_leads: [ROLES.TEACHER],
+  /** Teacher — read-only bus ↔ student overview. */
+  teacher_bus_overview: [ROLES.TEACHER],
   /** Intake without assign-teacher (admin/principal use `/leads`). */
   create_lead: [ROLES.TEACHER, ROLES.PARENT, ROLES.DRIVER],
   admin_visitor_logs: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER],

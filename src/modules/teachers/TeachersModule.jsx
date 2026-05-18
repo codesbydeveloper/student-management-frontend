@@ -1277,7 +1277,7 @@ export function TeachersModule() {
               <SearchableMultiSelect
                 key={editing?.id ?? 'new-teacher'}
                 id="teacher-classes"
-                label="Assigned classes (optional)"
+                label="Assigned classes"
                 options={teacherClassSelectOptions}
                 value={form.classIds}
                 onChange={(classIds) => setForm((f) => ({ ...f, classIds }))}

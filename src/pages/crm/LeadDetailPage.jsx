@@ -7,8 +7,8 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { LeadStageStepper } from '../../components/phase6/LeadStageStepper'
 import {
-  LEAD_STAGES,
   LEAD_STAGE_LABELS,
+  LEAD_STAGE_UPDATE_OPTIONS,
   apiStageToUiStage,
   uiStageToApiStage,
 } from '../../data/phase6Constants'
@@ -306,7 +306,7 @@ export default function LeadDetailPage() {
 
   const onChangeStageTeacher = async () => {
     if (!stageDraft || savingStage) return
-    const nextApiStage = uiStageToApiStage(stageDraft, lead.stage)
+    const nextApiStage = uiStageToApiStage(stageDraft)
     if (nextApiStage === lead.stage && !stageNote.trim()) {
       toast.info('Stage unchanged.')
       return
@@ -618,7 +618,7 @@ export default function LeadDetailPage() {
                 onChange={(e) => setStageDraft(e.target.value)}
                 disabled={savingStage}
               >
-                {LEAD_STAGES.map((s) => (
+                {LEAD_STAGE_UPDATE_OPTIONS.map((s) => (
                   <option key={s} value={s}>
                     {LEAD_STAGE_LABELS[s] ?? s}
                   </option>

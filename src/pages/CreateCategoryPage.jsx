@@ -209,13 +209,6 @@ export default function CreateCategoryPage() {
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_LIMIT + 1
   const rangeEnd = total === 0 ? 0 : Math.min(page * PAGE_LIMIT, total)
 
-  const listGetPathSuffix =
-    user?.role === ROLES.ADMIN
-      ? adminCategoryScope === 'principal'
-        ? NOTIFICATION_CATEGORIES.ACADEMIC
-        : NOTIFICATION_CATEGORIES.ADMINISTRATIVE
-      : null
-
   return (
     <div className="space-y-6">
       <Card>
@@ -260,11 +253,7 @@ export default function CreateCategoryPage() {
         ) : null}
         <CardHeader
           title="Create Category"
-          subtitle={
-            scopeHint
-              ? `${scopeHint} Base URL: set VITE_API_URL to match your API.`
-              : 'Set VITE_API_URL to match your API host.'
-          }
+          
         />
         <form className="border-t border-slate-100 px-4 py-6 sm:px-6" onSubmit={onSubmit} noValidate>
           <div className="max-w-md">
@@ -299,23 +288,6 @@ export default function CreateCategoryPage() {
               {listLoading ? 'Refreshing…' : 'Refresh'}
             </Button>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            {listGetPathSuffix ? (
-              <>
-                GET{' '}
-                <span className="font-mono">
-                  /api/notifications/notice-categories/{listGetPathSuffix}
-                </span>{' '}
-                — page {page}, {PAGE_LIMIT} per page.
-              </>
-            ) : (
-              <>
-                GET <span className="font-mono">/api/notifications/notice-categories</span> — page {page},{' '}
-                {PAGE_LIMIT} per page.
-              </>
-            )}
-          </p>
-
           {listError ? (
             <div className="mt-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
               {listError}

@@ -148,7 +148,14 @@ export function mapPickerDriverRow(raw) {
       (raw.bus && (raw.bus.plate ?? raw.bus.number ?? raw.bus.id)) ??
       '',
   ).trim()
-  const fullName = String(raw.driverName ?? raw.fullName ?? raw.name ?? 'Driver').trim()
+  const fromUser =
+    raw.user && typeof raw.user === 'object'
+      ? raw.user.fullName ?? raw.user.name ?? raw.user.driverName
+      : null
+  const combined = [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim()
+  const fullName = String(
+    raw.driverName ?? raw.fullName ?? raw.name ?? combined ?? fromUser ?? '',
+  ).trim()
   return { userId, vehicleId, fullName, busId: vehicleId }
 }
 
@@ -780,4 +787,138 @@ export async function deleteDriver(token, driverId) {
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg }
   }
+}
+
+/**
+ * GET /api/drivers/export/csv — Bearer.
+ * Query: rows (`everyone` default | `this_page` | `one_page_by_number`), optional status (`active`|`inactive`), page, limit.
+ */
+export async function exportDriversCsv(token, { rows, status, page, limit } = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  const params = new URLSearchParams()
+  const rowsVal = rows || 'everyone'
+  if (rowsVal === 'everyone') {
+    if (status === 'active' || status === 'inactive') {
+      params.set('rows', 'everyone')
+      params.set('status', status)
+    }
+  } else {
+    params.set('rows', rowsVal)
+    if (page != null && limit != null) {
+      params.set('page', String(page))
+      params.set('limit', String(limit))
+    }
+    if (status === 'active' || status === 'inactive') {
+      params.set('status', status)
+    }
+  }
+  const qs = params.toString()
+  const url = `${API_BASE_URL}/api/drivers/export/csv${qs ? `?${qs}` : ''}`
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'text/csv,*/*',
+      },
+    })
+    const ctype = (res.headers.get('Content-Type') || '').toLowerCase()
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    if (ctype.includes('application/json')) {
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status) || 'Unexpected response',
+        useClient: true,
+      }
+    }
+    const blob = await res.blob()
+    let filename = 'drivers.csv'
+    const cd = res.headers.get('Content-Disposition')
+    if (cd) {
+      const star = cd.match(/filename\*=UTF-8''([^;\s]+)/i)
+      const quoted = cd.match(/filename="([^"]+)"/i) || cd.match(/filename=([^;\s]+)/i)
+      if (star) {
+        try {
+          filename = decodeURIComponent(star[1])
+        } catch {
+          filename = star[1]
+        }
+      } else if (quoted) {
+        filename = quoted[1].replace(/["']/g, '')
+      }
+    }
+    return { ok: true, blob, filename }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}
+
+/**
+ * POST /api/drivers/import/csv (or /import/excel) — multipart `file`, Bearer auth.
+ * @param {File} file
+ */
+export async function importDriversCsv(token, file) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in' }
+  }
+  const form = new FormData()
+  form.append('file', file, file.name)
+
+  const urls = [
+    `${API_BASE_URL}/api/drivers/import/csv`,
+    `${API_BASE_URL}/api/drivers/import/excel`,
+  ]
+
+  let lastError = 'Could not import drivers.'
+
+  try {
+    for (const url of urls) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: form,
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok) {
+        return { ok: true, data: data && typeof data === 'object' ? data : null }
+      }
+      lastError = formatMutationError(data, res.status)
+      if (res.status === 404) continue
+      return { ok: false, error: lastError }
+    }
+    return { ok: false, error: lastError }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
+/** User-facing summary from POST /api/drivers/import/csv response. */
+export function formatDriverImportResultMessage(data) {
+  if (!data || typeof data !== 'object') return 'Drivers imported from file.'
+  if (typeof data.message === 'string' && data.message.trim()) return data.message.trim()
+  const imported = Number(data.imported ?? data.created ?? data.count)
+  const skipped = Number(data.skipped ?? data.failed ?? 0)
+  if (Number.isFinite(imported) && imported >= 0) {
+    let msg = `Imported ${imported} driver(s).`
+    if (Number.isFinite(skipped) && skipped > 0) msg += ` ${skipped} row(s) skipped.`
+    return msg
+  }
+  return 'Drivers imported from file.'
 }

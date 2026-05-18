@@ -699,7 +699,8 @@ export async function fetchPendingPrincipalNotifications(token) {
 const APPROVAL_QUEUE_DEFAULT_LIMIT = 10
 
 /**
- * GET /api/notifications/approval-queue?page=&limit= — admin / principal notice history (paginated).
+ * GET /api/notifications/approval-queue?page=&limit=&categoryKind=
+ * Filter: `administrative` | `academic` (also sent as `category` for compatibility).
  * @returns {Promise<
  *   | { ok: true, notifications: object[], total: number, page: number, limit: number, hasNext: boolean }
  *   | { ok: false, error: string, useClient?: boolean, notifications: [], total: 0 }
@@ -707,14 +708,22 @@ const APPROVAL_QUEUE_DEFAULT_LIMIT = 10
  */
 export async function fetchNotificationApprovalQueue(
   token,
-  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT } = {},
+  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT, categoryKind } = {},
 ) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
   }
   const p = Math.max(1, Number(page) || 1)
   const lim = Math.min(100, Math.max(1, Number(limit) || APPROVAL_QUEUE_DEFAULT_LIMIT))
+  const kind = String(categoryKind || '').trim().toLowerCase()
   const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  if (
+    kind === NOTIFICATION_CATEGORIES.ADMINISTRATIVE ||
+    kind === NOTIFICATION_CATEGORIES.ACADEMIC
+  ) {
+    params.set('categoryKind', kind)
+    params.set('category', kind)
+  }
   try {
     const res = await fetch(`${API_BASE_URL}/api/notifications/approval-queue?${params}`, {
       method: 'GET',

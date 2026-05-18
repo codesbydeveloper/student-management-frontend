@@ -132,14 +132,14 @@ export default function ParentBusTrackingPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
-        <Link to="/parent-dashboard">
+        <Link to="/dashboard">
           <Button
             type="button"
             size="sm"
             variant="secondary"
             className="border-teal-200/80 bg-white !text-teal-900 hover:border-teal-300 hover:bg-teal-50"
           >
-            Family dashboard
+            Dashboard
           </Button>
         </Link>
         {token && user?.role === ROLES.PARENT ? (

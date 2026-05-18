@@ -467,6 +467,16 @@ export function mapBusStudentAssignmentRow(raw) {
   const busName = String(
     raw.busName ?? raw.name ?? bus?.name ?? bus?.routeName ?? raw.bus_name ?? '',
   ).trim()
+  const plate = String(
+    raw.plate ??
+      raw.busPlate ??
+      raw.numberPlate ??
+      bus?.plate ??
+      bus?.number ??
+      bus?.numberPlate ??
+      raw.bus_plate ??
+      '',
+  ).trim()
   const driverName = String(
     raw.driverName ??
       raw.driver_name ??
@@ -530,10 +540,121 @@ export function mapBusStudentAssignmentRow(raw) {
 
   return {
     busName: busName || '—',
+    plate: plate || '—',
     driverName: driverName || '—',
     studentCount,
     busId,
   }
+}
+
+/**
+ * Fetch every bus assignment summary row (paginates until done).
+ * @param {string} token
+ */
+export async function fetchAllBusesStudentAssignments(token) {
+  const limit = 100
+  const rows = []
+  let page = 1
+  let total = 0
+  for (;;) {
+    const res = await fetchBusesStudentAssignments(token, { page, limit })
+    if (!res.ok) {
+      return { ok: false, error: res.error, rows: [] }
+    }
+    rows.push(...res.rows)
+    total = res.total
+    if (!res.hasNextPage || res.rows.length === 0) break
+    page += 1
+    if (page > 200) break
+  }
+  return { ok: true, rows, total: total || rows.length }
+}
+
+/**
+ * Rows for CSV export: one line per student (bus + driver repeated).
+ * @param {string} token
+ * @param {{ onlyBusId?: string }} [opts]
+ */
+export async function gatherBusAssignmentExportRows(token, { onlyBusId } = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', rows: [] }
+  }
+  const filterId = onlyBusId != null ? String(onlyBusId).trim() : ''
+  const [busesRes, summariesRes] = await Promise.all([
+    fetchAllBuses(token),
+    fetchAllBusesStudentAssignments(token),
+  ])
+  if (!busesRes.ok) {
+    return { ok: false, error: busesRes.error || 'Could not load buses.', rows: [] }
+  }
+  if (!summariesRes.ok) {
+    return { ok: false, error: summariesRes.error || 'Could not load assignments.', rows: [] }
+  }
+  const busById = new Map(busesRes.buses.map((b) => [String(b.id), b]))
+  let targets = summariesRes.rows.filter((r) => r.busId != null)
+  if (filterId) {
+    targets = targets.filter((r) => String(r.busId) === filterId)
+    if (targets.length === 0) {
+      const bus = busById.get(filterId)
+      if (bus) {
+        targets = [
+          {
+            busId: bus.id,
+            busName: bus.name,
+            plate: bus.plate,
+            driverName: '—',
+            studentCount: 0,
+          },
+        ]
+      }
+    }
+  }
+  const out = []
+  for (const row of targets) {
+    const bus = busById.get(String(row.busId))
+    const busName = row.busName || bus?.name || '—'
+    const plate = (row.plate && row.plate !== '—' ? row.plate : bus?.plate) || '—'
+    const driverName = row.driverName || '—'
+    const stRes = await fetchBusStudents(token, row.busId)
+    const students = stRes.ok ? stRes.students : []
+    if (!stRes.ok && students.length === 0) {
+      out.push({
+        busName,
+        plate,
+        driverName,
+        studentName: '',
+        studentEmail: '',
+        studentClass: '',
+        note: stRes.error || 'Could not load students for this bus.',
+      })
+      continue
+    }
+    if (students.length === 0) {
+      out.push({
+        busName,
+        plate,
+        driverName,
+        studentName: '',
+        studentEmail: '',
+        studentClass: '',
+        note: '',
+      })
+      continue
+    }
+    for (const st of students) {
+      const classLabel = [st.classDisplayName, st.classSection].filter(Boolean).join(' — ')
+      out.push({
+        busName,
+        plate,
+        driverName,
+        studentName: st.fullName || '—',
+        studentEmail: st.email || '',
+        studentClass: classLabel || st.classId || '',
+        note: '',
+      })
+    }
+  }
+  return { ok: true, rows: out }
 }
 
 /**
@@ -620,6 +741,17 @@ export async function fetchBusesStudentAssignments(token, { page = 1, limit = 10
   }
 }
 
+/** Bus roster item: `{ studentId, studentName, className }` or full student row. */
+function mapBusAssignedStudentRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return mapApiStudentToRow({
+    ...raw,
+    id: raw.id ?? raw._id ?? raw.studentId ?? raw.student_id,
+    fullName: raw.fullName ?? raw.name ?? raw.studentName ?? raw.student_name,
+    className: raw.className ?? raw.class_name ?? raw.classDisplayName,
+  })
+}
+
 function extractBusStudentsListFromResponse(data) {
   if (!data) return []
   if (Array.isArray(data)) return data
@@ -640,7 +772,7 @@ function extractBusStudentsListFromResponse(data) {
 }
 
 /**
- * GET /api/buses/:busId/students — students assigned to this bus (admin/principal Bearer).
+ * GET /api/buses/:busId/students — students assigned to this bus (Bearer).
  * Response: JSON array or `{ students: [...] }` / `{ data: [...] }`; each item mapped with {@link mapApiStudentToRow}.
  * If your server uses another path (e.g. `GET /api/students?busId=`), change this function to match.
  *
@@ -668,12 +800,200 @@ export async function fetchBusStudents(token, busId) {
       return { ok: false, error: formatListError(data, res.status), students: [] }
     }
     const rawList = extractBusStudentsListFromResponse(data)
-    const students = rawList.map((row) => mapApiStudentToRow(row)).filter(Boolean)
+    const students = rawList.map((row) => mapBusAssignedStudentRow(row)).filter(Boolean)
     return { ok: true, students }
   } catch (e) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, students: [] }
+  }
+}
+
+/**
+ * POST /api/buses/:busId/students — add one student to this bus.
+ * Body: `{ studentId }`.
+ * @param {string} token
+ * @param {string | number} busId
+ * @param {string | number} studentId
+ */
+export async function addBusStudent(token, busId, studentId) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const idSeg = encodeURIComponent(String(busId ?? '').trim())
+  if (!idSeg) return { ok: false, error: 'Missing bus id.' }
+  const sid = coerceJsonId(studentId)
+  if (sid == null && studentId !== 0) return { ok: false, error: 'Choose a student.' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/buses/${idSeg}/students`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ studentId: sid }),
+    })
+    const ct = res.headers.get('content-type') || ''
+    const data =
+      res.status === 204 || !ct.includes('application/json')
+        ? null
+        : await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatMutationError(data, res.status), status: res.status }
+    }
+    return { ok: true, raw: data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
+/**
+ * DELETE /api/buses/:busId/students/:studentId — remove one student from this bus.
+ * @param {string} token
+ * @param {string | number} busId
+ * @param {string | number} studentId
+ */
+export async function removeBusStudent(token, busId, studentId) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const idSeg = encodeURIComponent(String(busId ?? '').trim())
+  const studentSeg = encodeURIComponent(String(studentId ?? '').trim())
+  if (!idSeg) return { ok: false, error: 'Missing bus id.' }
+  if (!studentSeg) return { ok: false, error: 'Missing student id.' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/buses/${idSeg}/students/${studentSeg}`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const ct = res.headers.get('content-type') || ''
+    const data =
+      res.status === 204 || !ct.includes('application/json')
+        ? null
+        : await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatMutationError(data, res.status), status: res.status }
+    }
+    return { ok: true, raw: data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
+function filenameFromContentDisposition(res, fallback) {
+  let filename = fallback
+  const cd = res.headers.get('Content-Disposition')
+  if (!cd) return filename
+  const star = cd.match(/filename\*=UTF-8''([^;\s]+)/i)
+  const quoted = cd.match(/filename="([^"]+)"/i) || cd.match(/filename=([^;\s]+)/i)
+  if (star) {
+    try {
+      filename = decodeURIComponent(star[1])
+    } catch {
+      filename = star[1]
+    }
+  } else if (quoted) {
+    filename = quoted[1].replace(/["']/g, '')
+  }
+  return filename
+}
+
+/**
+ * GET /api/buses/:busId/export/csv — Bearer; CSV of students assigned to this bus.
+ * @param {string} token
+ * @param {string | number} busId
+ * @returns {Promise<{ ok: true, blob: Blob, filename: string } | { ok: false, error: string, useClient?: boolean }>}
+ */
+export async function exportBusStudentsCsv(token, busId) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  const idSeg = encodeURIComponent(String(busId ?? '').trim())
+  if (!idSeg) {
+    return { ok: false, error: 'Missing bus id.', useClient: true }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/buses/${idSeg}/export/csv`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'text/csv,*/*',
+      },
+    })
+    const ctype = (res.headers.get('Content-Type') || '').toLowerCase()
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatListError(data, res.status) || formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    if (ctype.includes('application/json')) {
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status) || 'Unexpected response',
+        useClient: true,
+      }
+    }
+    const blob = await res.blob()
+    const filename = filenameFromContentDisposition(res, 'bus-students.csv')
+    return { ok: true, blob, filename }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
+  }
+}
+
+/**
+ * GET /api/buses/export/csv — Bearer; CSV of all buses and assigned students.
+ * @param {string} token
+ * @returns {Promise<{ ok: true, blob: Blob, filename: string } | { ok: false, error: string, useClient?: boolean }>}
+ */
+export async function exportAllBusesStudentsCsv(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/buses/export/csv`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'text/csv,*/*',
+      },
+    })
+    const ctype = (res.headers.get('Content-Type') || '').toLowerCase()
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatListError(data, res.status) || formatMutationError(data, res.status),
+        useClient,
+      }
+    }
+    if (ctype.includes('application/json')) {
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatMutationError(data, res.status) || 'Unexpected response',
+        useClient: true,
+      }
+    }
+    const blob = await res.blob()
+    const filename = filenameFromContentDisposition(res, 'all-buses-students.csv')
+    return { ok: true, blob, filename }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true }
   }
 }
 

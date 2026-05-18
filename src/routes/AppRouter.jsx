@@ -27,6 +27,7 @@ const DriverTransportPage = lazy(() => import('../pages/DriverTransportPage.jsx'
 const TransportAssignmentsPage = lazy(() => import('../pages/TransportAssignmentsPage.jsx'))
 const CreateBusesPage = lazy(() => import('../pages/CreateBusesPage.jsx'))
 const AssignBusPage = lazy(() => import('../pages/AssignBusPage.jsx'))
+const TeacherBusOverviewPage = lazy(() => import('../pages/TeacherBusOverviewPage.jsx'))
 const ParentPtmRequestPage = lazy(() => import('../pages/ptm/ParentPtmRequestPage.jsx'))
 const ParentPtmHistoryPage = lazy(() => import('../pages/ptm/ParentPtmHistoryPage.jsx'))
 const TeacherPtmRequestsPage = lazy(() => import('../pages/ptm/TeacherPtmRequestsPage.jsx'))
@@ -37,7 +38,10 @@ const AdminLeadsPage = lazy(() => import('../pages/crm/AdminLeadsPage.jsx'))
 const TeacherAssignedLeadsPage = lazy(() => import('../pages/crm/TeacherAssignedLeadsPage.jsx'))
 const LeadDetailPage = lazy(() => import('../pages/crm/LeadDetailPage.jsx'))
 const CreateLeadPage = lazy(() => import('../pages/crm/CreateLeadPage.jsx'))
+const SettingsHubPage = lazy(() => import('../pages/settings/SettingsHubPage.jsx'))
 const LoginBrandingSettingsPage = lazy(() => import('../pages/settings/LoginBrandingSettingsPage.jsx'))
+const SmtpSettingsPage = lazy(() => import('../pages/settings/SmtpSettingsPage.jsx'))
+const ProfilePage = lazy(() => import('../pages/ProfilePage.jsx'))
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'))
 
 function SuspenseFallback() {
@@ -72,11 +76,28 @@ export function AppRouter() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardHomePage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route
+            path="settings"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <SettingsHubPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="settings/login-branding"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <LoginBrandingSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="settings/smtp"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <SmtpSettingsPage />
               </ProtectedRoute>
             }
           />
@@ -311,6 +332,14 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <AssignBusPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport/bus-rosters"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.TEACHER]}>
+                <TeacherBusOverviewPage />
               </ProtectedRoute>
             }
           />

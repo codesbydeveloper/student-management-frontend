@@ -8,6 +8,10 @@ import { Button } from '../components/ui/Button'
 import { MobileDockNav } from '../components/layout/MobileDockNav'
 import { PwaMobileInstallBanner } from '../components/layout/PwaMobileInstallBanner'
 import { HeaderWebPushToggle } from '../components/layout/HeaderWebPushToggle'
+import { InstitutionBrandMark } from '../components/layout/InstitutionBrandMark'
+import { useLoginBranding } from '../hooks/useLoginBranding'
+import { useProfilePrefs } from '../hooks/useProfilePrefs'
+import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
 
 function navClass({ isActive }) {
   return `group flex min-h-[2.75rem] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
@@ -69,19 +73,29 @@ function navLinkUsesEnd(to) {
     to === '/notifications/history' ||
     to === '/assigned-leads' ||
     to === '/create-lead' ||
-    to === '/settings/login-branding'
+    to === '/settings' ||
+    to === '/settings/login-branding' ||
+    to === '/settings/smtp' ||
+    to === '/profile'
   )
 }
 
 export function DashboardLayout() {
-  const { user, logout } = useAuth()
+  const { user, logout, token } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
 
+  const branding = useLoginBranding()
+  const { displayName: profileDisplayName, profileImage } = useProfilePrefs(
+    user?.id,
+    user?.fullName,
+    token,
+  )
   const sidebarEntries = getNavSidebarEntries(user.role)
   const dockItems = getNavItemsForRole(user.role)
   const showHeaderSettings = user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL
+  const institutionTitle = branding.title || 'School'
 
   const academicsPathActive = ['/classes', '/teachers', '/students', '/parents'].some(
     (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
@@ -152,11 +166,9 @@ export function DashboardLayout() {
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
         <div className="flex shrink-0 items-center gap-3 border-b border-slate-800/80 px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:min-h-[4.25rem] lg:px-6 lg:py-4 lg:pt-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-indigo-500/30">
-            S
-          </div>
+          <InstitutionBrandMark branding={branding} />
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold tracking-tight text-white">EduConsole</p>
+            <p className="truncate text-sm font-bold tracking-tight text-white">{institutionTitle}</p>
             <p className="truncate text-xs font-medium text-indigo-300/90">Operations hub</p>
           </div>
         </div>
@@ -275,7 +287,7 @@ export function DashboardLayout() {
                 <p className="truncate text-sm font-bold text-slate-900">Institution workspace</p>
               </div>
               <p className="truncate text-sm font-bold text-slate-900 sm:hidden">
-                {user.fullName}
+                {profileDisplayName}
                 {user.id ? (
                   <span className="ml-1.5 font-mono text-[11px] font-semibold text-slate-500">· #{user.id}</span>
                 ) : null}
@@ -284,10 +296,10 @@ export function DashboardLayout() {
             <div className="flex shrink-0 items-center gap-2 sm:gap-4">
               {showHeaderSettings ? (
                 <NavLink
-                  to="/settings/login-branding"
-                  end
-                  title="Login page — logo, title, subtitle"
-                  aria-label="Login page appearance settings"
+                  to="/settings"
+                  end={false}
+                  title="Institution settings — login appearance and SMTP email"
+                  aria-label="Institution settings"
                   className={({ isActive }) =>
                     `flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 ${
                       isActive ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200/80'
@@ -311,7 +323,7 @@ export function DashboardLayout() {
               ) : null}
               <HeaderWebPushToggle />
               <div className="hidden text-right sm:block">
-                <p className="text-sm font-bold text-slate-900">{user.fullName}</p>
+                <p className="text-sm font-bold text-slate-900">{profileDisplayName}</p>
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
                   {user.id ? (
                     <span className="rounded-full bg-slate-100/90 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200/80">
@@ -321,12 +333,9 @@ export function DashboardLayout() {
                   <RoleBadge role={user.role} />
                 </div>
               </div>
-              <Link
-                to="/dashboard"
-                className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-md shadow-indigo-500/25 sm:flex"
-              >
-                {user.fullName?.charAt(0) ?? '?'}
-              </Link>
+              <div className="hidden sm:block">
+                <UserProfileAvatar displayName={profileDisplayName} profileImage={profileImage} />
+              </div>
               <Button
                 type="button"
                 variant="secondary"

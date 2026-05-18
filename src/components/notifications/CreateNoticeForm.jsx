@@ -313,10 +313,6 @@ export function CreateNoticeForm() {
             <option value={NOTIFICATION_CATEGORIES.ADMINISTRATIVE}>Administrative</option>
             <option value={NOTIFICATION_CATEGORIES.ACADEMIC}>Academic</option>
           </Select>
-          <p className="mt-1.5 text-xs text-slate-500">
-            Teachers: administrative → admin approval; academic → principal approval. Admin/principal: matching
-            category can publish immediately (local demo).
-          </p>
         </div>
         <div>
           <Label htmlFor="cn-subcategory">Sub-category</Label>
@@ -337,20 +333,12 @@ export function CreateNoticeForm() {
             <p className="mt-1.5 text-xs text-slate-500">Loading sub-categories…</p>
           ) : subCategoriesError ? (
             <p className="mt-1.5 text-xs text-amber-800">{subCategoriesError}</p>
-          ) : (
-            <p className="mt-1.5 text-xs text-slate-500">
-              Options come from the server list for this notice category (administrative vs academic).
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4">
         <p className="text-sm font-semibold text-slate-800">Banner & links (optional)</p>
-        <p className="mt-1 text-xs text-slate-500">
-          Optional banner (upload), video URLs, and external links are stored with the notice when your backend
-          accepts them.
-        </p>
         <div className="mt-4 space-y-4">
           <div>
             <Label htmlFor="cn-banner-file" className="text-sm text-slate-800">
@@ -397,7 +385,6 @@ export function CreateNoticeForm() {
               placeholder={'https://example.com/form\nHandbook PDF|https://school.edu/handbook.pdf'}
               className="mt-1.5 w-full rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-inner shadow-slate-900/[0.03] transition placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25"
             />
-            <p className="mt-1 text-xs text-slate-500">Use optional label before a pipe: Label|https://…</p>
           </div>
         </div>
       </div>

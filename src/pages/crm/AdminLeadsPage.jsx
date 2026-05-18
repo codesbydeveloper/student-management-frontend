@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
-import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
+import { LEAD_STAGES, LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { createLead, fetchLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
 import { fetchTeachersPicker } from '../../api/teachersApi'
@@ -20,6 +20,7 @@ export default function AdminLeadsPage() {
   const [total, setTotal] = useState(0)
   const [listError, setListError] = useState('')
   const [q, setQ] = useState('')
+  const [stageFilter, setStageFilter] = useState('')
 
   const [studentName, setStudentName] = useState('')
   const [parentName, setParentName] = useState('')
@@ -85,7 +86,7 @@ export default function AdminLeadsPage() {
   }, [token])
 
   const load = useCallback(
-    async (nextPage, query) => {
+    async (nextPage, query, stage) => {
       if (!token) {
         setLeads([])
         return
@@ -96,6 +97,7 @@ export default function AdminLeadsPage() {
       setListError('')
       const res = await fetchLeads(token, {
         q: query,
+        stage,
         page: nextPage,
         limit: PAGE_LIMIT,
         signal: ctrl.signal,
@@ -120,10 +122,11 @@ export default function AdminLeadsPage() {
   useEffect(() => {
     setLeads(null)
     const handle = setTimeout(() => {
-      void load(1, q)
+      setPage(1)
+      void load(1, q, stageFilter)
     }, 350)
     return () => clearTimeout(handle)
-  }, [q, load])
+  }, [q, stageFilter, load])
 
   useEffect(
     () => () => {
@@ -159,7 +162,7 @@ export default function AdminLeadsPage() {
       setAssignId('')
       setClassId('')
       setQ('')
-      await load(1, '')
+      await load(1, '', stageFilter)
     } finally {
       setSubmitting(false)
     }
@@ -183,7 +186,7 @@ export default function AdminLeadsPage() {
           variant="secondary"
           onClick={() => {
             setLeads(null)
-            void load(page, q)
+            void load(page, q, stageFilter)
           }}
         >
           Refresh
@@ -282,12 +285,25 @@ export default function AdminLeadsPage() {
           title="Lead dashboard"
           subtitle="Search and open a lead to change stage, notes, and follow-ups."
         />
-        <div className="mb-4">
+        <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_220px]">
           <Input
-            placeholder="Search by student, parent, phone, teacher, stage…"
+            placeholder="Search by student, parent, phone, teacher…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+          <select
+            className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-900"
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            aria-label="Filter by stage"
+          >
+            <option value="">All stages</option>
+            {LEAD_STAGES.map((s) => (
+              <option key={s} value={s}>
+                {LEAD_STAGE_LABELS[s] ?? s}
+              </option>
+            ))}
+          </select>
         </div>
 
         {leads === null ? (
@@ -304,7 +320,7 @@ export default function AdminLeadsPage() {
 
         {leads !== null && leads.length === 0 && !listError ? (
           <p className="text-sm text-slate-600">
-            {q ? 'No leads match your search.' : 'No leads yet.'}
+            {q || stageFilter ? 'No leads match your filters.' : 'No leads yet.'}
           </p>
         ) : null}
 
@@ -364,7 +380,7 @@ export default function AdminLeadsPage() {
                 disabled={!hasPrev || leads === null}
                 onClick={() => {
                   setLeads(null)
-                  void load(page - 1, q)
+                  void load(page - 1, q, stageFilter)
                 }}
               >
                 Previous
@@ -376,7 +392,7 @@ export default function AdminLeadsPage() {
                 disabled={!hasNext || leads === null}
                 onClick={() => {
                   setLeads(null)
-                  void load(page + 1, q)
+                  void load(page + 1, q, stageFilter)
                 }}
               >
                 Next

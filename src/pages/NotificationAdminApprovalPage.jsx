@@ -179,11 +179,7 @@ export default function NotificationAdminApprovalPage() {
       <Card>
         <CardHeader
           title="Administrative approvals"
-          subtitle={
-            serverListOk
-              ? 'Pending items from the server (GET /api/notifications/pending/admin).'
-              : 'Review and action pending Administrative notifications from teachers.'
-          }
+          
           action={
             token && user?.role === ROLES.ADMIN ? (
               <Button type="button" variant="secondary" size="sm" disabled={listLoading} onClick={() => void loadPending()}>

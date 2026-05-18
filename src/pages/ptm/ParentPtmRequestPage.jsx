@@ -152,9 +152,9 @@ export default function ParentPtmRequestPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
-        <Link to="/parent-dashboard">
+        <Link to="/dashboard">
           <Button type="button" size="sm" variant="secondary">
-            Family dashboard
+            Dashboard
           </Button>
         </Link>
         <Link to="/parent/ptm/history">

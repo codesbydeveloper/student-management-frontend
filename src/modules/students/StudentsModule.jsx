@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
-import { fetchClassesSummary } from '../../api/classesApi'
+import {
+  fetchAllClassesList,
+  fetchClassesAssigned,
+  fetchClassesSummary,
+  mapApiClassToRow,
+} from '../../api/classesApi'
 import { fetchParentMyStudents, fetchParentsPicker } from '../../api/parentsApi'
 import {
   createStudent,
@@ -24,6 +29,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Label } from '../../components/ui/Label'
 import { SearchableSingleSelect } from '../../components/SearchableSingleSelect'
+import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { ROLES } from '../../utils/constants'
 import { canManageStudents, canDeleteStudent } from '../../utils/permissions'
@@ -59,6 +65,25 @@ function csvRowToStudentDraft(row) {
   const parentId = pickCsvField(row, ['parentid', 'parent_id', 'parent'])
   const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
   return { fullName, email: emailVal, classId, parentId, active }
+}
+
+function sortGradeLevels(a, b) {
+  const na = Number(a)
+  const nb = Number(b)
+  if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb
+  return String(a).localeCompare(String(b), undefined, { numeric: true })
+}
+
+/** e.g. "Class 12 A" for grade 12 section A */
+function formatClassDivisionLabel(c) {
+  if (!c) return ''
+  const grade = String(c.gradeLevel ?? '').trim()
+  const section = String(c.section ?? '').trim()
+  const name = String(c.name ?? '').trim()
+  if (grade && section) return `Class ${grade} ${section}`
+  if (name) return name
+  if (grade) return `Class ${grade}`
+  return `Class ${c.id}`
 }
 
 function syncParentStudentIds(parents, studentId, prevParentId, nextParentId) {
@@ -197,6 +222,12 @@ export function StudentsModule() {
   const [exportPickPage, setExportPickPage] = useState(1)
   const [exportWho, setExportWho] = useState('any')
   const [exportLoading, setExportLoading] = useState(false)
+  /** list | grade (all sections, e.g. Class 12) | division (one section, e.g. Class 12 A) */
+  const [exportScope, setExportScope] = useState('list')
+  const [exportGradeLevel, setExportGradeLevel] = useState('')
+  const [exportDivisionClassId, setExportDivisionClassId] = useState('')
+  const [exportClassesList, setExportClassesList] = useState([])
+  const [exportClassesLoading, setExportClassesLoading] = useState(false)
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importingCsv, setImportingCsv] = useState(false)
   const [importFileLabel, setImportFileLabel] = useState('')
@@ -339,6 +370,93 @@ export function StudentsModule() {
     setExportPickPage((prev) => Math.min(Math.max(1, prev), exportTotalPages))
   }, [exportTotalPages])
 
+  useEffect(() => {
+    if (!exportModalOpen || !token || readOnly) {
+      if (!exportModalOpen) {
+        setExportClassesList([])
+        setExportClassesLoading(false)
+      }
+      return
+    }
+    let cancelled = false
+    setExportClassesLoading(true)
+    void (async () => {
+      const res =
+        user.role === ROLES.TEACHER
+          ? await fetchClassesAssigned(token)
+          : await fetchAllClassesList(token)
+      if (cancelled) return
+      if (res.ok && res.classes?.length) {
+        setExportClassesList(res.classes)
+      } else if (classes.length) {
+        setExportClassesList(classes)
+      } else {
+        const summary = await fetchClassesSummary(token)
+        if (!cancelled && summary.ok) {
+          setExportClassesList(summary.classes.map((r) => mapApiClassToRow(r)).filter(Boolean))
+        } else {
+          setExportClassesList([])
+        }
+      }
+      setExportClassesLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [exportModalOpen, token, readOnly, user.role, classes])
+
+  const exportClassSource = exportClassesList.length ? exportClassesList : classes
+
+  const exportGradeOptions = useMemo(() => {
+    const seen = new Map()
+    for (const c of exportClassSource) {
+      const g = String(c.gradeLevel ?? '').trim()
+      if (!g || seen.has(g)) continue
+      const sections = exportClassSource
+        .filter((x) => String(x.gradeLevel) === g)
+        .map((x) => String(x.section ?? '').trim())
+        .filter(Boolean)
+      const uniqueSections = [...new Set(sections)].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      )
+      seen.set(g, {
+        value: g,
+        label: `Class ${g}`,
+        hint:
+          uniqueSections.length > 0
+            ? `Sections ${uniqueSections.join(', ')}`
+            : 'All sections in this class',
+      })
+    }
+    return Array.from(seen.values()).sort((a, b) => sortGradeLevels(a.value, b.value))
+  }, [exportClassSource])
+
+  const exportDivisionOptions = useMemo(() => {
+    return [...exportClassSource]
+      .filter((c) => String(c.gradeLevel ?? '').trim() || String(c.section ?? '').trim() || c.name)
+      .sort((a, b) => {
+        const g = sortGradeLevels(a.gradeLevel, b.gradeLevel)
+        if (g !== 0) return g
+        return String(a.section ?? '').localeCompare(String(b.section ?? ''), undefined, {
+          numeric: true,
+        })
+      })
+      .map((c) => ({
+        id: c.id,
+        label: formatClassDivisionLabel(c),
+        subtext: c.name && c.name !== formatClassDivisionLabel(c) ? c.name : undefined,
+      }))
+  }, [exportClassSource])
+
+  const classIdsForExportGrade = useMemo(() => {
+    if (!exportGradeLevel) return new Set()
+    return new Set(
+      exportClassSource
+        .filter((c) => String(c.gradeLevel) === String(exportGradeLevel))
+        .map((c) => String(c.id)),
+    )
+  }, [exportGradeLevel, exportClassSource])
+
   const downloadBlobFile = (blob, filename) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -363,6 +481,40 @@ export function StudentsModule() {
     if (exportWho === 'active') return list.filter((s) => s.active !== false)
     if (exportWho === 'inactive') return list.filter((s) => s.active === false)
     return list
+  }
+
+  const applyExportClassDivisionFilters = (list) => {
+    let out = applyExportStudentWho(list)
+    if (exportScope === 'grade' && exportGradeLevel) {
+      out = out.filter((s) => classIdsForExportGrade.has(String(s.classId)))
+    } else if (exportScope === 'division' && exportDivisionClassId) {
+      out = out.filter((s) => String(s.classId) === String(exportDivisionClassId))
+    }
+    return out
+  }
+
+  const fetchEveryStudentForExport = async () => {
+    if (remoteStudents !== undefined && token) {
+      if (user.role === ROLES.PARENT) {
+        let all = parentMyStudentsRef.current
+        if (!all.length) {
+          const pr = await fetchParentMyStudents(token)
+          if (!pr.ok) throw new Error(pr.error)
+          all = pr.students
+          parentMyStudentsRef.current = all
+        }
+        return [...all]
+      }
+      const res =
+        user.role === ROLES.TEACHER
+          ? await fetchAllStudentsAssigned(token)
+          : await fetchAllStudentsList(token)
+      if (!res.ok) throw new Error(res.error)
+      return user.role === ROLES.TEACHER
+        ? res.students
+        : filterStudentsForUser(user, res.students, teachers, parents)
+    }
+    return filterStudentsForUser(user, students, teachers, parents)
   }
 
   const resolveExportStudentList = async () => {
@@ -430,48 +582,109 @@ export function StudentsModule() {
   }
 
   const runExportCsv = async () => {
+    if (exportScope === 'grade' && !exportGradeLevel) {
+      toast.error('Choose a class (e.g. Class 12) to export all its sections.')
+      return
+    }
+    if (exportScope === 'division' && !exportDivisionClassId) {
+      toast.error('Choose a class and section (e.g. Class 12 A).')
+      return
+    }
+
     setExportLoading(true)
     try {
       const pick = Math.min(Math.max(1, exportPickPage), exportTotalPages)
       const isServerList = remoteStudents !== undefined
-      const statusForPage =
+      const statusForExport =
         exportWho === 'any' ? 'all' : exportWho === 'active' ? 'active' : 'inactive'
 
-      if (token && exportRange === 'all') {
-        const apiRes = await exportStudentsCsv(token, {
-          rows: 'everyone',
-          ...(exportWho === 'any'
-            ? {}
-            : { status: exportWho === 'active' ? 'active' : 'inactive' }),
-        })
+      const tryApiExport = async (opts) => {
+        if (!token) return false
+        const apiRes = await exportStudentsCsv(token, opts)
         if (apiRes.ok && apiRes.blob) {
           downloadBlobFile(apiRes.blob, apiRes.filename)
           toast.success('Export ready — your file should appear in Downloads.', { autoClose: 5000 })
           setExportModalOpen(false)
-          return
+          return true
         }
         if (!apiRes.useClient) {
           toast.error(apiRes.error)
+          return true
+        }
+        return false
+      }
+
+      if (exportScope === 'grade' && exportGradeLevel) {
+        const stopped = await tryApiExport({
+          exportBy: 'whole_class',
+          gradeLevel: exportGradeLevel,
+          status: statusForExport,
+        })
+        if (stopped) return
+        toast.info('Building the file on this device…')
+        const all = await fetchEveryStudentForExport()
+        const list = applyExportClassDivisionFilters(all)
+        if (!list.length) {
+          toast.info('No students found for that class.')
           return
         }
+        let name = `students-export-class-${String(exportGradeLevel).replace(/[^\w-]+/g, '-')}`
+        if (exportWho === 'active') name += '-active-only'
+        else if (exportWho === 'inactive') name += '-inactive-only'
+        downloadStudentsCsv(list, `${name}.csv`)
+        toast.success('Export ready — your file should appear in Downloads.', { autoClose: 5000 })
+        setExportModalOpen(false)
+        return
+      }
+
+      if (exportScope === 'division' && exportDivisionClassId) {
+        const stopped = await tryApiExport({
+          exportBy: 'section',
+          classId: exportDivisionClassId,
+          status: statusForExport,
+        })
+        if (stopped) return
         toast.info('Building the file on this device…')
-      } else if (token && isServerList && (exportRange === 'current' || exportRange === 'pick')) {
-        const apiRes = await exportStudentsCsv(token, {
+        const all = await fetchEveryStudentForExport()
+        const list = applyExportClassDivisionFilters(all)
+        if (!list.length) {
+          toast.info('No students found for that class and section.')
+          return
+        }
+        const divLabel =
+          exportDivisionOptions.find((d) => d.id === String(exportDivisionClassId))?.label ||
+          exportDivisionClassId
+        let name = `students-export-${String(divLabel).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-')}`
+        if (exportWho === 'active') name += '-active-only'
+        else if (exportWho === 'inactive') name += '-inactive-only'
+        downloadStudentsCsv(list, `${name}.csv`)
+        toast.success('Export ready — your file should appear in Downloads.', { autoClose: 5000 })
+        setExportModalOpen(false)
+        return
+      }
+
+      if (token && exportScope === 'list' && exportRange === 'all') {
+        const stopped = await tryApiExport({
+          exportBy: 'list',
+          rows: 'everyone',
+          status: statusForExport,
+        })
+        if (stopped) return
+        toast.info('Building the file on this device…')
+      } else if (
+        token &&
+        exportScope === 'list' &&
+        isServerList &&
+        (exportRange === 'current' || exportRange === 'pick')
+      ) {
+        const stopped = await tryApiExport({
+          exportBy: 'list',
           rows: exportRange === 'current' ? 'page' : 'one_page_by_number',
           page: exportRange === 'current' ? studentPage : pick,
           limit: STUDENT_PAGE_LIMIT,
-          status: statusForPage,
+          status: statusForExport,
         })
-        if (apiRes.ok && apiRes.blob) {
-          downloadBlobFile(apiRes.blob, apiRes.filename)
-          toast.success('Export ready — your file should appear in Downloads.', { autoClose: 5000 })
-          setExportModalOpen(false)
-          return
-        }
-        if (!apiRes.useClient) {
-          toast.error(apiRes.error)
-          return
-        }
+        if (stopped) return
         toast.info('Building the file on this device…')
       }
 
@@ -954,6 +1167,9 @@ export function StudentsModule() {
                   variant="secondary"
                   size="sm"
                   onClick={() => {
+                    setExportScope('list')
+                    setExportGradeLevel('')
+                    setExportDivisionClassId('')
                     setExportRange('current')
                     setExportWho('any')
                     setExportPickPage(remoteStudents !== undefined ? studentPage : 1)
@@ -1088,7 +1304,11 @@ export function StudentsModule() {
             <Button
               type="button"
               className="w-full sm:w-auto"
-              disabled={exportLoading}
+              disabled={
+                exportLoading ||
+                (exportScope === 'grade' && !exportGradeLevel) ||
+                (exportScope === 'division' && !exportDivisionClassId)
+              }
               onClick={() => void runExportCsv()}
             >
               {exportLoading ? 'Preparing…' : 'Download'}
@@ -1096,8 +1316,103 @@ export function StudentsModule() {
           </div>
         }
       >
-        <p className="mb-5 text-sm text-slate-500">Pick a slice of the list, then optionally limit by status.</p>
+        <p className="mb-5 text-sm text-slate-500">
+          Export a whole class (all sections), one class-section (e.g. Class 12 A), or a slice of the list.
+        </p>
         <div className="space-y-5" aria-busy={exportLoading}>
+          <fieldset className="min-w-0" disabled={exportLoading}>
+            <legend className="mb-2 text-xs font-medium text-slate-500">Export by</legend>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              {[
+                { value: 'list', label: 'From list', hint: 'This page, one page, or everyone' },
+                {
+                  value: 'grade',
+                  label: 'Whole class',
+                  hint: 'e.g. Class 12 — includes 12 A, 12 B, 12 C, …',
+                },
+                {
+                  value: 'division',
+                  label: 'One class & section',
+                  hint: 'e.g. Class 12 A, Class 10 B',
+                },
+              ].map((opt, i, arr) => (
+                <label
+                  key={opt.value}
+                  className={`flex cursor-pointer items-start gap-3 border-slate-100 px-3 py-2.5 transition-colors sm:items-center ${
+                    i < arr.length - 1 ? 'border-b' : ''
+                  } ${exportScope === opt.value ? 'bg-slate-50' : 'hover:bg-slate-50/80'}`}
+                >
+                  <input
+                    type="radio"
+                    name="student-csv-export-scope"
+                    value={opt.value}
+                    checked={exportScope === opt.value}
+                    onChange={() => setExportScope(opt.value)}
+                    className="mt-0.5 h-4 w-4 shrink-0 border-slate-300 text-indigo-600 focus:ring-indigo-500 sm:mt-0"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm text-slate-900">{opt.label}</span>
+                    <span className="block text-xs text-slate-500">{opt.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {exportScope === 'grade' ? (
+            <div>
+              <Label htmlFor="student-export-grade">Class</Label>
+              <Select
+                id="student-export-grade"
+                className="mt-1.5"
+                value={exportGradeLevel}
+                disabled={exportLoading || exportClassesLoading}
+                onChange={(e) => setExportGradeLevel(e.target.value)}
+              >
+                <option value="">
+                  {exportClassesLoading ? 'Loading classes…' : 'Select class (e.g. Class 12)'}
+                </option>
+                {exportGradeOptions.map((g) => (
+                  <option key={g.value} value={g.value}>
+                    {g.label}
+                    {g.hint ? ` — ${g.hint}` : ''}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1.5 text-xs text-slate-500">
+                All sections for this class are included in one file.
+              </p>
+            </div>
+          ) : null}
+
+          {exportScope === 'division' ? (
+            <div>
+              <Label htmlFor="student-export-division">Class & section</Label>
+              <Select
+                id="student-export-division"
+                className="mt-1.5"
+                value={exportDivisionClassId}
+                disabled={exportLoading || exportClassesLoading}
+                onChange={(e) => setExportDivisionClassId(e.target.value)}
+              >
+                <option value="">
+                  {exportClassesLoading
+                    ? 'Loading…'
+                    : exportDivisionOptions.length
+                      ? 'Select (e.g. Class 12 A)'
+                      : 'No classes in directory'}
+                </option>
+                {exportDivisionOptions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                    {d.subtext ? ` — ${d.subtext}` : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+
+          {exportScope === 'list' ? (
           <fieldset className="min-w-0" disabled={exportLoading}>
             <legend className="mb-2 text-xs font-medium text-slate-500">Rows</legend>
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
@@ -1161,6 +1476,7 @@ export function StudentsModule() {
               ))}
             </div>
           </fieldset>
+          ) : null}
           <fieldset className="min-w-0" disabled={exportLoading}>
             <legend className="mb-2 text-xs font-medium text-slate-500">Status</legend>
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
@@ -1192,9 +1508,19 @@ export function StudentsModule() {
             </div>
           </fieldset>
         </div>
-        {remoteStudents !== undefined && token ? (
+        {exportScope === 'list' && remoteStudents !== undefined && token ? (
           <p className="mt-4 text-xs text-slate-400">
             “Everyone” loads all pages first when your list comes from the server.
+          </p>
+        ) : null}
+        {exportScope === 'grade' ? (
+          <p className="mt-4 text-xs text-slate-400">
+            Whole class exports every section together (e.g. Class 12 → 12 A, 12 B, 12 C).
+          </p>
+        ) : null}
+        {exportScope === 'division' ? (
+          <p className="mt-4 text-xs text-slate-400">
+            One class & section exports only that group (e.g. Class 12 A).
           </p>
         ) : null}
       </Modal>
@@ -1250,7 +1576,7 @@ export function StudentsModule() {
             <SearchableSingleSelect
               key={`${editing?.id ?? 'new'}-class`}
               id="st-class"
-              label="Class (optional)"
+              label="Class "
               options={studentClassSelectOptions}
               value={form.classId}
               onChange={(classId) => setForm((f) => ({ ...f, classId }))}
@@ -1265,7 +1591,7 @@ export function StudentsModule() {
             <SearchableSingleSelect
               key={`${editing?.id ?? 'new'}-parent`}
               id="st-parent"
-              label="Parent / guardian (optional)"
+              label="Parent / guardian"
               options={studentParentSelectOptions}
               value={form.parentId}
               onChange={(parentId) => setForm((f) => ({ ...f, parentId }))}

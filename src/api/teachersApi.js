@@ -172,6 +172,169 @@ export async function fetchTeachersPicker(token) {
   }
 }
 
+function firstFiniteNumber(...vals) {
+  for (const v of vals) {
+    if (v == null || v === '') continue
+    const n = Number(v)
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+function unwrapTeacherDashboardPayload(raw) {
+  if (!raw || typeof raw !== 'object') return {}
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) return raw.data
+  if (raw.dashboard && typeof raw.dashboard === 'object') return raw.dashboard
+  return raw
+}
+
+function mapTeacherDashboardNoticeRow(o) {
+  if (!o || typeof o !== 'object') return null
+  const id = String(o.id ?? o._id ?? o.notificationId ?? '').trim()
+  const title = String(o.title ?? o.subject ?? '').trim() || 'Untitled'
+  const status = String(o.status ?? '').trim()
+  let createdAt = o.createdAt ?? o.created_at ?? o.submittedAt ?? o.submitted_at
+  if (typeof createdAt === 'string') {
+    const t = Date.parse(createdAt)
+    createdAt = Number.isFinite(t) ? t : null
+  } else if (typeof createdAt === 'number') {
+    if (createdAt > 0 && createdAt < 1e11) createdAt *= 1000
+  } else {
+    createdAt = null
+  }
+  return { id: id || `n-${title}-${createdAt ?? 'x'}`, title, status, createdAt }
+}
+
+function mapTeacherDashboardPtmRow(o) {
+  if (!o || typeof o !== 'object') return null
+  const id = String(o.id ?? o._id ?? o.requestId ?? '').trim() || `ptm-${Math.random().toString(36).slice(2, 9)}`
+  const family = String(
+    o.family ?? o.parentAndStudent ?? o.label ?? o.summary ?? o.parentName ?? o.studentName ?? '',
+  ).trim()
+  const when = String(o.slot ?? o.when ?? o.scheduledAt ?? o.scheduled_at ?? o.slotLabel ?? '').trim()
+  const st = String(o.status ?? o.state ?? '').trim()
+  let state = st || '—'
+  if (/complete/i.test(st)) state = 'Completed'
+  else if (/upcoming|pending|scheduled|booked/i.test(st)) state = 'Upcoming'
+  return { id, family: family || '—', when: when || '—', state }
+}
+
+/**
+ * Normalize GET /api/teachers/dashboard JSON for the teacher home UI (accepts common field name variants).
+ * @param {object|null} raw
+ */
+export function normalizeTeacherDashboardPayload(raw) {
+  const d = unwrapTeacherDashboardPayload(raw)
+  if (!d || typeof d !== 'object') {
+    return {
+      assignedClassesCount: null,
+      studentsInAssignedClasses: null,
+      notificationCounts: { approved: null, rejected: null, pending: null },
+      ptmCounts: { upcoming: null, completed: null },
+      assignedLeadsTotal: null,
+      recentNotices: [],
+      recentPtmRequests: [],
+    }
+  }
+
+  const notif = d.notifications ?? d.notificationStats ?? d.notification_counts ?? {}
+  const ptm = d.ptm ?? d.ptmStats ?? {}
+  const leads = d.leads ?? d.leadStats ?? {}
+
+  const recentNoticesRaw = Array.isArray(d.recentNotices)
+    ? d.recentNotices
+    : Array.isArray(d.recent_notifications)
+      ? d.recent_notifications
+      : Array.isArray(d.notices)
+        ? d.notices
+        : []
+
+  const recentPtmRaw = Array.isArray(d.recentPtmRequests)
+    ? d.recentPtmRequests
+    : Array.isArray(d.recentPtm)
+      ? d.recentPtm
+      : Array.isArray(d.ptmRequests)
+        ? d.ptmRequests
+        : []
+
+  return {
+    assignedClassesCount: firstFiniteNumber(
+      d.assignedClassesCount,
+      d.totalAssignedClasses,
+      d.classesCount,
+      d.assigned_class_count,
+    ),
+    studentsInAssignedClasses: firstFiniteNumber(
+      d.studentsInAssignedClasses,
+      d.totalStudentsInAssignedClasses,
+      d.studentsInClasses,
+      d.student_count,
+    ),
+    notificationCounts: {
+      approved: firstFiniteNumber(
+        notif.approved,
+        notif.approvedCount,
+        d.notificationsApproved,
+        d.approvedNotifications,
+      ),
+      rejected: firstFiniteNumber(
+        notif.rejected,
+        notif.rejectedCount,
+        d.notificationsRejected,
+        d.rejectedNotifications,
+      ),
+      pending: firstFiniteNumber(
+        notif.pending,
+        notif.pendingCount,
+        d.notificationsPending,
+        d.pendingNotifications,
+      ),
+    },
+    ptmCounts: {
+      upcoming: firstFiniteNumber(ptm.upcoming, ptm.upcomingCount, d.ptmUpcoming),
+      completed: firstFiniteNumber(ptm.completed, ptm.completedCount, d.ptmCompleted),
+    },
+    assignedLeadsTotal: firstFiniteNumber(
+      d.assignedLeadsTotal,
+      d.totalAssignedLeads,
+      leads.total,
+      leads.assigned,
+      leads.count,
+    ),
+    recentNotices: recentNoticesRaw.slice(0, 5).map(mapTeacherDashboardNoticeRow).filter(Boolean),
+    recentPtmRequests: recentPtmRaw.slice(0, 5).map(mapTeacherDashboardPtmRow).filter(Boolean),
+  }
+}
+
+/**
+ * GET /api/teachers/dashboard — Bearer (signed-in teacher).
+ * @param {string} token
+ * @returns {Promise<{ ok: true, dashboard: ReturnType<typeof normalizeTeacherDashboardPayload> } | { ok: false, error: string, dashboard: null }>}
+ */
+export async function fetchTeacherDashboard(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', dashboard: null }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/teachers/dashboard`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatListError(data, res.status), dashboard: null }
+    }
+    return { ok: true, dashboard: normalizeTeacherDashboardPayload(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, dashboard: null }
+  }
+}
+
 /**
  * POST /api/teachers — admin creates a teacher (body matches server curl).
  * @param {object} body — { fullName, email, phone, password, subjectFocus, isActive, classIds? } — `classIds` from the app is sent as `assignedClasses` on the wire.

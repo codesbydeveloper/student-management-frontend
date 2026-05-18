@@ -15,6 +15,7 @@ import {
   sanitizeLogoImage,
   setLoginBranding,
 } from '../../utils/loginBranding'
+import { SettingsNav } from '../../components/settings/SettingsNav'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -192,13 +193,7 @@ export default function LoginBrandingSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        <Link to="/dashboard">
-          <Button type="button" size="sm" variant="secondary">
-            Dashboard
-          </Button>
-        </Link>
-      </div>
+      <SettingsNav active="login" />
 
       <Card>
         <CardHeader

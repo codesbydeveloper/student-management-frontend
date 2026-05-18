@@ -110,6 +110,7 @@ export default function NoticeHistoryPage() {
   const [delivery, setDelivery] = useState({ open: false, title: '' })
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)
 
   const allowed = user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
 
@@ -124,7 +125,11 @@ export default function NoticeHistoryPage() {
     }
     setLoading(true)
     setError(null)
-    const res = await fetchNotificationApprovalQueue(token, { page, limit: PAGE_LIMIT })
+    const res = await fetchNotificationApprovalQueue(token, {
+      page,
+      limit: PAGE_LIMIT,
+      categoryKind: categoryFilter,
+    })
     setLoading(false)
     if (!res.ok) {
       setRows([])
@@ -140,7 +145,12 @@ export default function NoticeHistoryPage() {
     setRows(res.notifications)
     setTotal(res.total)
     setHasNext(Boolean(res.hasNext))
-  }, [token, allowed, page])
+  }, [token, allowed, page, categoryFilter])
+
+  const selectCategoryFilter = (kind) => {
+    setCategoryFilter(kind)
+    setPage(1)
+  }
 
   useEffect(() => {
     void load()
@@ -244,6 +254,34 @@ export default function NoticeHistoryPage() {
       <Card>
         <CardHeader title="Notice history" />
 
+        <div className="border-t border-slate-100 px-4 pt-5 sm:px-6">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Category</p>
+          <div className="flex max-w-md rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner">
+            <button
+              type="button"
+              className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+                  ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)}
+            >
+              Administrative
+            </button>
+            <button
+              type="button"
+              className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC
+                  ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)}
+            >
+              Academic
+            </button>
+          </div>
+        </div>
+
         <div className="border-t border-slate-100 px-4 py-6 sm:px-6">
           {error ? (
             <div className="mb-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-center text-sm text-amber-950">
@@ -256,7 +294,9 @@ export default function NoticeHistoryPage() {
           ) : null}
 
           {!loading && rows.length === 0 && !error ? (
-            <p className="text-center text-sm text-slate-600">No notices on this page.</p>
+            <p className="text-center text-sm text-slate-600">
+              No {categoryLabel(categoryFilter).toLowerCase()} notices on this page.
+            </p>
           ) : null}
 
           {sorted.length > 0 ? (

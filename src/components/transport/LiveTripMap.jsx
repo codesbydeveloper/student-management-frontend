@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { OSM_TILE_LAYER_URL, OSM_TILE_ATTRIBUTION } from '../../modules/transport/transportMapConstants'
+import { OSM_TILE_LAYER_URL } from '../../modules/transport/transportMapConstants'
 import { getBusMapIcon } from '../../modules/transport/transportBusMapIcon'
 
 /**
@@ -22,12 +22,12 @@ export function LiveTripMap({ position, className = '', label = 'Bus' }) {
     const [initLat, initLng] = position
     const map = L.map(containerRef.current, {
       zoomControl: true,
-      attributionControl: true,
+      attributionControl: false,
     }).setView([initLat, initLng], 15)
 
     L.tileLayer(OSM_TILE_LAYER_URL, {
       maxZoom: 19,
-      attribution: OSM_TILE_ATTRIBUTION,
+      attribution: '',
     }).addTo(map)
 
     const marker = L.marker([initLat, initLng], {
@@ -60,17 +60,13 @@ export function LiveTripMap({ position, className = '', label = 'Bus' }) {
   }, [lat, lng, label])
 
   return (
-    <div className={`space-y-1.5 ${className}`}>
+    <div className={className}>
       <div
         ref={containerRef}
         className="z-0 min-h-[220px] w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-100 shadow-inner"
         style={{ minHeight: 'min(50vh, 22rem)' }}
         aria-label="Map showing bus location"
       />
-      <p className="text-[11px] leading-snug text-slate-500">
-        <span className="font-semibold text-slate-600">OpenStreetMap</span> map tiles and{' '}
-        <span className="font-semibold text-slate-600">Leaflet</span> — not Google Maps.
-      </p>
     </div>
   )
 }

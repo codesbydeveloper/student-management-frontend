@@ -305,6 +305,103 @@ export function mapPickerStudentToOption(raw) {
  * GET /api/students/picker — Bearer + Accept; lightweight list for link-student pickers.
  * @returns {Promise<{ ok: true, options: { value: string, label: string, subtext: string }[] } | { ok: false, error: string, options: [] }>}
  */
+/** Normalize GET /api/students/bus-overview response to a raw row array. */
+function extractBusOverviewStudentsList(data) {
+  if (!data) return []
+  if (Array.isArray(data)) return data
+  if (typeof data !== 'object') return []
+  if (Array.isArray(data.students)) return data.students
+  if (Array.isArray(data.items)) return data.items
+  if (Array.isArray(data.results)) return data.results
+  if (Array.isArray(data.data)) return data.data
+  if (
+    data.data &&
+    typeof data.data === 'object' &&
+    !Array.isArray(data.data) &&
+    Array.isArray(data.data.students)
+  ) {
+    return data.data.students
+  }
+  return []
+}
+
+/** API may send nested `{ driver: { name } }` — never stringify objects (avoids "[object Object]"). */
+function pickBusOverviewTextField(value) {
+  if (value == null || value === '') return ''
+  if (typeof value === 'string' || typeof value === 'number') return String(value).trim()
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const o = value
+    return String(
+      o.fullName ??
+        o.name ??
+        o.driverName ??
+        o.driver_name ??
+        o.displayName ??
+        o.label ??
+        '',
+    ).trim()
+  }
+  return ''
+}
+
+/** Picker option for bus assign: student name + class + driver. */
+export function mapBusOverviewStudentToOption(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.studentId ?? raw.student_id ?? raw.id ?? raw._id
+  if (id == null) return null
+  const name = pickBusOverviewTextField(
+    raw.studentName ?? raw.student_name ?? raw.fullName ?? raw.name,
+  )
+  const className = pickBusOverviewTextField(
+    raw.className ?? raw.class_name ?? raw.classDisplayName ?? raw.class,
+  )
+  const driverName = pickBusOverviewTextField(
+    raw.driverName ??
+      raw.driver_name ??
+      raw.driver ??
+      raw.assignedDriver ??
+      raw.assigned_driver,
+  )
+  const subtextParts = []
+  if (className) subtextParts.push(className)
+  if (driverName && driverName !== className) subtextParts.push(driverName)
+  return {
+    value: String(id),
+    label: name || `Student ${id}`,
+    subtext: subtextParts.join(' · ') || '—',
+  }
+}
+
+/**
+ * GET /api/students/bus-overview — Bearer; students with class and driver for bus assign UI.
+ * @returns {Promise<{ ok: true, options: { value: string, label: string, subtext: string }[] } | { ok: false, error: string, options: [] }>}
+ */
+export async function fetchStudentsBusOverview(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', options: [] }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/students/bus-overview`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatListError(data, res.status), options: [] }
+    }
+    const rawList = extractBusOverviewStudentsList(data)
+    const options = rawList.map(mapBusOverviewStudentToOption).filter(Boolean)
+    return { ok: true, options }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, options: [] }
+  }
+}
+
 export async function fetchStudentsPicker(token) {
   if (!token) {
     return { ok: false, error: 'Not signed in', options: [] }
@@ -478,29 +575,54 @@ export async function importStudentsCsv(token, file) {
 }
 
 /**
- * GET /api/students/export/csv — Bearer. rows=page | one_page_by_number | everyone; page/limit for paged rows;
- * status=all|active|inactive for paged exports; for everyone omit status when no filter, else active|inactive.
+ * GET /api/students/export/csv — Bearer.
+ * exportBy=list (default) | whole_class | section (alias one_class_section).
+ * List: rows=page|one_page_by_number|everyone + page/limit + status=all|active|inactive.
+ * Whole class: gradeLevel (e.g. 12 or "Class 12") + status.
+ * Section: classId + status.
  * Falls back to GET /api/students/export?… if the /export/csv path returns 404.
  * @param {string} token
- * @param {{ rows: string, page?: number, limit?: number, status?: 'all' | 'active' | 'inactive' }} opts
+ * @param {{
+ *   exportBy?: 'list' | 'whole_class' | 'section',
+ *   rows?: string,
+ *   page?: number,
+ *   limit?: number,
+ *   status?: 'all' | 'active' | 'inactive',
+ *   classId?: string,
+ *   gradeLevel?: string,
+ * }} opts
  * @returns {Promise<{ ok: true, blob: Blob, filename: string } | { ok: false, error: string, useClient?: boolean }>}
  */
-export async function exportStudentsCsv(token, { rows, page, limit, status } = {}) {
+export async function exportStudentsCsv(
+  token,
+  { exportBy = 'list', rows, page, limit, status, classId, gradeLevel } = {},
+) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true }
   }
   const params = new URLSearchParams()
-  if (rows) params.set('rows', rows)
-  if (rows === 'everyone') {
-    if (status === 'active' || status === 'inactive') params.set('status', status)
-  } else if (rows) {
+  const mode = exportBy === 'whole_class' || exportBy === 'section' ? exportBy : 'list'
+  if (mode === 'list') {
+    params.set('exportBy', 'list')
+    if (rows) params.set('rows', rows)
     if (page != null && limit != null) {
       params.set('page', String(page))
       params.set('limit', String(limit))
     }
-    const st = status === 'active' || status === 'inactive' || status === 'all' ? status : 'all'
-    params.set('status', st)
+  } else if (mode === 'whole_class') {
+    params.set('exportBy', 'whole_class')
+    if (gradeLevel != null && String(gradeLevel).trim() !== '') {
+      params.set('gradeLevel', String(gradeLevel).trim())
+    }
+  } else if (mode === 'section') {
+    params.set('exportBy', 'section')
+    if (classId != null && String(classId).trim() !== '') {
+      params.set('classId', String(classId).trim())
+    }
   }
+  const st =
+    status === 'active' || status === 'inactive' || status === 'all' ? status : 'all'
+  params.set('status', st)
   const qs = params.toString()
   const suffix = qs ? `?${qs}` : ''
   const primary = `${API_BASE_URL}/api/students/export/csv${suffix}`

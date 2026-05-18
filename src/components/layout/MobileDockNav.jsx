@@ -41,6 +41,7 @@ export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
               item.to === '/driver-transport' ||
               item.to === '/transport/buses' ||
               item.to === '/transport/assign-bus' ||
+              item.to === '/transport/bus-rosters' ||
               item.to === '/drivers' ||
               item.to === '/visitor-logs' ||
               item.to === '/leads' ||
@@ -50,7 +51,10 @@ export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
               item.to === '/notifications/history' ||
               item.to === '/assigned-leads' ||
               item.to === '/create-lead' ||
-              item.to === '/settings/login-branding'
+              item.to === '/settings' ||
+              item.to === '/settings/login-branding' ||
+              item.to === '/settings/smtp' ||
+              item.to === '/profile'
             }
             onClick={() => onNavigate?.()}
             className={({ isActive }) =>

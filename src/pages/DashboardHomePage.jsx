@@ -6,6 +6,8 @@ import { Card } from '../components/ui/Card'
 import { RoleBadge } from '../components/ui/Badge'
 import { ROLES } from '../utils/constants'
 import { canAccessRoute } from '../utils/permissions'
+import { TeacherDashboardOverview } from '../components/dashboard/TeacherDashboardOverview'
+import { ParentDashboardOverview } from '../components/dashboard/ParentDashboardOverview'
 
 function Stat({ label, value, hint, accent }) {
   const accents = {
@@ -61,7 +63,9 @@ export default function DashboardHomePage() {
     { to: '/assigned-leads', label: 'Assigned leads', key: 'teacher_assigned_leads' },
     { to: '/visitor-logs', label: 'Visitor log', key: 'admin_visitor_logs' },
     { to: '/leads', label: 'Leads (CRM)', key: 'admin_leads' },
-  ].filter((l) => canAccessRoute(user.role, l.key))
+  ]
+    .filter((l) => canAccessRoute(user.role, l.key))
+    .filter((l) => !(user.role === ROLES.PARENT && l.key === 'parent_dashboard'))
 
   return (
     <div className="space-y-10">
@@ -69,15 +73,23 @@ export default function DashboardHomePage() {
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl" />
         <div className="relative">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-200/90">Overview</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+          {user.role !== ROLES.TEACHER && user.role !== ROLES.PARENT ? (
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-200/90">Overview</p>
+          ) : null}
+          <h1
+            className={`text-3xl font-bold tracking-tight sm:text-4xl ${
+              user.role === ROLES.TEACHER || user.role === ROLES.PARENT ? '' : 'mt-2'
+            }`}
+          >
             Welcome back, {user.fullName.split(' ')[0]}
           </h1>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <RoleBadge role={user.role} />
-            <span className="text-sm font-medium text-indigo-100/90">
-              {hydrated ? 'Your workspace is ready.' : 'Loading your workspace…'}
-            </span>
+            {user.role !== ROLES.TEACHER && user.role !== ROLES.PARENT ? (
+              <span className="text-sm font-medium text-indigo-100/90">
+                {hydrated ? 'Your workspace is ready.' : 'Loading your workspace…'}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -101,7 +113,10 @@ export default function DashboardHomePage() {
         </Card>
       ) : null}
 
-      {user.role === ROLES.DRIVER ? null : (
+      {user.role === ROLES.TEACHER ? <TeacherDashboardOverview /> : null}
+      {user.role === ROLES.PARENT ? <ParentDashboardOverview /> : null}
+
+      {user.role === ROLES.DRIVER || user.role === ROLES.TEACHER || user.role === ROLES.PARENT ? null : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
             label="Teachers"
@@ -115,11 +130,17 @@ export default function DashboardHomePage() {
         </div>
       )}
 
-      {quickLinks.length ? (
+      {quickLinks.length && user.role !== ROLES.PARENT ? (
         <Card>
           <h2 className="text-lg font-bold text-slate-900">Shortcuts</h2>
-          <p className="mt-1 text-sm text-slate-600">Open a module you have permission to use.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
+          {user.role !== ROLES.TEACHER && user.role !== ROLES.PARENT ? (
+            <p className="mt-1 text-sm text-slate-600">Open a module you have permission to use.</p>
+          ) : null}
+          <div
+            className={`flex flex-wrap gap-3 ${
+              user.role === ROLES.TEACHER || user.role === ROLES.PARENT ? 'mt-4' : 'mt-5'
+            }`}
+          >
             {quickLinks.map((l) => (
               <Link
                 key={l.to}

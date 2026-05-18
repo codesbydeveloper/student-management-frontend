@@ -272,7 +272,7 @@ export default function CreateBusesPage() {
             <option value="">No driver yet</option>
             {pickerDrivers.map((d) => (
               <option key={d.userId} value={d.userId}>
-                {d.fullName} — id {d.userId}
+                {String(d.fullName ?? '').trim() || 'Unnamed driver'}
               </option>
             ))}
           </Select>
@@ -363,7 +363,7 @@ export default function CreateBusesPage() {
         </div>
 
         <div className="mt-5">
-          <Label htmlFor="cb-driver">Assign to driver (optional)</Label>
+          <Label htmlFor="cb-driver">Assign to driver </Label>
           <div className="mt-1.5 space-y-2">{createDriverField.el}</div>
           {createDriverField.showFallbackHint ? (
             <p className="mt-1 text-xs text-slate-500">
@@ -435,7 +435,16 @@ export default function CreateBusesPage() {
                       </td>
                       <td className="px-3 py-2">{b.name}</td>
                       <td className="px-3 py-2 font-mono text-xs">{b.plate}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{b.driverUserId ?? '—'}</td>
+                      <td className="px-3 py-2">
+                        {b.driverUserId
+                          ? String(
+                              pickerDrivers.find(
+                                (d) => d.userId === String(b.driverUserId ?? '').trim(),
+                              )
+                                ?.fullName ?? '',
+                            ).trim() || '—'
+                          : '—'}
+                      </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button
@@ -541,17 +550,13 @@ export default function CreateBusesPage() {
                 <div className="mt-5">
                   <Label htmlFor="eb-driver">Driver</Label>
                   <div className="mt-1.5 space-y-2">{editDriverField.el}</div>
-                  {editDriverField.showFallbackHint ? (
+                  {editDriverField.showFallbackHint && (
                     <p className="mt-1 text-xs text-slate-500">
                       {!token
                         ? 'Sign in to load drivers from the directory.'
                         : pickerLoading
                           ? 'Loading drivers…'
-                          : 'No drivers returned from the server yet, or type a driver user id above. Clear the field and save to unassign.'}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Choose “No driver yet” and save to unassign on the server.
+                          : 'No drivers'}
                     </p>
                   )}
                 </div>

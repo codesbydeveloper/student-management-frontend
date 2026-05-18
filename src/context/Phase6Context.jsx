@@ -253,7 +253,9 @@ export function Phase6Provider({ children }) {
   }, [])
 
   const updateLeadStage = useCallback((leadId, stage) => {
-    if (!LEAD_STAGES.includes(stage)) return { ok: false, error: 'Invalid stage' }
+    if (!LEAD_STAGES.includes(stage)) {
+      return { ok: false, error: 'Invalid stage' }
+    }
     const now = new Date().toISOString()
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, stage, updatedAt: now } : l)),

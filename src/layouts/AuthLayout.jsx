@@ -1,35 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { fetchPublicLoginBranding } from '../api/settingsApi'
-import {
-  DEFAULT_LOGIN_BRANDING,
-  getLoginBrandingSnapshot,
-  normalizeLoginBranding,
-} from '../utils/loginBranding'
+import { useLoginBranding } from '../hooks/useLoginBranding'
 
 export function AuthLayout() {
-  const [branding, setBranding] = useState(() => ({ ...DEFAULT_LOGIN_BRANDING }))
-
-  const load = useCallback(async () => {
-    const remote = await fetchPublicLoginBranding()
-    if (remote.ok && remote.branding) {
-      setBranding(normalizeLoginBranding(remote.branding))
-      return
-    }
-    setBranding(getLoginBrandingSnapshot())
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    const onRefresh = () => {
-      void load()
-    }
-    window.addEventListener('sm-login-branding-changed', onRefresh)
-    return () => window.removeEventListener('sm-login-branding-changed', onRefresh)
-  }, [load])
+  const branding = useLoginBranding()
 
   return (
     <div className="flex min-h-dvh flex-col bg-slate-100">

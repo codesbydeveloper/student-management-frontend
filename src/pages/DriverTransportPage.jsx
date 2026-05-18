@@ -93,7 +93,7 @@ export default function DriverTransportPage() {
   const socketMode = isSocketTransportEnabled()
   const gpsTripActive = Boolean(trip?.active)
 
-  const { livePosition, socketConnected, geoError } = useDriverLiveTracking({
+  const { livePosition, geoError } = useDriverLiveTracking({
     busId: liveBusId,
     driverUserId: driverId,
     tripActive: gpsTripActive,
@@ -155,45 +155,15 @@ export default function DriverTransportPage() {
       </div>
 
       <Card>
-        <CardHeader
-          title="My trip"
-          subtitle={
-            socketMode
-              ? 'While moving, GPS is sent with emit(bus:location) or POST /api/drivers/location using busId = the vehicle registration string that matches buses.plate on the server (same value as driver_profiles.assigned_bus / bus_parents.bus_label). Socket rooms are bus-<numericId> from that plate — demo ids like bus-1 will not reach parents. OpenStreetMap + Leaflet. Trip auto-ends after ~90s with no GPS updates if you leave this screen.'
-              : 'Start trip sends POST /api/drivers/location with isRunning true (then ~every 15s). End trip sends one final POST with isRunning false. OpenStreetMap + Leaflet.'
-          }
-        />
+        <CardHeader title="My trip" />
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assigned vehicle</p>
             <p className="mt-1 text-lg font-bold text-slate-900">{vehicleLabel || '—'}</p>
-            {myRouteAssignedBus ? (
-              <p className="mt-1 text-xs text-slate-500">
-                Vehicle string from GET /api/drivers/my-route (should match buses.plate for live parents)
-              </p>
-            ) : null}
           </div>
 
-          {plateContractIssue ? (
-            <div
-              className="rounded-2xl border border-amber-300/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-950"
-              role="status"
-            >
-              <p className="font-semibold">Live parents need the real number plate</p>
-              <p className="mt-1 text-xs leading-relaxed">
-                The server puts parents in Socket.IO room <span className="font-mono">bus-&lt;id&gt;</span> only
-                when it can match the same plate string in <span className="font-mono">buses.plate</span>. If the
-                driver GPS uses a different label (for example <span className="font-mono">bus-1</span> or a nickname),
-                parents will see no live map even though you are connected.
-              </p>
-            </div>
-          ) : null}
           <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/35 px-4 py-4 sm:px-5">
             <h3 className="text-sm font-bold text-slate-900">Families on your route</h3>
-            <p className="mt-1 text-xs text-slate-600">
-              From your school (GET /api/drivers/my-route). Parent login ids (users.id) and children assigned to your
-              bus.
-            </p>
             {myRouteLoading ? (
               <p className="mt-3 text-sm text-slate-600">Loading roster…</p>
             ) : null}
@@ -212,7 +182,7 @@ export default function DriverTransportPage() {
                 <table className="min-w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2">Parent (users.id)</th>
+                      <th className="px-3 py-2">Sr No</th>
                       <th className="px-3 py-2">Parent name</th>
                       <th className="px-3 py-2">Student</th>
                       <th className="px-3 py-2">Class</th>
@@ -221,9 +191,7 @@ export default function DriverTransportPage() {
                   <tbody className="divide-y divide-slate-100">
                     {myRouteRows.map((row, idx) => (
                       <tr key={`${row.parentUserId || 'p'}-${row.studentId || idx}`}>
-                        <td className="px-3 py-2 font-mono text-xs text-slate-800">
-                          {row.parentUserId || '—'}
-                        </td>
+                        <td className="px-3 py-2 tabular-nums text-slate-800">{idx + 1}</td>
                         <td className="px-3 py-2 text-slate-900">{row.parentName}</td>
                         <td className="px-3 py-2">
                           <span className="font-medium text-slate-900">{row.studentName}</span>
@@ -255,44 +223,21 @@ export default function DriverTransportPage() {
             )}
           </div>
 
-          {trip?.active ? (
-            <div className="space-y-1 text-xs text-slate-500">
-              <p>
-                Live GPS (your device) ·{' '}
-                {socketMode ? (
-                  <>socket {socketConnected ? 'connected' : 'connecting…'} · </>
-                ) : (
-                  <>no relay URL (parents on other devices need Socket.IO server) · </>
-                )}
-                last update{' '}
-                {new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(trip.lastUpdateTs)}
-              </p>
-              {geoError ? <p className="text-amber-800">Geolocation: {geoError}</p> : null}
-            </div>
-          ) : (
-            <div className="space-y-1 text-xs text-slate-500">
-              <p>
-                No active trip yet. The map shows your device location when you allow it. If GPS is not
-                available, the map stays empty — no fake position is shown.
-              </p>
-              {idleGeoError ? <p className="text-amber-800">Location for map: {idleGeoError}</p> : null}
-            </div>
-          )}
+          {trip?.active && geoError ? (
+            <p className="text-xs text-amber-800">Geolocation: {geoError}</p>
+          ) : null}
+          {!trip?.active && idleGeoError ? (
+            <p className="text-xs text-amber-800">Location: {idleGeoError}</p>
+          ) : null}
 
           {mapPos ? (
             <LiveTripMap position={mapPos} label={vehicleLabel ? `Bus ${vehicleLabel}` : 'Bus'} />
           ) : (
             <div
-              className="flex min-h-[14rem] items-center justify-center rounded-2xl border border-dashed border-slate-200/90 bg-slate-50/60 px-6 py-10 text-center"
+              className="flex min-h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200/90 bg-slate-50/60 px-6 py-10 text-center"
               role="status"
             >
-              <div>
-                <p className="text-sm font-semibold text-slate-700">Waiting for GPS</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Allow location access on this device to see the map. The first real GPS reading will
-                  appear here.
-                </p>
-              </div>
+              <p className="text-sm font-medium text-slate-600">Waiting for GPS…</p>
             </div>
           )}
         </div>

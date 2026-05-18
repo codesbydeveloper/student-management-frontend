@@ -185,7 +185,7 @@ export default function AdminVisitorLogsPage() {
       <Card>
         <CardHeader
           title="Visitor log"
-          subtitle="Add visitors at the front desk. Entries are immutable after creation except through admin delete (audit retained)."
+          
         />
         <form onSubmit={onAdd} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">

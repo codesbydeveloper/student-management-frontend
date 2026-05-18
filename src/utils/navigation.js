@@ -41,6 +41,7 @@ function isAdminOrPrincipal(role) {
 /** Order = master list (filtered + reordered per role). */
 const items = [
   { key: 'dashboard', to: '/dashboard', label: 'Dashboard' },
+  { key: 'profile', to: '/profile', label: 'My profile' },
   { key: 'parent_dashboard', to: '/parent-dashboard', label: 'Family dashboard' },
   { key: 'parent_notifications', to: '/parent-notifications', label: 'School messages' },
   { key: 'parent_bus', to: '/parent-bus', label: 'Bus tracking' },
@@ -63,6 +64,7 @@ const items = [
   { key: 'notice_history', to: '/notifications/history', label: 'Notice approvals' },
   { key: 'teacher_ptm_requests', to: '/ptm-requests', label: 'PTM requests' },
   { key: 'teacher_assigned_leads', to: '/assigned-leads', label: 'Assigned leads' },
+  { key: 'teacher_bus_overview', to: '/transport/bus-rosters', label: 'Buses' },
   { key: 'create_lead', to: '/create-lead', label: 'Create lead' },
   { key: 'admin_visitor_logs', to: '/visitor-logs', label: 'Visitor log' },
   { key: 'admin_leads', to: '/leads', label: 'Leads (CRM)' },
@@ -78,15 +80,9 @@ export function buildFlatNav(role) {
   const filtered = items.filter((item) => canAccessRoute(role, item.key))
 
   if (role === ROLES.PARENT) {
-    const parentDash = filtered.find((i) => i.key === 'parent_dashboard')
-    const orgDash = filtered.find((i) => i.key === 'dashboard')
-    const rest = filtered.filter(
-      (i) => i.key !== 'parent_dashboard' && i.key !== 'dashboard',
-    )
-    const head = []
-    if (parentDash) head.push({ ...parentDash, label: 'Dashboard' })
-    if (orgDash) head.push({ ...orgDash, label: 'School overview' })
-    return [...head, ...rest]
+    const dash = filtered.find((i) => i.key === 'dashboard')
+    const rest = filtered.filter((i) => i.key !== 'parent_dashboard' && i.key !== 'dashboard')
+    return dash ? [{ ...dash, label: 'Dashboard' }, ...rest] : rest
   }
 
   const dash = filtered.find((item) => item.key === 'dashboard')

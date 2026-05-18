@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
-import { LEAD_STAGES, LEAD_STAGE_API_OPTIONS, encodeLeadStageFilterForQuery } from '../data/phase6Constants'
+import { LEAD_STAGES, encodeLeadStageFilterForQuery, normalizeLeadStage } from '../data/phase6Constants'
 
 function formatMutationError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -52,14 +52,7 @@ function pickIso(...candidates) {
 }
 
 function normalizeStage(raw) {
-  const s = String(raw ?? '').toLowerCase().trim()
-  if (!s) return LEAD_STAGES[0]
-  // Preserve backend-specific stages like `visit_scheduled`, `visited`,
-  // `applied`, `admitted`, `lost` so the UI can surface them. Anything truly
-  // unknown is passed through unchanged.
-  if (LEAD_STAGE_API_OPTIONS.includes(s)) return s
-  if (LEAD_STAGES.includes(s)) return s
-  return s
+  return normalizeLeadStage(raw)
 }
 
 /**
@@ -235,7 +228,7 @@ export async function createLead(token, body) {
  * @param {string} token
  * @param {{ q?: string, page?: number, limit?: number, signal?: AbortSignal }} [params]
  */
-export async function fetchLeads(token, { q = '', page = 1, limit = 20, signal } = {}) {
+export async function fetchLeads(token, { q = '', stage = '', page = 1, limit = 20, signal } = {}) {
   const p = Math.max(1, Number(page) || 1)
   const lim = Math.min(100, Math.max(1, Number(limit) || 20))
   if (!token) {
@@ -245,6 +238,11 @@ export async function fetchLeads(token, { q = '', page = 1, limit = 20, signal }
     const params = new URLSearchParams()
     const trimmedQ = String(q || '').trim()
     if (trimmedQ) params.set('q', trimmedQ)
+    const trimmedStage = String(stage || '').trim()
+    if (trimmedStage) {
+      const encoded = encodeLeadStageFilterForQuery(trimmedStage)
+      if (encoded) params.set('stage', encoded)
+    }
     params.set('page', String(p))
     params.set('limit', String(lim))
     const res = await fetch(`${API_BASE_URL}/api/leads?${params}`, {
@@ -396,7 +394,7 @@ export function mapApiActivityRow(raw) {
  *
  * Supports the same `q`, `stage`, `page`, `limit` filters as the admin list.
  * `stage` may be a pipeline slug (`new` … `closed`); it is encoded for the API
- * (e.g. `visit` → `visit_scheduled,visited` when the server supports comma / IN matching).
+ * `stage` is one of the 6 canonical values (`new` … `closed`).
  *
  * @param {string} token
  * @param {{ q?: string, stage?: string, page?: number, limit?: number, signal?: AbortSignal }} [params]

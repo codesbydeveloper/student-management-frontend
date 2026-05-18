@@ -1115,3 +1115,204 @@ export async function fetchParentMyDriverLocation(token) {
     return { ok: false, error: msg, location: null }
   }
 }
+
+function formatParentDashboardError(data, status) {
+  if (data == null) return `Could not load dashboard (${status})`
+  if (typeof data === 'string' && data) return data
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  return `Could not load dashboard (${status})`
+}
+
+function firstFiniteNumber(...vals) {
+  for (const v of vals) {
+    const n = Number(v)
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+function coerceDashboardBoolean(v) {
+  if (v === true || v === 1 || v === '1' || v === 'true') return true
+  if (v === false || v === 0 || v === '0' || v === 'false') return false
+  return null
+}
+
+function unwrapParentDashboardPayload(raw) {
+  if (!raw || typeof raw !== 'object') return {}
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) return raw.data
+  if (raw.dashboard && typeof raw.dashboard === 'object') return raw.dashboard
+  return raw
+}
+
+function mapParentDashboardTeacher(o) {
+  if (!o || typeof o !== 'object') return null
+  const id = String(o.id ?? o.teacherId ?? o.userId ?? o.teacherUserId ?? '').trim()
+  const name =
+    String(o.name ?? o.fullName ?? o.teacherName ?? o.displayName ?? '').trim() || 'Teacher'
+  let subjects = []
+  if (Array.isArray(o.subjects)) {
+    subjects = o.subjects.map((s) => String(s).trim()).filter(Boolean)
+  } else if (Array.isArray(o.subjectList)) {
+    subjects = o.subjectList.map((s) => String(s).trim()).filter(Boolean)
+  }
+  const subjectSingle = String(o.subject ?? o.primarySubject ?? '').trim()
+  if (!subjects.length && subjectSingle) subjects = [subjectSingle]
+  return {
+    id: id || `t-${name}`,
+    name,
+    subjectLabel: subjects.length ? subjects.join(', ') : subjectSingle || '—',
+  }
+}
+
+function mapStudentTeachersGroup(o) {
+  if (!o || typeof o !== 'object') return null
+  const studentId = String(o.studentId ?? o.student_id ?? o.id ?? '').trim()
+  const studentName =
+    String(o.studentName ?? o.student_name ?? o.name ?? o.fullName ?? '').trim() || 'Student'
+  const teachersRaw = Array.isArray(o.teachers)
+    ? o.teachers
+    : Array.isArray(o.assignedTeachers)
+      ? o.assignedTeachers
+      : []
+  const teachers = teachersRaw.map(mapParentDashboardTeacher).filter(Boolean)
+  if (!studentId && !studentName && !teachers.length) return null
+  return {
+    studentId: studentId || `s-${studentName}`,
+    studentName,
+    teachers,
+  }
+}
+
+function mapParentDashboardNoticeRow(o) {
+  if (!o || typeof o !== 'object') return null
+  const id = String(o.id ?? o._id ?? o.messageId ?? '').trim()
+  const title = String(o.title ?? o.subject ?? o.headline ?? '').trim() || 'School message'
+  let createdAt = o.createdAt ?? o.created_at ?? o.submittedAt ?? o.sentAt
+  if (typeof createdAt === 'string') {
+    const t = Date.parse(createdAt)
+    createdAt = Number.isFinite(t) ? t : null
+  } else if (typeof createdAt === 'number') {
+    if (createdAt > 0 && createdAt < 1e11) createdAt *= 1000
+  } else {
+    createdAt = null
+  }
+  const readRaw = o.isRead ?? o.read ?? o.readAt ?? o.read_at
+  const isRead =
+    readRaw === true ||
+    readRaw === 1 ||
+    readRaw === '1' ||
+    (typeof readRaw === 'string' && readRaw.length > 0 && readRaw !== 'false')
+  return { id: id || `n-${title}-${createdAt ?? 'x'}`, title, createdAt, isRead }
+}
+
+function mapParentDashboardPtmRow(o) {
+  if (!o || typeof o !== 'object') return null
+  const id = String(o.id ?? o._id ?? o.requestId ?? '').trim() || `ptm-${Math.random().toString(36).slice(2, 9)}`
+  const studentName = String(o.studentName ?? o.student_name ?? '').trim()
+  const teacherName = String(o.teacherName ?? o.teacher_name ?? '').trim()
+  const label =
+    String(o.label ?? o.summary ?? '').trim() ||
+    [studentName, teacherName].filter(Boolean).join(' · ') ||
+    'PTM request'
+  const when = String(
+    o.meetingAt ?? o.meeting_at ?? o.slot ?? o.when ?? o.scheduledAt ?? o.scheduled_at ?? '',
+  ).trim()
+  const status = String(o.status ?? o.state ?? '').trim()
+  return { id, label, when: when || '—', status: status || 'requested' }
+}
+
+/**
+ * Normalize GET /api/parents/dashboard JSON for the parent home UI.
+ * @param {object|null} raw
+ */
+export function normalizeParentDashboardPayload(raw) {
+  const d = unwrapParentDashboardPayload(raw)
+  if (!d || typeof d !== 'object') {
+    return {
+      studentTeachers: [],
+      totalNotices: null,
+      unreadNotices: null,
+      busTripActive: null,
+      recentNotices: [],
+      recentPtmRequests: [],
+    }
+  }
+
+  const studentTeachersRaw = Array.isArray(d.studentTeachers)
+    ? d.studentTeachers
+    : Array.isArray(d.studentsWithTeachers)
+      ? d.studentsWithTeachers
+      : Array.isArray(d.assignedTeachers)
+        ? d.assignedTeachers
+        : Array.isArray(d.teachersByStudent)
+          ? d.teachersByStudent
+          : []
+
+  const recentNoticesRaw = Array.isArray(d.recentNotices)
+    ? d.recentNotices
+    : Array.isArray(d.recent_notices)
+      ? d.recent_notices
+      : Array.isArray(d.recentMessages)
+        ? d.recentMessages
+        : []
+
+  const recentPtmRaw = Array.isArray(d.recentPtmRequests)
+    ? d.recentPtmRequests
+    : Array.isArray(d.recentPtm)
+      ? d.recentPtm
+      : Array.isArray(d.ptmRequests)
+        ? d.ptmRequests
+        : []
+
+  return {
+    studentTeachers: studentTeachersRaw.map(mapStudentTeachersGroup).filter(Boolean),
+    totalNotices: firstFiniteNumber(
+      d.totalNotices,
+      d.noticesTotal,
+      d.total_notices,
+      d.messagesTotal,
+    ),
+    unreadNotices: firstFiniteNumber(
+      d.unreadNotices,
+      d.unread_notices,
+      d.unreadNoticeCount,
+      d.unreadMessages,
+    ),
+    busTripActive: coerceDashboardBoolean(
+      d.busTripActive ?? d.tripActive ?? d.isTripActive ?? d.bus_trip_active,
+    ),
+    recentNotices: recentNoticesRaw.slice(0, 5).map(mapParentDashboardNoticeRow).filter(Boolean),
+    recentPtmRequests: recentPtmRaw.slice(0, 5).map(mapParentDashboardPtmRow).filter(Boolean),
+  }
+}
+
+/**
+ * GET /api/parents/dashboard — Bearer (signed-in parent).
+ * @param {string} token
+ */
+export async function fetchParentDashboard(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', dashboard: null }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/parents/dashboard`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatParentDashboardError(data, res.status), dashboard: null }
+    }
+    return { ok: true, dashboard: normalizeParentDashboardPayload(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, dashboard: null }
+  }
+}

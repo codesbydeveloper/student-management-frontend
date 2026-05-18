@@ -178,10 +178,7 @@ export function ParentNotificationFeed() {
       />
       {useServerFeed ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">
-            Loaded from your school{' '}
-            <span className="font-mono text-[0.7rem] text-slate-400">GET /api/parents/messages</span>
-          </p>
+         
           <Button
             type="button"
             size="sm"

@@ -148,7 +148,7 @@ export default function CreateLeadPage() {
 
   const backTo =
     role === ROLES.PARENT
-      ? '/parent-dashboard'
+      ? '/dashboard'
       : role === ROLES.DRIVER
         ? '/driver-transport'
         : '/dashboard'
@@ -160,7 +160,7 @@ export default function CreateLeadPage() {
       <div className="flex flex-wrap gap-2">
         <Link to={backTo}>
           <Button type="button" size="sm" variant="secondary">
-            {role === ROLES.PARENT ? 'Family dashboard' : role === ROLES.DRIVER ? 'My trip' : 'Dashboard'}
+            {role === ROLES.PARENT ? 'Dashboard' : role === ROLES.DRIVER ? 'My trip' : 'Dashboard'}
           </Button>
         </Link>
         <Button
