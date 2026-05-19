@@ -26,7 +26,7 @@ export function ParentBusLiveMap({ position, routeLine = [], label = 'Bus', clas
       <MapContainer
         center={position}
         zoom={15}
-        className="z-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-100 shadow-inner"
+        className="z-0 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
         style={{ minHeight: 'min(50vh, 22rem)' }}
         scrollWheelZoom
         aria-label="Map showing bus location"
@@ -42,10 +42,6 @@ export function ParentBusLiveMap({ position, routeLine = [], label = 'Bus', clas
         </Marker>
         <MapFollowPosition center={position} />
       </MapContainer>
-      <p className="text-[11px] leading-snug text-slate-500">
-        <span className="font-semibold text-slate-600">React Leaflet</span> +{' '}
-        <span className="font-semibold text-slate-600">OpenStreetMap</span> tiles — not Google Maps.
-      </p>
     </div>
   )
 }

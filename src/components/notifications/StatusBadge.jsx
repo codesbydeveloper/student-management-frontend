@@ -1,7 +1,5 @@
 import { Badge } from '../ui/Badge'
-import {
-  NOTIFICATION_STATUSES,
-} from '../../utils/notificationConstants'
+import { NOTIFICATION_STATUSES } from '../../utils/notificationConstants'
 
 const styles = {
   [NOTIFICATION_STATUSES.PENDING_ADMIN]:

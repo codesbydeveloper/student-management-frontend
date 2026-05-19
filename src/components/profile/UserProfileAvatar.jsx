@@ -51,8 +51,8 @@ export function UserProfileAvatar({
   return (
     <Link
       to="/profile"
-      title="My profile"
-      aria-label="Open my profile"
+      title="Edit profile"
+      aria-label="Edit profile"
       className="rounded-2xl transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
     >
       {inner}

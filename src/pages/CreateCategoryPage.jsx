@@ -307,7 +307,7 @@ export default function CreateCategoryPage() {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead>
-                    <tr className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white">
+                    <tr className="app-table-head">
                       <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Category name</th>
                       <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">ID</th>
                       <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Actions</th>

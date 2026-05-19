@@ -26,6 +26,7 @@ import { syncTeacherToClasses } from '../../utils/dataSync'
 import { filterTeachersForUser } from '../../utils/roleFilters'
 import { parseCsv } from '../../utils/csvParse'
 import { filterRowsByTableSearch } from '../../utils/tableQuery'
+import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
 import { email, minLength, required } from '../../utils/validators'
 import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 
@@ -807,6 +808,32 @@ export function TeachersModule() {
           <span className="text-slate-600" title={n ? row.classIds.map((id) => classNameById.get(id) ?? id).join(', ') : ''}>
             {n > 0 ? n : '—'}
           </span>
+        )
+      },
+    },
+    {
+      key: 'lastActivity',
+      header: 'Last login / seen',
+      thClassName: 'min-w-[15rem]',
+      render: (row) => {
+        const login = formatActivityTimestamp(row.lastLoginAt)
+        const seen = formatActivityTimestamp(row.lastSeenAt)
+        if (!login && !seen) {
+          return <span className="text-slate-400">—</span>
+        }
+        return (
+          <div className="min-w-[14rem] max-w-[18rem] text-xs leading-snug text-slate-700">
+            {login ? (
+              <div className="tabular-nums" title={String(row.lastLoginAt ?? '')}>
+                <span className="font-semibold text-slate-500">Login:</span> {login}
+              </div>
+            ) : null}
+            {seen ? (
+              <div className="mt-0.5 tabular-nums" title={String(row.lastSeenAt ?? '')}>
+                <span className="font-semibold text-slate-500">Seen:</span> {seen}
+              </div>
+            ) : null}
+          </div>
         )
       },
     },

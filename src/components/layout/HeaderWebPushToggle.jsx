@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { fetchNotificationPreference, patchNotificationPreference } from '../../api/notificationsApi'
+import { requestWebpushrSubscribe } from '../../utils/webpushrSetup'
 
 function BellIcon({ className = 'h-4 w-4' }) {
   return (
@@ -49,24 +50,22 @@ export function HeaderWebPushToggle() {
     if (!res.ok) {
       setEnabled(prev)
       toast.error(res.error || 'Could not update notification preference.')
+      return
     }
+    if (next) requestWebpushrSubscribe()
   }, [token, enabled, saving, loading])
 
   if (!token) return null
 
   return (
     <div
-      className="flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white/90 px-2.5 py-1.5 shadow-sm backdrop-blur-sm sm:gap-2.5 sm:px-3"
-      title="Browser push notifications (Webpushr)"
+      className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1"
+      title="Browser push notifications"
     >
-      <span className="flex items-center gap-1.5 text-slate-600">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
-          <BellIcon />
-        </span>
-        <span className="hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 min-[400px]:inline">
-          Push
-        </span>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600">
+        <BellIcon />
       </span>
+      <span className="hidden text-sm text-slate-600 min-[400px]:inline">Push</span>
       <button
         type="button"
         role="switch"

@@ -25,6 +25,7 @@ import { canManageParents } from '../../utils/permissions'
 import { email, minLength, required } from '../../utils/validators'
 import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 import { parseCsv } from '../../utils/csvParse'
+import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
 
 const PARENT_PAGE_LIMIT = 10
 const LOCAL_PARENT_PAGE_SIZE = 5
@@ -805,6 +806,32 @@ export function ParentsModule() {
           {row._children}
         </span>
       ),
+    },
+    {
+      key: 'lastActivity',
+      header: 'Last login / seen',
+      thClassName: 'min-w-[15rem]',
+      render: (row) => {
+        const login = formatActivityTimestamp(row.lastLoginAt)
+        const seen = formatActivityTimestamp(row.lastSeenAt)
+        if (!login && !seen) {
+          return <span className="text-slate-400">—</span>
+        }
+        return (
+          <div className="min-w-[14rem] max-w-[18rem] text-xs leading-snug text-slate-700">
+            {login ? (
+              <div className="tabular-nums" title={String(row.lastLoginAt ?? '')}>
+                <span className="font-semibold text-slate-500">Login:</span> {login}
+              </div>
+            ) : null}
+            {seen ? (
+              <div className="mt-0.5 tabular-nums" title={String(row.lastSeenAt ?? '')}>
+                <span className="font-semibold text-slate-500">Seen:</span> {seen}
+              </div>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       key: 'actions',

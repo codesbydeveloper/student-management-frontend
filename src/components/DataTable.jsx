@@ -92,7 +92,7 @@ export function DataTable({
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white">
+              <tr className="app-table-head">
                 {columns.map((col) => (
                   <th
                     key={col.key}

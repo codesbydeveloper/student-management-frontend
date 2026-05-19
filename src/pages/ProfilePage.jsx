@@ -144,7 +144,7 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">My profile</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Profile</h1>
           <p className="mt-1 text-sm text-slate-600">Photo, display name, and password in one place.</p>
         </div>
         <Link to="/dashboard">

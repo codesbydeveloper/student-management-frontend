@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
+import { pickLastActivityFromApi } from '../utils/lastActivityDisplay'
 
 function formatListError(data, status) {
   if (data == null) return `Could not load drivers (${status})`
@@ -60,6 +61,7 @@ export function mapApiDriverToRow(raw) {
         : typeof r.active === 'boolean'
           ? r.active
           : true,
+    ...pickLastActivityFromApi({ ...raw, ...r }),
   }
 }
 

@@ -1,9 +1,11 @@
 import { API_BASE_URL, ROLES } from '../utils/constants'
+import { formatNotificationTimeAgo, pickNotificationMediaUrl } from '../utils/notificationFormat'
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_STATUSES,
   NOTIFICATION_TARGET_TYPES,
 } from '../utils/notificationConstants'
+import { pickApprovedAtMs } from '../utils/notificationTimestamps'
 
 function formatListError(data, status) {
   if (data == null) return `Could not load notifications (${status})`
@@ -559,10 +561,63 @@ function extractNotificationList(data) {
   if (Array.isArray(data.notifications)) return data.notifications
   if (Array.isArray(data.results)) return data.results
   if (Array.isArray(data.items)) return data.items
+  if (Array.isArray(data.notices)) return data.notices
   if (data.data && typeof data.data === 'object' && Array.isArray(data.data.notifications)) {
     return data.data.notifications
   }
+  if (data.data && typeof data.data === 'object' && Array.isArray(data.data.notices)) {
+    return data.data.notices
+  }
   return []
+}
+
+function personNameFromApiObject(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return ''
+  return String(
+    obj.fullName ??
+      obj.full_name ??
+      obj.name ??
+      obj.displayName ??
+      obj.display_name ??
+      obj.username ??
+      obj.email ??
+      '',
+  ).trim()
+}
+
+/** Resolve submitter / author from list or detail API shapes. */
+function extractNotificationSubmitterName(raw) {
+  if (!raw || typeof raw !== 'object') return ''
+
+  const fromNested =
+    personNameFromApiObject(raw.sender) ||
+    personNameFromApiObject(raw.createdBy) ||
+    personNameFromApiObject(raw.user) ||
+    personNameFromApiObject(raw.teacher) ||
+    personNameFromApiObject(raw.author) ||
+    personNameFromApiObject(raw.submitter) ||
+    personNameFromApiObject(raw.submittedByUser) ||
+    personNameFromApiObject(raw.createdByUser)
+
+  const flatCandidates = [
+    raw.submitterName,
+    raw.submitter_name,
+    raw.submittedBy,
+    raw.submitted_by,
+    raw.from,
+    raw.teacherName,
+    raw.authorName,
+    raw.createdByName,
+    typeof raw.createdBy === 'string' ? raw.createdBy : null,
+    typeof raw.submittedBy === 'string' ? raw.submittedBy : null,
+  ]
+
+  for (const c of flatCandidates) {
+    const s = String(c ?? '').trim()
+    if (s && s !== '—') return s
+  }
+
+  return fromNested
 }
 
 /**
@@ -571,7 +626,8 @@ function extractNotificationList(data) {
  */
 export function mapPendingAdminNotificationFromApi(raw) {
   if (!raw || typeof raw !== 'object') return null
-  const id = String(raw.id ?? raw._id ?? raw.notificationId ?? '').trim()
+  const idRaw = raw.id ?? raw._id ?? raw.notificationId ?? raw.notification_id
+  const id = idRaw != null && String(idRaw).trim() ? String(idRaw).trim() : ''
   if (!id) return null
   const title = String(raw.title ?? '').trim()
   const message = String(raw.message ?? raw.body ?? '').trim()
@@ -609,20 +665,9 @@ export function mapPendingAdminNotificationFromApi(raw) {
     targetType = NOTIFICATION_TARGET_TYPES.AUDIENCE
   }
 
-  const from = String(raw.from ?? '').trim()
-  const subEm = String(raw.submitterEmail ?? '').trim()
-  let createdByName = String(
-    raw.createdByName ??
-      raw.authorName ??
-      raw.teacherName ??
-      raw.createdBy?.fullName ??
-      raw.user?.fullName ??
-      '',
-  ).trim()
-  if (!createdByName) {
-    if (from && subEm) createdByName = `${from} · ${subEm}`
-    else createdByName = from || subEm
-  }
+  const subEm = String(raw.submitterEmail ?? raw.sender?.email ?? '').trim()
+  let createdByName = extractNotificationSubmitterName(raw)
+  if (!createdByName && subEm) createdByName = subEm
 
   let createdAt = Date.now()
   const ts = raw.createdAt ?? raw.submittedAt ?? raw.created_at ?? raw.updatedAt
@@ -648,15 +693,50 @@ export function mapPendingAdminNotificationFromApi(raw) {
   if (raw.status != null && String(raw.status).trim()) {
     row.status = normalizeApiNotificationStatus(String(raw.status).trim(), category)
   }
+  const approvedAt = pickApprovedAtMs(raw)
+  if (approvedAt != null) row.approvedAt = approvedAt
   return row
 }
 
-async function fetchPendingNotificationList(token, path) {
+/** Admin notice list row — includes `actions` from GET /api/admin/notifications. */
+export function mapAdminNotificationFromApi(raw) {
+  const row = mapPendingAdminNotificationFromApi(raw)
+  if (!row) return null
+  if (raw.actions && typeof raw.actions === 'object' && !Array.isArray(raw.actions)) {
+    row.actions = raw.actions
+  }
+  if (raw.statusLabels != null) row.statusLabels = raw.statusLabels
+  const submitterName = extractNotificationSubmitterName(raw)
+  if (submitterName) {
+    row.submitterName = submitterName
+    row.createdByName = submitterName
+  }
+  return row
+}
+
+/**
+ * GET /api/admin/notifications — admin notice history (category + optional status).
+ */
+export async function fetchAdminNotifications(
+  token,
+  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT, category, status } = {},
+) {
   if (!token) {
-    return { ok: false, error: 'Not signed in', useClient: true }
+    return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || APPROVAL_QUEUE_DEFAULT_LIMIT))
+  const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  const cat = String(category || '').trim().toLowerCase()
+  if (cat === NOTIFICATION_CATEGORIES.ADMINISTRATIVE || cat === NOTIFICATION_CATEGORIES.ACADEMIC) {
+    params.set('category', cat)
+  }
+  const st = String(status || '').trim().toLowerCase()
+  if (st === 'pending' || st === 'approved' || st === 'rejected') {
+    params.set('status', st)
   }
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${API_BASE_URL}/api/admin/notifications?${params}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -670,33 +750,309 @@ async function fetchPendingNotificationList(token, path) {
         ok: false,
         error: formatListError(data, res.status),
         useClient,
+        notifications: [],
+        total: 0,
+      }
+    }
+    const list = extractNotificationList(data)
+    const notifications = list.map(mapAdminNotificationFromApi).filter(Boolean)
+    const envelope =
+      data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? { ...data, ...data.data }
+        : data
+    let total = extractPagedTotal(envelope, notifications.length)
+    const meta = envelope?.pagination || envelope?.meta || {}
+    const explicitNext = meta.hasNextPage ?? envelope?.hasNextPage ?? envelope?.hasNext
+    if (notifications.length === 0) {
+      total = 0
+    }
+    let hasNext = typeof explicitNext === 'boolean' ? explicitNext : p * lim < total
+    if (typeof explicitNext !== 'boolean' && total === 0 && notifications.length >= lim) {
+      hasNext = true
+    }
+    return { ok: true, notifications, total, page: p, limit: lim, hasNext }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, useClient: true, notifications: [], total: 0 }
+  }
+}
+
+function resolveNotificationAssetUrl(url) {
+  const s = String(url || '').trim()
+  if (!s) return ''
+  if (s.startsWith('//')) return `https:${s}`
+  if (/^https?:\/\//i.test(s)) return s
+  if (s.startsWith('/')) {
+    const base = String(API_BASE_URL || '').replace(/\/$/, '')
+    return `${base}${s}`
+  }
+  return s
+}
+
+function extractAdminNotificationDetailPayload(data) {
+  if (!data || typeof data !== 'object') return null
+
+  const nestedKeys = ['notification', 'notice', 'message']
+  for (const key of nestedKeys) {
+    const v = data[key]
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v
+  }
+
+  if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    const inner = data.data
+    for (const key of nestedKeys) {
+      const v = inner[key]
+      if (v && typeof v === 'object' && !Array.isArray(v)) return v
+    }
+    return inner
+  }
+
+  return data
+}
+
+function audienceLabelsFromNotificationRaw(raw) {
+  const labels = []
+  const summary =
+    (typeof raw.targetSummary === 'string' && raw.targetSummary.trim()) ||
+    (typeof raw.target === 'string' && raw.target.trim()) ||
+    (typeof raw.targets === 'string' && raw.targets.trim()) ||
+    ''
+  if (summary) labels.push(summary)
+
+  if (Array.isArray(raw.targetSections) && raw.targetSections.length) {
+    for (const s of raw.targetSections) {
+      if (s && typeof s === 'object') {
+        const cn = String(s.className ?? s.class_name ?? s.classId ?? '').trim()
+        const sec = String(s.section ?? s.sectionName ?? '').trim()
+        const part = [cn, sec].filter(Boolean).join(' — ')
+        if (part) labels.push(part)
+      }
+    }
+  }
+
+  if (Array.isArray(raw.targetClassIds) && raw.targetClassIds.length) {
+    const joined = raw.targetClassIds.map(String).join(', ')
+    if (joined) labels.push(`Classes: ${joined}`)
+  }
+
+  if (Array.isArray(raw.targetStudentIds) && raw.targetStudentIds.length) {
+    const joined = raw.targetStudentIds.map(String).join(', ')
+    if (joined) labels.push(`Students: ${joined}`)
+  }
+
+  return labels.length ? labels : ['—']
+}
+
+/**
+ * Detail payload for {@link ParentMessageDetailModal} from GET /api/admin/notifications/:id.
+ * @param {object} raw
+ */
+export function mapAdminNotificationDetailToModalItem(raw) {
+  const row = mapAdminNotificationFromApi(raw)
+  if (!row) return null
+
+  const pickedBanner = pickNotificationMediaUrl(raw)
+  const bannerDisplayUrl = resolveNotificationAssetUrl(pickedBanner) || undefined
+
+  const submitterName =
+    extractNotificationSubmitterName(raw) ||
+    (row.submitterName && row.submitterName !== '—' ? row.submitterName : '') ||
+    (row.createdByName && row.createdByName !== '—' ? row.createdByName : '')
+
+  const submitterEmail = String(
+    raw.submitterEmail ?? raw.sender?.email ?? raw.createdBy?.email ?? '',
+  ).trim()
+
+  const sender = submitterName
+    ? {
+        fullName: submitterName,
+        email: submitterEmail || undefined,
+      }
+    : submitterEmail
+      ? { fullName: submitterEmail, email: submitterEmail }
+      : null
+
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    category: row.category,
+    status: row.status || NOTIFICATION_STATUSES.APPROVED,
+    createdByName: submitterName || undefined,
+    bannerDisplayUrl,
+    targetUrl: String(raw.targetUrl ?? '').trim() || undefined,
+    videoUrls: String(raw.videoUrls ?? '').trim() || undefined,
+    externalLinks: String(raw.externalLinks ?? raw.external_links ?? '').trim() || undefined,
+    sender,
+    _feedChildNames: audienceLabelsFromNotificationRaw(raw),
+  }
+}
+
+/**
+ * GET /api/admin/notifications/:id — full notice for admin / principal detail modal (Bearer).
+ * @returns {Promise<{ ok: true, notification: object } | { ok: false, error: string, notification: null }>}
+ */
+export async function fetchAdminNotificationById(token, notificationId) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', notification: null }
+  }
+  const id = encodeURIComponent(String(notificationId ?? '').trim())
+  if (!id) {
+    return { ok: false, error: 'Invalid notice id', notification: null }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/notifications/${id}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        notification: null,
+      }
+    }
+    const raw = extractAdminNotificationDetailPayload(data)
+    const notification = mapAdminNotificationDetailToModalItem(raw)
+    if (!notification) {
+      return { ok: false, error: 'Invalid notice response', notification: null }
+    }
+    return { ok: true, notification }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, notification: null }
+  }
+}
+
+const APPROVAL_QUEUE_DEFAULT_LIMIT = 10
+
+async function fetchPendingNotificationList(token, path, { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT } = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || APPROVAL_QUEUE_DEFAULT_LIMIT))
+  const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}?${params}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const useClient = [404, 405, 501].includes(res.status)
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        useClient,
+        notifications: [],
+        total: 0,
       }
     }
     const list = extractNotificationList(data)
     const notifications = list.map(mapPendingAdminNotificationFromApi).filter(Boolean)
-    return { ok: true, notifications }
+    const envelope =
+      data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? { ...data, ...data.data }
+        : data
+    let total = extractPagedTotal(envelope, notifications.length)
+    const meta = envelope?.pagination || envelope?.meta || {}
+    const explicitNext = meta.hasNextPage ?? envelope?.hasNextPage ?? envelope?.hasNext
+    if (notifications.length === 0) {
+      total = 0
+    }
+    let hasNext = typeof explicitNext === 'boolean' ? explicitNext : p * lim < total
+    if (typeof explicitNext !== 'boolean' && total === 0 && notifications.length >= lim) {
+      hasNext = true
+    }
+    return { ok: true, notifications, total, page: p, limit: lim, hasNext }
   } catch (e) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
-    return { ok: false, error: msg, useClient: true }
+    return { ok: false, error: msg, useClient: true, notifications: [], total: 0 }
   }
 }
 
 /**
  * GET /api/notifications/pending/admin — Bearer; administrative queue.
  */
-export async function fetchPendingAdminNotifications(token) {
-  return fetchPendingNotificationList(token, '/api/notifications/pending/admin')
+export async function fetchPendingAdminNotifications(token, { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT } = {}) {
+  return fetchPendingNotificationList(token, '/api/notifications/pending/admin', { page, limit })
 }
 
 /**
- * GET /api/notifications/pending/principal — Bearer; academic queue (principal token).
+ * GET /api/notifications/pending/principal — Bearer; academic queue.
  */
-export async function fetchPendingPrincipalNotifications(token) {
-  return fetchPendingNotificationList(token, '/api/notifications/pending/principal')
+export async function fetchPendingPrincipalNotifications(
+  token,
+  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT } = {},
+) {
+  return fetchPendingNotificationList(token, '/api/notifications/pending/principal', { page, limit })
 }
 
-const APPROVAL_QUEUE_DEFAULT_LIMIT = 10
+/**
+ * @param {string} token
+ * @param {string} basePath e.g. `/api/notifications/pending/admin`
+ * @param {string | number} notificationId
+ */
+async function fetchPendingNotificationById(token, basePath, notificationId) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', notification: null }
+  }
+  const id = encodeURIComponent(String(notificationId ?? '').trim())
+  if (!id) {
+    return { ok: false, error: 'Invalid notice id', notification: null }
+  }
+  const path = String(basePath || '').replace(/\/$/, '')
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}/${id}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        notification: null,
+      }
+    }
+    const raw = extractAdminNotificationDetailPayload(data)
+    const notification = mapAdminNotificationDetailToModalItem(raw)
+    if (!notification) {
+      return { ok: false, error: 'Invalid notice response', notification: null }
+    }
+    return { ok: true, notification }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, notification: null }
+  }
+}
+
+/** GET /api/notifications/pending/admin/:id */
+export function fetchPendingAdminNotificationById(token, notificationId) {
+  return fetchPendingNotificationById(token, '/api/notifications/pending/admin', notificationId)
+}
+
+/** GET /api/notifications/pending/principal/:id */
+export function fetchPendingPrincipalNotificationById(token, notificationId) {
+  return fetchPendingNotificationById(token, '/api/notifications/pending/principal', notificationId)
+}
 
 /**
  * GET /api/notifications/approval-queue?page=&limit=&categoryKind=
@@ -749,8 +1105,11 @@ export async function fetchNotificationApprovalQueue(
       data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
         ? { ...data, ...data.data }
         : data
-    const total = extractPagedTotal(envelope, notifications.length)
+    let total = extractPagedTotal(envelope, notifications.length)
     const explicitNext = envelope?.hasNextPage ?? envelope?.hasNext ?? envelope?.meta?.hasNextPage
+    if (notifications.length === 0) {
+      total = 0
+    }
     let hasNext = typeof explicitNext === 'boolean' ? explicitNext : p * lim < total
     if (typeof explicitNext !== 'boolean' && total === 0 && notifications.length >= lim) {
       hasNext = true
@@ -959,5 +1318,385 @@ export async function patchNotificationPreference(token, enabled) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, useClient: true }
+  }
+}
+
+/**
+ * Map one GET /api/notifications/bell row for the header popover.
+ * @param {object} raw
+ * @returns {{ id: string, title: string, message: string, timeAgo: string, unread?: boolean } | null}
+ */
+export function mapBellNotificationFromApi(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const idRaw = raw.id ?? raw._id ?? raw.notificationId ?? raw.messageId
+  const id = idRaw != null ? String(idRaw).trim() : ''
+  if (!id) return null
+
+  const title = String(raw.title ?? raw.subject ?? 'Notification').trim() || 'Notification'
+  const message = String(raw.message ?? raw.body ?? raw.content ?? raw.summary ?? '').trim()
+  const presetAgo = String(raw.timeAgo ?? raw.time_ago ?? '').trim()
+  const stamp =
+    raw.createdAt ??
+    raw.submittedAt ??
+    raw.sentAt ??
+    raw.approvedAt ??
+    raw.updatedAt ??
+    raw.created_at
+  const timeAgo = presetAgo || formatNotificationTimeAgo(stamp) || 'Recently'
+
+  let unread = false
+  if (raw.unread === true || raw.isUnread === true) unread = true
+  else if (raw.isRead === false || raw.read === false) unread = true
+
+  return {
+    id,
+    title,
+    message: message || title,
+    timeAgo,
+    unread,
+  }
+}
+
+function extractBellUnreadCount(data, mappedList) {
+  if (!data || typeof data !== 'object') {
+    return mappedList.filter((n) => n.unread).length
+  }
+  const root = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data
+  const raw =
+    root.unreadCount ??
+    root.unreadTotal ??
+    root.unread ??
+    data.unreadCount ??
+    data.unread
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return raw
+  if (typeof raw === 'string' && /^-?\d+$/.test(raw.trim())) return Number(raw.trim())
+  return mappedList.filter((n) => n.unread).length
+}
+
+/**
+ * GET /api/notifications/bell — up to 3 recent messages for the signed-in user (Bearer).
+ * @returns {Promise<
+ *   | { ok: true, notifications: ReturnType<typeof mapBellNotificationFromApi>[], unreadCount: number }
+ *   | { ok: false, error: string, notifications: [], unreadCount: 0 }
+ * >}
+ */
+export async function fetchNotificationBell(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', notifications: [], unreadCount: 0 }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/bell`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        notifications: [],
+        unreadCount: 0,
+      }
+    }
+    const list = extractNotificationList(data)
+    const notifications = list.map(mapBellNotificationFromApi).filter(Boolean).slice(0, 3)
+    const unreadCount = extractBellUnreadCount(data, notifications)
+    return { ok: true, notifications, unreadCount }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, notifications: [], unreadCount: 0 }
+  }
+}
+
+function mapReadReportParentRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = String(raw.parentId ?? raw.id ?? raw.userId ?? '').trim()
+  const parentName = String(
+    raw.parentName ?? raw.fullName ?? raw.name ?? raw.guardianName ?? '',
+  ).trim()
+  const parentEmail = String(raw.parentEmail ?? raw.email ?? '').trim() || undefined
+  const childrenNames = []
+  if (Array.isArray(raw.children)) {
+    for (const c of raw.children) {
+      if (typeof c === 'string') childrenNames.push(c.trim())
+      else if (c && typeof c === 'object') {
+        const n = String(c.fullName ?? c.name ?? c.studentName ?? '').trim()
+        if (n) childrenNames.push(n)
+      }
+    }
+  } else if (Array.isArray(raw.childrenNames)) {
+    raw.childrenNames.forEach((n) => {
+      const s = String(n ?? '').trim()
+      if (s) childrenNames.push(s)
+    })
+  } else if (typeof raw.childName === 'string' && raw.childName.trim()) {
+    childrenNames.push(raw.childName.trim())
+  } else if (typeof raw.studentName === 'string' && raw.studentName.trim()) {
+    childrenNames.push(raw.studentName.trim())
+  }
+  const readRaw = raw.readAt ?? raw.read_at ?? raw.openedAt ?? raw.opened_at
+  const isRead =
+    raw.isRead === true ||
+    raw.is_read === true ||
+    raw.read === true ||
+    (readRaw != null &&
+      readRaw !== false &&
+      readRaw !== 0 &&
+      readRaw !== '0' &&
+      readRaw !== 'false' &&
+      String(readRaw).trim() !== '')
+  let readAt = readRaw
+  if (typeof readAt === 'string') {
+    const t = Date.parse(readAt)
+    readAt = Number.isFinite(t) ? t : readAt
+  } else if (typeof readAt === 'number' && readAt > 0 && readAt < 1e11) {
+    readAt *= 1000
+  }
+  if (!parentName && !id && !childrenNames.length) return null
+  return {
+    id: id || `p-${parentName || parentEmail || 'x'}`,
+    parentName: parentName || parentEmail || 'Parent',
+    parentEmail,
+    childrenNames,
+    isRead,
+    readAt: isRead ? readAt : null,
+  }
+}
+
+function normalizeNotificationReadReportPayload(raw) {
+  const d =
+    raw?.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
+      ? raw.data
+      : raw && typeof raw === 'object'
+        ? raw
+        : {}
+  const notification =
+    d.notification && typeof d.notification === 'object' && !Array.isArray(d.notification)
+      ? {
+          id: d.notification.id,
+          title: String(d.notification.title ?? '').trim(),
+          category: String(d.notification.category ?? '').trim(),
+          status: String(d.notification.status ?? '').trim(),
+        }
+      : null
+  const summarySrc = d.summary && typeof d.summary === 'object' ? d.summary : d
+  const total = Number(
+    summarySrc.totalRecipients ??
+      summarySrc.total_recipients ??
+      summarySrc.totalParents ??
+      summarySrc.total_parents ??
+      summarySrc.total ??
+      d.totalParents,
+  )
+  const read = Number(
+    summarySrc.read ?? summarySrc.parentsRead ?? summarySrc.parents_read ?? summarySrc.readCount,
+  )
+  const unread = Number(
+    summarySrc.notRead ??
+      summarySrc.not_read ??
+      summarySrc.parentsNotRead ??
+      summarySrc.parents_not_read ??
+      summarySrc.unread ??
+      summarySrc.unreadCount,
+  )
+  const list = Array.isArray(d.parents)
+    ? d.parents
+    : Array.isArray(d.items)
+      ? d.items
+      : Array.isArray(d.recipients)
+        ? d.recipients
+        : []
+  const parents = list.map(mapReadReportParentRow).filter(Boolean)
+  const meta = d.pagination || d.meta || {}
+  const page = Number(meta.page ?? d.page) || 1
+  const limit = Number(meta.limit ?? d.limit) || 20
+  const totalItems = Number.isFinite(total)
+    ? total
+    : Number(meta.total ?? d.total) || parents.length
+  const totalPages =
+    Number(meta.totalPages) ||
+    (totalItems > 0 ? Math.ceil(totalItems / Math.max(1, limit)) : 1)
+  const hasNextPage =
+    typeof meta.hasNextPage === 'boolean' ? meta.hasNextPage : page * limit < totalItems
+  return {
+    notification,
+    summary: {
+      total: Number.isFinite(total) ? total : totalItems || null,
+      read: Number.isFinite(read) ? read : null,
+      unread: Number.isFinite(unread)
+        ? unread
+        : Number.isFinite(total) && Number.isFinite(read)
+          ? total - read
+          : null,
+    },
+    parents,
+    page,
+    totalPages,
+    hasNextPage,
+  }
+}
+
+/**
+ * GET /api/admin/notifications/:id/read-report — admin: which parents read a notice.
+ * Query: page, limit, filter=all|read|unread
+ *
+ * Backend should return parent name, child name(s), read time per row.
+ */
+export async function fetchNotificationReadReport(token, notificationId, options = {}) {
+  const id = encodeURIComponent(String(notificationId ?? '').trim())
+  if (!token) {
+    return {
+      ok: false,
+      error: 'Not signed in',
+      pendingApi: false,
+      summary: { total: null, read: null, unread: null },
+      parents: [],
+      totalPages: 1,
+      hasNextPage: false,
+    }
+  }
+  if (!id) {
+    return {
+      ok: false,
+      error: 'Invalid notice id',
+      pendingApi: false,
+      summary: { total: null, read: null, unread: null },
+      parents: [],
+      totalPages: 1,
+      hasNextPage: false,
+    }
+  }
+  const page = Math.max(1, Number(options.page) || 1)
+  const limit = Math.min(100, Math.max(1, Number(options.limit) || 20))
+  const filter = String(options.filter || 'all').toLowerCase()
+  try {
+    const qs = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      filter,
+    })
+    const res = await fetch(
+      `${API_BASE_URL}/api/admin/notifications/${id}/read-report?${qs}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    )
+    const data = await res.json().catch(() => null)
+    if (res.status === 404 || res.status === 501) {
+      return {
+        ok: false,
+        error: null,
+        pendingApi: true,
+        summary: { total: null, read: null, unread: null },
+        parents: [],
+        totalPages: 1,
+        hasNextPage: false,
+      }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        pendingApi: false,
+        summary: { total: null, read: null, unread: null },
+        parents: [],
+        totalPages: 1,
+        hasNextPage: false,
+      }
+    }
+    const normalized = normalizeNotificationReadReportPayload(data)
+    return {
+      ok: true,
+      pendingApi: false,
+      ...normalized,
+    }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return {
+      ok: false,
+      error: msg,
+      pendingApi: false,
+      summary: { total: null, read: null, unread: null },
+      parents: [],
+      totalPages: 1,
+      hasNextPage: false,
+    }
+  }
+}
+
+/**
+ * GET /api/admin/notifications/:id/read-report/export — CSV download (filter: all | read | unread).
+ */
+export async function fetchNotificationReadReportExport(token, notificationId, filter = 'all') {
+  const id = encodeURIComponent(String(notificationId ?? '').trim())
+  if (!token) {
+    return { ok: false, error: 'Not signed in', pendingApi: false }
+  }
+  if (!id) {
+    return { ok: false, error: 'Invalid notice id', pendingApi: false }
+  }
+  const f = String(filter || 'all').toLowerCase()
+  const filterParam = f === 'read' || f === 'unread' ? f : 'all'
+  try {
+    const qs = new URLSearchParams({ filter: filterParam })
+    const res = await fetch(
+      `${API_BASE_URL}/api/admin/notifications/${id}/read-report/export?${qs}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'text/csv,*/*',
+        },
+      },
+    )
+    const ctype = (res.headers.get('Content-Type') || '').toLowerCase()
+    if (!res.ok) {
+      const pendingApi = [404, 405, 501].includes(res.status)
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: pendingApi ? null : formatListError(data, res.status),
+        pendingApi,
+      }
+    }
+    if (ctype.includes('application/json')) {
+      const data = await res.json().catch(() => null)
+      return {
+        ok: false,
+        error: formatListError(data, res.status) || 'Unexpected response',
+        pendingApi: true,
+      }
+    }
+    const blob = await res.blob()
+    let filename = filterParam === 'unread' ? 'read-report-unread.csv' : 'read-report.csv'
+    const cd = res.headers.get('Content-Disposition')
+    if (cd) {
+      const star = cd.match(/filename\*=UTF-8''([^;\s]+)/i)
+      const quoted = cd.match(/filename="([^"]+)"/i) || cd.match(/filename=([^;\s]+)/i)
+      if (star) {
+        try {
+          filename = decodeURIComponent(star[1])
+        } catch {
+          filename = star[1]
+        }
+      } else if (quoted) {
+        filename = quoted[1].replace(/["']/g, '')
+      }
+    }
+    return { ok: true, blob, filename }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, pendingApi: false }
   }
 }

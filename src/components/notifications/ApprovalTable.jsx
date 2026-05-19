@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAppData } from '../../context/AppDataContext'
-import { Badge } from '../ui/Badge'
+import { NotificationDecisionBadge } from './NotificationDecisionBadge'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import {
@@ -8,6 +8,7 @@ import {
   NOTIFICATION_STATUSES,
 } from '../../utils/notificationConstants'
 import { formatTargetSummary, formatTargetTypeLabel } from '../../utils/notificationFormat'
+import { ReadReportActionButton } from './ReadReportActionButton'
 
 function formatDate(ts) {
   if (!ts) return '—'
@@ -18,7 +19,25 @@ function formatDate(ts) {
   }
 }
 
-export function ApprovalTable({ notifications, onApprove, onReject }) {
+function canShowReadReport(row, showReadReportColumn) {
+  if (!showReadReportColumn) return false
+  if (row.actions?.canViewReadReport === true) return true
+  return row.status === NOTIFICATION_STATUSES.APPROVED
+}
+
+export function ApprovalTable({
+  notifications,
+  onApprove,
+  onReject,
+  /** Admin / principal approval queue: separate Read report column (same as Notice history). */
+  showReadReportColumn = false,
+  onReadReport,
+  readReportDisabled = false,
+  showViewColumn = false,
+  onView,
+  viewLoadingId = null,
+  viewDisabled = false,
+}) {
   const { classes, students } = useAppData()
   const [query, setQuery] = useState('')
 
@@ -53,19 +72,34 @@ export function ApprovalTable({ notifications, onApprove, onReject }) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white">
+              <tr className="app-table-head">
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Title</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Category</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Target</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">From</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Submitted</th>
-                <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
+                {showViewColumn ? (
+                  <th className="min-w-[5.5rem] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
+                    View
+                  </th>
+                ) : null}
+                <th className="min-w-[9.5rem] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
+                  Actions
+                </th>
+                {showReadReportColumn ? (
+                  <th className="min-w-[11rem] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
+                    Read report
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm font-medium text-slate-500">
+                  <td
+                    colSpan={(showReadReportColumn ? 1 : 0) + (showViewColumn ? 1 : 0) + 6}
+                    className="px-4 py-12 text-center text-sm font-medium text-slate-500"
+                  >
                     No pending notifications in this queue.
                   </td>
                 </tr>
@@ -74,6 +108,7 @@ export function ApprovalTable({ notifications, onApprove, onReject }) {
                   const locked =
                     n.status === NOTIFICATION_STATUSES.APPROVED ||
                     n.status === NOTIFICATION_STATUSES.REJECTED
+                  const showReadReport = canShowReadReport(n, showReadReportColumn)
                   return (
                   <tr key={n.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                     <td className="max-w-[180px] px-4 py-3 align-top">
@@ -99,21 +134,26 @@ export function ApprovalTable({ notifications, onApprove, onReject }) {
                     <td className="whitespace-nowrap px-4 py-3 align-top text-slate-600">
                       {formatDate(n.createdAt)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 align-top text-right">
+                    {showViewColumn ? (
+                      <td className="min-w-[5.5rem] whitespace-nowrap px-4 py-3 text-center align-middle">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={viewDisabled || (viewLoadingId != null && String(viewLoadingId) === String(n.id))}
+                          onClick={() => onView?.(n)}
+                        >
+                          {viewLoadingId != null && String(viewLoadingId) === String(n.id)
+                            ? 'Loading…'
+                            : 'View'}
+                        </Button>
+                      </td>
+                    ) : null}
+                    <td className="min-w-[9.5rem] whitespace-nowrap px-4 py-3 align-top text-center">
                       {locked ? (
-                        <div className="flex justify-end">
-                          <Badge
-                            className={
-                              n.status === NOTIFICATION_STATUSES.APPROVED
-                                ? 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
-                                : 'bg-slate-100 text-slate-700 ring-slate-500/20'
-                            }
-                          >
-                            {n.status === NOTIFICATION_STATUSES.APPROVED ? 'Approved' : 'Rejected'}
-                          </Badge>
-                        </div>
+                        <NotificationDecisionBadge status={n.status} approvedAt={n.approvedAt} />
                       ) : (
-                        <div className="flex flex-wrap justify-end gap-2">
+                        <div className="flex flex-col items-center justify-center gap-2 pt-0.5 sm:flex-row sm:flex-wrap">
                           <Button type="button" size="sm" variant="secondary" onClick={() => onReject(n.id)}>
                             Reject
                           </Button>
@@ -123,6 +163,20 @@ export function ApprovalTable({ notifications, onApprove, onReject }) {
                         </div>
                       )}
                     </td>
+                    {showReadReportColumn ? (
+                      <td className="min-w-[11rem] whitespace-nowrap px-4 py-3 text-center align-middle">
+                        {showReadReport && onReadReport ? (
+                          <ReadReportActionButton
+                            disabled={readReportDisabled}
+                            onClick={() => onReadReport(n)}
+                          />
+                        ) : (
+                          <span className="text-sm text-slate-400" aria-hidden>
+                            —
+                          </span>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                   )
                 })

@@ -38,6 +38,15 @@
   }
 }
 
+@layer components {
+  .dash-stat {
+    @apply rounded-lg border border-slate-200 bg-white p-4 shadow-sm;
+  }
+  .app-table-head {
+    @apply bg-slate-700 text-white;
+  }
+}
+
 @layer utilities {
   /** Hide scrollbars but keep overflow scroll / auto (trackpad, wheel, touch). */
   .scrollbar-none {
@@ -76,19 +85,19 @@
   padding: 0.125rem 0.35rem 0 0;
 }
 .Toastify__toast--success {
-  background: linear-gradient(135deg, rgb(5 150 105 / 0.96), rgb(4 120 87 / 0.99)) !important;
+  background: rgb(5 120 90) !important;
   color: #fff !important;
 }
 .Toastify__toast--error {
-  background: linear-gradient(135deg, rgb(220 38 38 / 0.96), rgb(185 28 28 / 0.99)) !important;
+  background: rgb(185 28 28) !important;
   color: #fff !important;
 }
 .Toastify__toast--info {
-  background: linear-gradient(135deg, rgb(79 70 229 / 0.94), rgb(109 40 217 / 0.97)) !important;
+  background: rgb(51 65 85) !important;
   color: #fff !important;
 }
 .Toastify__toast--warning {
-  background: linear-gradient(135deg, rgb(217 119 6 / 0.96), rgb(180 83 9 / 0.99)) !important;
+  background: rgb(180 83 9) !important;
   color: #fff !important;
 }
 .Toastify__progress-bar {
@@ -100,4 +109,13 @@
 }
 .Toastify__close-button:hover {
   color: #fff;
+}
+
+/* Drivers: hide Webpushr floating opt-in and bell (push not used for drivers). */
+body.driver-no-webpushr #webpushr-prompt-wrapper,
+body.driver-no-webpushr #webpushr-subscription-wrapper,
+body.driver-no-webpushr .webpushr-subscription-widget,
+body.driver-no-webpushr [id^="webpushr"] {
+  display: none !important;
+  pointer-events: none !important;
 }

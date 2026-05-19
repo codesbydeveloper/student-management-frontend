@@ -78,3 +78,57 @@ export function pickNotificationMediaUrl(obj) {
   }
   return ''
 }
+
+/**
+ * Relative time for bell / inbox previews (e.g. "12 minutes ago").
+ * @param {string | number | Date | null | undefined} value
+ * @returns {string}
+ */
+export function formatNotificationTimeAgo(value) {
+  if (value == null || value === '') return ''
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return ''
+    if (/ago$/i.test(trimmed) || /^just now$/i.test(trimmed) || /^yesterday$/i.test(trimmed)) {
+      return trimmed
+    }
+    const parsed = Date.parse(trimmed)
+    if (Number.isNaN(parsed)) return trimmed
+    return formatNotificationTimeAgo(parsed)
+  }
+
+  let ms
+  if (value instanceof Date) {
+    ms = value.getTime()
+  } else if (typeof value === 'number' && Number.isFinite(value)) {
+    ms = value < 1e12 ? value * 1000 : value
+  } else {
+    return ''
+  }
+
+  if (Number.isNaN(ms)) return ''
+
+  const diff = Date.now() - ms
+  if (diff < 45_000) return 'Just now'
+
+  const minutes = Math.floor(diff / 60_000)
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  }
+
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+
+  return new Date(ms).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}

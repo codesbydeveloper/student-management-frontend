@@ -1,9 +1,11 @@
 import { Modal } from '../Modal'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
+import { StatusBadge } from '../notifications/StatusBadge'
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
+  NOTIFICATION_STATUSES,
 } from '../../utils/notificationConstants'
 
 const categoryBadge = {
@@ -72,7 +74,14 @@ function LineList({ label, lines }) {
 /**
  * Full message from GET /api/parents/messages/:id (mapped feed item).
  */
-export function ParentMessageDetailModal({ open, onClose, loading, error, item }) {
+export function ParentMessageDetailModal({
+  open,
+  onClose,
+  loading,
+  error,
+  item,
+  modalTitle = 'School message',
+}) {
   const showBody = !loading && !error && item
   const videoLines = showBody && item.videoUrls ? splitLines(item.videoUrls) : []
   const externalLines = showBody && item.externalLinks ? splitLines(item.externalLinks) : []
@@ -81,7 +90,7 @@ export function ParentMessageDetailModal({ open, onClose, loading, error, item }
     <Modal
       open={open}
       onClose={onClose}
-      title="School message"
+      title={modalTitle}
       size="xl"
       footer={
         <div className="flex w-full flex-wrap justify-end gap-2">
@@ -109,7 +118,11 @@ export function ParentMessageDetailModal({ open, onClose, loading, error, item }
               >
                 {NOTIFICATION_CATEGORY_LABELS[item.category] || item.category}
               </Badge>
-              <Badge className="bg-emerald-100 text-emerald-900 ring-emerald-600/25">Approved</Badge>
+              {item.status ? (
+                <StatusBadge status={item.status} variant="inline" />
+              ) : (
+                <Badge className="bg-emerald-100 text-emerald-900 ring-emerald-600/25">Approved</Badge>
+              )}
             </div>
           </div>
 
@@ -135,12 +148,17 @@ export function ParentMessageDetailModal({ open, onClose, loading, error, item }
           <LineList label="Videos" lines={videoLines} />
           <LineList label="External links" lines={externalLines} />
 
-          {item.sender ? (
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</p>
-              <p className="mt-1 font-medium text-slate-900">{item.sender.fullName || '—'}</p>
-            </div>
-          ) : null}
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</p>
+            <p className="mt-1 font-medium text-slate-900">
+              {item.sender?.fullName ||
+                (item.createdByName && item.createdByName !== '—' ? item.createdByName : null) ||
+                '—'}
+            </p>
+            {item.sender?.email && item.sender.email !== item.sender.fullName ? (
+              <p className="mt-0.5 text-xs text-slate-500">{item.sender.email}</p>
+            ) : null}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">For</span>

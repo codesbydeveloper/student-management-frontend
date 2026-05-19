@@ -32,19 +32,44 @@ export function NotificationCard({ item, showViewButton = false, onViewClick, vi
 
   const heading = multi ? `${item.title} (${firstNames(names)})` : item.title
 
+  const openDetail = showViewButton && onViewClick && !viewLoading ? onViewClick : undefined
+
   return (
-    <article className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm shadow-slate-900/[0.03] transition hover:border-slate-300/90 hover:shadow-md">
+    <article
+      className={`rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm shadow-slate-900/[0.03] transition hover:border-slate-300/90 hover:shadow-md${openDetail ? ' cursor-pointer' : ''}`}
+      onClick={openDetail}
+      onKeyDown={
+        openDetail
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                openDetail()
+              }
+            }
+          : undefined
+      }
+      role={openDetail ? 'button' : undefined}
+      tabIndex={openDetail ? 0 : undefined}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h3 className="text-base font-bold leading-snug text-slate-900 sm:text-lg">{heading}</h3>
         <div className="flex flex-wrap items-center gap-2">
           <Badge className={catCls}>{NOTIFICATION_CATEGORY_LABELS[cat] || cat}</Badge>
           <Badge className="bg-emerald-100 text-emerald-900 ring-emerald-600/25">Approved</Badge>
+          {!item.isRead ? (
+            <Badge className="bg-indigo-100 text-indigo-900 ring-indigo-600/25">Unread</Badge>
+          ) : (
+            <Badge className="bg-slate-100 text-slate-700 ring-slate-400/30">Read</Badge>
+          )}
           {showViewButton ? (
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              onClick={onViewClick}
+              onClick={(e) => {
+                e.stopPropagation()
+                onViewClick?.()
+              }}
               disabled={viewLoading}
             >
               {viewLoading ? 'Loading…' : 'View'}

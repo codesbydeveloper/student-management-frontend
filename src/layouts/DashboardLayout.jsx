@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { disableWebpushrForDriver, enableWebpushrForUser } from '../utils/webpushrSetup'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utils/constants'
@@ -7,42 +8,27 @@ import { RoleBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { MobileDockNav } from '../components/layout/MobileDockNav'
 import { PwaMobileInstallBanner } from '../components/layout/PwaMobileInstallBanner'
-import { HeaderWebPushToggle } from '../components/layout/HeaderWebPushToggle'
+import { HeaderNotificationBell } from '../components/layout/HeaderNotificationBell'
 import { InstitutionBrandMark } from '../components/layout/InstitutionBrandMark'
 import { useLoginBranding } from '../hooks/useLoginBranding'
 import { useProfilePrefs } from '../hooks/useProfilePrefs'
 import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
+import { PencilIcon } from '../components/icons/PencilIcon'
 
 function navClass({ isActive }) {
-  return `group flex min-h-[2.75rem] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
-    isActive
-      ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/40 ring-1 ring-white/10'
-      : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
+  return `group flex min-h-[2.75rem] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    isActive ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
   }`
 }
 
 function navChildClass({ isActive }) {
-  return `group flex min-h-[2.5rem] items-center gap-2.5 rounded-lg py-2 pl-9 pr-3 text-[13px] font-semibold transition-all duration-200 active:scale-[0.99] ${
-    isActive
-      ? 'bg-indigo-600/25 text-white ring-1 ring-indigo-400/35'
-      : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
+  return `group flex min-h-[2.5rem] items-center gap-2 rounded-md py-2 pl-9 pr-3 text-[13px] font-medium transition-colors ${
+    isActive ? 'bg-slate-700/80 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
   }`
 }
 
-function navGroupPathActive(
-  entryKey,
-  academicsPathActive,
-  transportPathActive,
-  noticesPathActive,
-  operationsPathActive,
-  ptmPathActive,
-) {
-  if (entryKey === 'academics') return academicsPathActive
-  if (entryKey === 'transport') return transportPathActive
-  if (entryKey === 'notices') return noticesPathActive
-  if (entryKey === 'operations') return operationsPathActive
-  if (entryKey === 'ptm') return ptmPathActive
-  return false
+function navGroupPathActive(entryKey, groupActive) {
+  return Boolean(groupActive[entryKey])
 }
 
 function navLinkUsesEnd(to) {
@@ -73,6 +59,8 @@ function navLinkUsesEnd(to) {
     to === '/notifications/history' ||
     to === '/assigned-leads' ||
     to === '/create-lead' ||
+    to === '/notifications/create' ||
+    to === '/transport/bus-rosters' ||
     to === '/settings' ||
     to === '/settings/login-branding' ||
     to === '/settings/smtp' ||
@@ -94,49 +82,73 @@ export function DashboardLayout() {
   )
   const sidebarEntries = getNavSidebarEntries(user.role)
   const dockItems = getNavItemsForRole(user.role)
-  const showHeaderSettings = user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL
+  const showHeaderSettings = user.role === ROLES.ADMIN
   const institutionTitle = branding.title || 'School'
 
-  const academicsPathActive = ['/classes', '/teachers', '/students', '/parents'].some(
-    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
-  )
-  const transportPathActive = ['/drivers', '/transport/assign-bus', '/transport/buses'].some(
-    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
-  )
-  const noticesPathActive = ['/create-category', '/create-notice', '/notifications/history'].some(
-    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
-  )
-  const operationsPathActive = [
-    '/notifications/admin-approval',
-    '/notifications/principal-approval',
-    '/visitor-logs',
-    '/leads',
-  ].some((base) => location.pathname === base || location.pathname.startsWith(`${base}/`))
-  const ptmPathActive = ['/ptm-requests/staff', '/ptm-requests/admin/history'].some(
-    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
-  )
-  const [navGroupOpen, setNavGroupOpen] = useState({
-    academics: academicsPathActive,
-    transport: transportPathActive,
-    notices: noticesPathActive,
-    operations: operationsPathActive,
-    ptm: ptmPathActive,
-  })
   useEffect(() => {
-    if (academicsPathActive) setNavGroupOpen((g) => ({ ...g, academics: true }))
-  }, [academicsPathActive])
+    if (user.role === ROLES.DRIVER) {
+      disableWebpushrForDriver()
+      return
+    }
+    enableWebpushrForUser()
+  }, [user.role])
+
+  const pathIn = (bases) =>
+    bases.some((base) => location.pathname === base || location.pathname.startsWith(`${base}/`))
+
+  const navGroupActive = {
+    academics: pathIn(
+      user.role === ROLES.TEACHER
+        ? ['/classes', '/teachers', '/students']
+        : ['/classes', '/teachers', '/students', '/parents'],
+    ),
+    transport: pathIn(
+      user.role === ROLES.TEACHER
+        ? ['/transport/bus-rosters']
+        : ['/drivers', '/transport/assign-bus', '/transport/buses'],
+    ),
+    notices: pathIn(['/create-category', '/create-notice', '/notifications/history']),
+    operations: pathIn([
+      '/notifications/admin-approval',
+      '/notifications/principal-approval',
+      '/visitor-logs',
+      '/leads',
+    ]),
+    ptm:
+      user.role === ROLES.TEACHER
+        ? location.pathname === '/ptm-requests'
+        : pathIn(['/ptm-requests/staff', '/ptm-requests/admin/history']),
+    communications: pathIn(['/create-notice', '/notifications']),
+    crm: pathIn(['/assigned-leads', '/create-lead', '/visitor-logs']),
+  }
+
+  const [navGroupOpen, setNavGroupOpen] = useState(() => ({
+    academics: navGroupActive.academics,
+    transport: navGroupActive.transport,
+    notices: navGroupActive.notices,
+    operations: navGroupActive.operations,
+    ptm: navGroupActive.ptm,
+    communications: navGroupActive.communications,
+    crm: navGroupActive.crm,
+  }))
+
   useEffect(() => {
-    if (transportPathActive) setNavGroupOpen((g) => ({ ...g, transport: true }))
-  }, [transportPathActive])
-  useEffect(() => {
-    if (noticesPathActive) setNavGroupOpen((g) => ({ ...g, notices: true }))
-  }, [noticesPathActive])
-  useEffect(() => {
-    if (operationsPathActive) setNavGroupOpen((g) => ({ ...g, operations: true }))
-  }, [operationsPathActive])
-  useEffect(() => {
-    if (ptmPathActive) setNavGroupOpen((g) => ({ ...g, ptm: true }))
-  }, [ptmPathActive])
+    setNavGroupOpen((g) => {
+      const next = { ...g }
+      for (const [key, active] of Object.entries(navGroupActive)) {
+        if (active) next[key] = true
+      }
+      return next
+    })
+  }, [
+    navGroupActive.academics,
+    navGroupActive.transport,
+    navGroupActive.notices,
+    navGroupActive.operations,
+    navGroupActive.ptm,
+    navGroupActive.communications,
+    navGroupActive.crm,
+  ])
 
   const onLogout = () => {
     logout()
@@ -144,11 +156,7 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="relative flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-slate-200">
-      <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgb(99_102_241/0.08),transparent)]"
-        aria-hidden
-      />
+    <div className="relative flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-slate-100">
 
       {open ? (
         <button
@@ -160,16 +168,14 @@ export function DashboardLayout() {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[min(20rem,calc(100vw-1.25rem))] flex-col overflow-hidden border-r border-slate-800 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-xl transition-transform duration-300 ease-out lg:static lg:h-dvh lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[min(20rem,calc(100vw-1.25rem))] flex-col overflow-hidden border-r border-slate-800 bg-slate-900 transition-transform duration-300 ease-out lg:static lg:h-dvh lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
-        <div className="flex shrink-0 items-center gap-3 border-b border-slate-800/80 px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:min-h-[4.25rem] lg:px-6 lg:py-4 lg:pt-4">
+        <div className="flex shrink-0 items-center gap-3 border-b border-slate-800 px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:min-h-[4rem] lg:px-6 lg:py-4 lg:pt-4">
           <InstitutionBrandMark branding={branding} />
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold tracking-tight text-white">{institutionTitle}</p>
-            <p className="truncate text-xs font-medium text-indigo-300/90">Operations hub</p>
+            <p className="truncate text-sm font-semibold text-white">{institutionTitle}</p>
           </div>
         </div>
         <nav className="scrollbar-none min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3 lg:p-4">
@@ -198,14 +204,7 @@ export function DashboardLayout() {
                 <button
                   type="button"
                   className={`flex w-full min-h-[2.75rem] items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
-                    navGroupPathActive(
-                      entry.key,
-                      academicsPathActive,
-                      transportPathActive,
-                      noticesPathActive,
-                      operationsPathActive,
-                      ptmPathActive,
-                    )
+                    navGroupPathActive(entry.key, navGroupActive)
                       ? 'bg-slate-800/90 text-white ring-1 ring-indigo-500/40'
                       : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
                   }`}
@@ -260,15 +259,13 @@ export function DashboardLayout() {
             ),
           )}
         </nav>
-        <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/90 px-5 py-3 backdrop-blur-sm lg:py-3.5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-            School year 2026
-          </p>
+        <div className="shrink-0 border-t border-slate-800 px-5 py-3 text-xs text-slate-500 lg:py-3.5">
+          School year 2026
         </div>
       </aside>
 
-      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white lg:shadow-[-12px_0_32px_-8px_rgba(15,23,42,0.12)]">
-        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-[backdrop-filter]:bg-white/85">
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top,0px)]">
           <div className="flex min-h-[3.5rem] items-center justify-between gap-3 px-3 sm:min-h-[4.25rem] sm:gap-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
               <Button
@@ -281,17 +278,24 @@ export function DashboardLayout() {
                 Menu
               </Button>
               <div className="hidden min-w-0 sm:block">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500/90">
-                  Live overview
-                </p>
-                <p className="truncate text-sm font-bold text-slate-900">Institution workspace</p>
+                <p className="truncate text-sm font-semibold text-slate-900">{institutionTitle}</p>
               </div>
-              <p className="truncate text-sm font-bold text-slate-900 sm:hidden">
-                {profileDisplayName}
-                {user.id ? (
-                  <span className="ml-1.5 font-mono text-[11px] font-semibold text-slate-500">· #{user.id}</span>
-                ) : null}
-              </p>
+              <div className="flex min-w-0 items-center gap-1.5 sm:hidden">
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  {profileDisplayName}
+                  {user.id ? (
+                    <span className="ml-1.5 font-mono text-[11px] font-semibold text-slate-500">· #{user.id}</span>
+                  ) : null}
+                </p>
+                <NavLink
+                  to="/profile"
+                  title="Edit profile"
+                  aria-label="Edit profile and display name"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </NavLink>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-4">
               {showHeaderSettings ? (
@@ -321,9 +325,19 @@ export function DashboardLayout() {
                   </svg>
                 </NavLink>
               ) : null}
-              <HeaderWebPushToggle />
+              {user.role !== ROLES.DRIVER ? <HeaderNotificationBell /> : null}
               <div className="hidden text-right sm:block">
-                <p className="text-sm font-bold text-slate-900">{profileDisplayName}</p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <p className="text-sm font-bold text-slate-900">{profileDisplayName}</p>
+                  <NavLink
+                    to="/profile"
+                    title="Edit profile"
+                    aria-label="Edit profile and display name"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                  >
+                    <PencilIcon className="h-3.5 w-3.5" />
+                  </NavLink>
+                </div>
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
                   {user.id ? (
                     <span className="rounded-full bg-slate-100/90 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200/80">
@@ -351,7 +365,7 @@ export function DashboardLayout() {
 
         <PwaMobileInstallBanner />
 
-        <main className="scrollbar-none relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/80 px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-8 lg:px-10 lg:pb-8">
+        <main className="scrollbar-none relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
           <Outlet />
         </main>
 

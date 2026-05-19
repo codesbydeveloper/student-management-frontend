@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { fetchParentDashboard } from '../../api/parentsApi'
+import { useParentMessageViewer } from '../../hooks/useParentMessageViewer'
+import { onParentMessagesRefreshRequested } from '../../utils/parentMessagesRefreshBus'
 import { Card } from '../ui/Card'
 import { PtmStatusBadge } from '../phase6/PtmStatusBadge'
+import { ParentMessageDetailModal } from '../parent/ParentMessageDetailModal'
 
 function fmtTime(ts) {
   if (ts == null || ts === '—') return '—'
@@ -37,33 +40,86 @@ export function ParentDashboardOverview() {
   const [apiLoading, setApiLoading] = useState(false)
   const [apiError, setApiError] = useState('')
   const [teachersOpen, setTeachersOpen] = useState(false)
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0)
 
-  useEffect(() => {
+  const {
+    viewModalOpen,
+    viewLoading,
+    viewLoadingId,
+    viewDetail,
+    viewError,
+    closeViewModal,
+    openMessageDetail,
+  } = useParentMessageViewer(token)
+
+  const loadDashboard = useCallback(async () => {
     if (!token) {
       setApiDashboard(null)
       setApiError('')
       setApiLoading(false)
       return
     }
-    let cancelled = false
     setApiLoading(true)
     setApiError('')
-    void (async () => {
-      const res = await fetchParentDashboard(token)
-      if (cancelled) return
-      setApiLoading(false)
-      if (res.ok && res.dashboard) {
-        setApiDashboard(res.dashboard)
-        setApiError('')
-      } else {
-        setApiDashboard(null)
-        setApiError(res.error || 'Could not load dashboard.')
-      }
-    })()
-    return () => {
-      cancelled = true
+    const res = await fetchParentDashboard(token)
+    setApiLoading(false)
+    if (res.ok && res.dashboard) {
+      setApiDashboard(res.dashboard)
+      setApiError('')
+    } else {
+      setApiDashboard(null)
+      setApiError(res.error || 'Could not load dashboard.')
     }
   }, [token])
+
+  useEffect(() => {
+    void loadDashboard()
+  }, [loadDashboard, dashboardRefreshKey])
+
+  useEffect(() => {
+    let debounceTimer = null
+    const schedule = () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null
+        setDashboardRefreshKey((k) => k + 1)
+      }, 200)
+    }
+    const unsub = onParentMessagesRefreshRequested(schedule)
+    return () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      unsub()
+    }
+  }, [])
+
+  const handleOpenNotice = useCallback(
+    (noticeId) => {
+      void openMessageDetail(noticeId, {
+        onMarkedRead: (id) => {
+          setApiDashboard((prev) => {
+            if (!prev) return prev
+            const recentNotices = (prev.recentNotices || []).map((n) =>
+              String(n.id) === String(id) ? { ...n, isRead: true } : n,
+            )
+            const wasUnread = (prev.recentNotices || []).some(
+              (n) => String(n.id) === String(id) && !n.isRead,
+            )
+            return {
+              ...prev,
+              recentNotices,
+              unreadNotices:
+                wasUnread &&
+                prev.unreadNotices != null &&
+                Number(prev.unreadNotices) > 0
+                  ? Number(prev.unreadNotices) - 1
+                  : prev.unreadNotices,
+            }
+          })
+        },
+      })
+    },
+    [openMessageDetail],
+  )
 
   const dash = apiDashboard
   const studentTeachers = Array.isArray(dash?.studentTeachers) ? dash.studentTeachers : []
@@ -78,20 +134,38 @@ export function ParentDashboardOverview() {
       ? Number(dash.unreadNotices)
       : null
   const busTripActive = dash?.busTripActive === true
-  const busTripKnown = dash?.busTripActive === true || dash?.busTripActive === false
+  const busTripAssigned = dash?.busTripAssigned === true
+  const busTripKnown =
+    dash?.busTripActive === true ||
+    dash?.busTripActive === false ||
+    dash?.busTripAssigned === true ||
+    dash?.busTripAssigned === false
 
   const recentNoticesRows = Array.isArray(dash?.recentNotices) ? dash.recentNotices : []
   const recentPtmRows = Array.isArray(dash?.recentPtmRequests) ? dash.recentPtmRequests : []
 
+  const teachersCountFromApi =
+    dash?.teachersCount != null && Number.isFinite(Number(dash.teachersCount))
+      ? Number(dash.teachersCount)
+      : null
+
   const teachersCount =
-    teacherCounts.unique > 0
+    teachersCountFromApi ??
+    (teacherCounts.unique > 0
       ? teacherCounts.unique
       : teacherCounts.total > 0
         ? teacherCounts.total
-        : null
+        : null)
 
   return (
     <div className={`space-y-6 ${apiLoading ? 'opacity-70' : ''}`}>
+      <ParentMessageDetailModal
+        open={viewModalOpen}
+        onClose={closeViewModal}
+        loading={viewLoading}
+        error={viewError}
+        item={viewDetail}
+      />
       {apiError ? (
         <p className="rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-2.5 text-sm text-amber-950">
           {apiError}
@@ -103,49 +177,47 @@ export function ParentDashboardOverview() {
           type="button"
           onClick={() => setTeachersOpen((o) => !o)}
           aria-expanded={teachersOpen}
-          className={`relative overflow-hidden rounded-2xl border p-5 text-left shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset transition ${
-            teachersOpen
-              ? 'border-indigo-300 bg-gradient-to-br from-indigo-500/20 to-violet-500/15 ring-indigo-300/80'
-              : 'border-slate-200/80 bg-gradient-to-br from-indigo-500/15 to-violet-500/10 ring-indigo-200/60 hover:border-indigo-300/80'
+          className={`dash-stat w-full transition ${
+            teachersOpen ? 'border-indigo-400 ring-1 ring-indigo-200' : 'hover:border-slate-300'
           }`}
         >
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Teachers</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">
+          <p className="text-sm font-medium text-slate-600">Teachers</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">
             {teachersCount != null ? teachersCount : '—'}
           </p>
-          <p className="mt-2 text-xs font-bold text-indigo-700">
+          <p className="mt-2 text-sm font-medium text-indigo-700">
             {teachersOpen ? 'Hide names & subjects' : 'Tap for names & subjects'}
           </p>
         </button>
 
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-emerald-500/15 to-teal-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-emerald-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total notices</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">Total notices</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">
             {totalNotices != null ? totalNotices : '—'}
           </p>
           <Link
             to="/parent-notifications"
-            className="mt-3 inline-block text-xs font-bold text-indigo-700 hover:underline"
+            className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline"
           >
             School messages →
           </Link>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-amber-500/15 to-orange-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-amber-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Unread notices</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">Unread notices</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">
             {unreadNotices != null ? unreadNotices : '—'}
           </p>
           <Link
             to="/parent-notifications"
-            className="mt-3 inline-block text-xs font-bold text-indigo-700 hover:underline"
+            className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline"
           >
             Open messages →
           </Link>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-sky-500/15 to-cyan-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-sky-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Bus trip</p>
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">Bus trip</p>
           <div className="mt-3 flex items-center gap-2">
             <span
               className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${
@@ -158,12 +230,18 @@ export function ParentDashboardOverview() {
               aria-hidden
             />
             <span className="text-sm font-bold text-slate-900">
-              {!busTripKnown ? '—' : busTripActive ? 'Active' : 'Not active'}
+              {!busTripKnown
+                ? '—'
+                : busTripActive
+                  ? 'Active'
+                  : busTripAssigned
+                    ? 'Assigned'
+                    : 'Not active'}
             </span>
           </div>
           <Link
             to="/parent-bus"
-            className="mt-3 inline-block text-xs font-bold text-indigo-700 hover:underline"
+            className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline"
           >
             Bus tracking →
           </Link>
@@ -188,10 +266,14 @@ export function ParentDashboardOverview() {
                       {group.teachers.map((t) => (
                         <li
                           key={`${group.studentId}-${t.id}`}
-                          className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 first:pt-0 last:pb-0"
+                          className="py-2.5 first:pt-0 last:pb-0"
                         >
-                          <span className="font-semibold text-slate-800">{t.name}</span>
-                          <span className="text-sm text-slate-600">{t.subjectLabel}</span>
+                          <p className="font-semibold text-slate-800">{t.name}</p>
+                          {t.subjectLabel && t.subjectLabel !== '—' ? (
+                            <p className="mt-0.5 text-sm text-slate-600">
+                              Subject: {t.subjectLabel}
+                            </p>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -221,23 +303,27 @@ export function ParentDashboardOverview() {
           ) : (
             <ul className="mt-4 divide-y divide-slate-100">
               {recentNoticesRows.map((n) => (
-                <li
-                  key={n.id}
-                  className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-slate-900">{n.title}</p>
-                    <p className="text-xs text-slate-500">{fmtTime(n.createdAt)}</p>
-                  </div>
-                  {!n.isRead ? (
-                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-900">
-                      Unread
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                      Read
-                    </span>
-                  )}
+                <li key={n.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenNotice(n.id)}
+                    disabled={viewLoadingId === String(n.id)}
+                    className="flex w-full flex-wrap items-center justify-between gap-2 py-3 text-left first:pt-0 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-900">{n.title}</p>
+                      <p className="text-xs text-slate-500">{fmtTime(n.createdAt)}</p>
+                    </div>
+                    {!n.isRead ? (
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-900">
+                        Unread
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                        Read
+                      </span>
+                    )}
+                  </button>
                 </li>
               ))}
             </ul>

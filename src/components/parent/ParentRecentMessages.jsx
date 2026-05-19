@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifications } from '../../context/NotificationContext'
-import { fetchParentMessageById, fetchParentMessages } from '../../api/parentsApi'
+import { fetchParentMessages } from '../../api/parentsApi'
+import { useParentMessageViewer } from '../../hooks/useParentMessageViewer'
 import { onParentMessagesRefreshRequested } from '../../utils/parentMessagesRefreshBus'
 import { ROLES } from '../../utils/constants'
 import { Button } from '../ui/Button'
@@ -10,6 +11,15 @@ import { NotificationCard } from './NotificationCard'
 import { ParentMessageDetailModal } from './ParentMessageDetailModal'
 
 const PREVIEW_LIMIT = 5
+
+function mergeParentMessageReadState(prev, incoming) {
+  const readIds = new Set(
+    (prev || []).filter((m) => m?.isRead).map((m) => String(m.id)),
+  )
+  return incoming.map((m) =>
+    readIds.has(String(m.id)) ? { ...m, isRead: true } : m,
+  )
+}
 
 /**
  * Latest school messages on the parent family dashboard (GET /api/parents/messages).
@@ -25,12 +35,15 @@ export function ParentRecentMessages() {
   const [hasMore, setHasMore] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const [viewModalOpen, setViewModalOpen] = useState(false)
-  const [viewLoading, setViewLoading] = useState(false)
-  const [viewLoadingId, setViewLoadingId] = useState(null)
-  const [viewDetail, setViewDetail] = useState(null)
-  const [viewError, setViewError] = useState(null)
-  const viewFetchSeq = useRef(0)
+  const {
+    viewModalOpen,
+    viewLoading,
+    viewLoadingId,
+    viewDetail,
+    viewError,
+    closeViewModal,
+    openMessageDetail,
+  } = useParentMessageViewer(useServerFeed ? token : null)
 
   useEffect(() => {
     let debounceTimer = null
@@ -69,7 +82,7 @@ export function ParentRecentMessages() {
         setHasMore(false)
         return
       }
-      setItems(res.messages)
+      setItems((prev) => mergeParentMessageReadState(prev, res.messages))
       setHasMore(res.hasNextPage || res.total > PREVIEW_LIMIT)
     })()
     return () => {
@@ -88,35 +101,18 @@ export function ParentRecentMessages() {
     setRefreshKey((k) => k + 1)
   }, [])
 
-  const closeViewModal = useCallback(() => {
-    viewFetchSeq.current += 1
-    setViewModalOpen(false)
-    setViewLoading(false)
-    setViewLoadingId(null)
-    setViewDetail(null)
-    setViewError(null)
-  }, [])
-
-  const openMessageDetail = useCallback(
-    async (messageId) => {
-      if (!token || !useServerFeed) return
-      const seq = ++viewFetchSeq.current
-      setViewModalOpen(true)
-      setViewLoading(true)
-      setViewLoadingId(String(messageId))
-      setViewDetail(null)
-      setViewError(null)
-      const res = await fetchParentMessageById(token, messageId)
-      if (seq !== viewFetchSeq.current) return
-      setViewLoading(false)
-      setViewLoadingId(null)
-      if (!res.ok) {
-        setViewError(res.error || 'Could not load message.')
-        return
-      }
-      setViewDetail(res.message)
+  const handleOpenMessage = useCallback(
+    (messageId) => {
+      if (!useServerFeed) return
+      void openMessageDetail(messageId, {
+        onMarkedRead: (id) => {
+          setItems((prev) =>
+            prev.map((m) => (String(m.id) === String(id) ? { ...m, isRead: true } : m)),
+          )
+        },
+      })
     },
-    [token, useServerFeed],
+    [useServerFeed, openMessageDetail],
   )
 
   if (user?.role !== ROLES.PARENT) return null
@@ -178,7 +174,7 @@ export function ParentRecentMessages() {
               <NotificationCard
                 item={item}
                 showViewButton={useServerFeed}
-                onViewClick={() => void openMessageDetail(item.id)}
+                onViewClick={() => handleOpenMessage(item.id)}
                 viewLoading={viewLoadingId === String(item.id)}
               />
             </li>

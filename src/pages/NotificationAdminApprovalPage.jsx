@@ -5,16 +5,33 @@ import { useNotifications } from '../context/NotificationContext'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ApprovalTable } from '../components/notifications/ApprovalTable'
+import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
 import { DeliveryModal } from '../components/notifications/DeliveryModal'
 import { RejectReasonModal } from '../components/notifications/RejectReasonModal'
+import { NotificationReadReportModal } from '../components/notifications/NotificationReadReportModal'
+import { ParentMessageDetailModal } from '../components/parent/ParentMessageDetailModal'
+import { useNotificationDetailViewer } from '../hooks/useNotificationDetailViewer'
 import {
   fetchPendingAdminNotifications,
+  fetchPendingPrincipalNotifications,
   patchNotificationApprove,
   patchNotificationReject,
 } from '../api/notificationsApi'
 import { ROLES } from '../utils/constants'
-import { NOTIFICATION_STATUSES } from '../utils/notificationConstants'
+import { pickApprovedAtMs } from '../utils/notificationTimestamps'
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
+  NOTIFICATION_STATUSES,
+} from '../utils/notificationConstants'
 import { requestParentMessagesRefresh } from '../utils/parentMessagesRefreshBus'
+
+const APPROVAL_QUEUE = {
+  ADMIN: 'admin',
+  PRINCIPAL: 'principal',
+}
+
+const PAGE_LIMIT = 10
 
 export default function NotificationAdminApprovalPage() {
   const { user, token } = useAuth()
@@ -30,6 +47,23 @@ export default function NotificationAdminApprovalPage() {
   const [settledRows, setSettledRows] = useState([])
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
+  const [queueFilter, setQueueFilter] = useState(APPROVAL_QUEUE.ADMIN)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [readReport, setReadReport] = useState({ open: false, id: null, title: '' })
+
+  const detailSource =
+    queueFilter === APPROVAL_QUEUE.PRINCIPAL ? 'pending-principal' : 'pending-admin'
+  const {
+    viewModalOpen,
+    viewLoading,
+    viewLoadingId,
+    viewDetail,
+    viewError,
+    closeViewModal,
+    openNotificationDetail,
+  } = useNotificationDetailViewer(token, detailSource)
 
   const loadPending = useCallback(async () => {
     if (!token || user?.role !== ROLES.ADMIN) {
@@ -41,20 +75,34 @@ export default function NotificationAdminApprovalPage() {
     }
     setListLoading(true)
     setListError(null)
-    const res = await fetchPendingAdminNotifications(token)
+    const res =
+      queueFilter === APPROVAL_QUEUE.PRINCIPAL
+        ? await fetchPendingPrincipalNotifications(token, { page, limit: PAGE_LIMIT })
+        : await fetchPendingAdminNotifications(token, { page, limit: PAGE_LIMIT })
     setListLoading(false)
     if (res.ok) {
       setServerPending(res.notifications)
+      setTotal(res.total)
+      setHasNext(Boolean(res.hasNext))
       setServerListOk(true)
+      setListError(null)
       return
     }
     setServerPending([])
+    setTotal(0)
+    setHasNext(false)
     setServerListOk(false)
     setListError(res.error || 'Could not load pending list.')
     if (!res.useClient) {
       toast.error(res.error)
     }
-  }, [token, user?.role])
+  }, [token, user?.role, queueFilter, page])
+
+  const selectQueue = (queue) => {
+    setQueueFilter(queue)
+    setSettledRows([])
+    setPage(1)
+  }
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -91,7 +139,11 @@ export default function NotificationAdminApprovalPage() {
         setDelivery({ open: true, title })
         if (snapshot) {
           setSettledRows((prev) => [
-            { ...snapshot, status: NOTIFICATION_STATUSES.APPROVED },
+            {
+              ...snapshot,
+              status: NOTIFICATION_STATUSES.APPROVED,
+              approvedAt: pickApprovedAtMs(d, Date.now()),
+            },
             ...prev.filter((x) => String(x.id) !== sid),
           ])
         }
@@ -178,8 +230,7 @@ export default function NotificationAdminApprovalPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader
-          title="Administrative approvals"
-          
+          title="Notification approvals"
           action={
             token && user?.role === ROLES.ADMIN ? (
               <Button type="button" variant="secondary" size="sm" disabled={listLoading} onClick={() => void loadPending()}>
@@ -188,13 +239,72 @@ export default function NotificationAdminApprovalPage() {
             ) : null
           }
         />
+        <div className="border-t border-slate-100 px-4 pt-5 sm:px-6">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Queue</p>
+          <div className="flex max-w-md rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner">
+            <button
+              type="button"
+              className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                queueFilter === APPROVAL_QUEUE.ADMIN
+                  ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => selectQueue(APPROVAL_QUEUE.ADMIN)}
+            >
+              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
+            </button>
+            <button
+              type="button"
+              className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                queueFilter === APPROVAL_QUEUE.PRINCIPAL
+                  ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => selectQueue(APPROVAL_QUEUE.PRINCIPAL)}
+            >
+              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {queueFilter === APPROVAL_QUEUE.PRINCIPAL
+              ? 'Academic notices waiting for approval — you can approve or reject on behalf of the school.'
+              : 'Administrative notices waiting for admin approval.'}
+          </p>
+        </div>
+
         {listError && !serverListOk ? (
           <p className="border-t border-slate-100 px-4 py-3 text-sm text-amber-800 sm:px-6">{listError} Showing local queue if any.</p>
         ) : null}
         {awaitingServerList ? (
           <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 sm:px-6">Loading pending notifications from server…</p>
         ) : (
-          <ApprovalTable notifications={rows} onApprove={onApprove} onReject={onReject} />
+          <div className="border-t border-slate-100 px-4 py-4 sm:px-6">
+            <ApprovalTable
+              notifications={rows}
+              onApprove={onApprove}
+              onReject={onReject}
+              showViewColumn
+              viewDisabled={!token}
+              viewLoadingId={viewLoading ? viewLoadingId : null}
+              onView={(n) => void openNotificationDetail(n.id)}
+              showReadReportColumn
+              readReportDisabled={!token}
+              onReadReport={(n) =>
+                setReadReport({ open: true, id: n.id, title: n.title || '' })
+              }
+            />
+            {serverListOk ? (
+              <ApprovalListPagination
+                page={page}
+                total={total}
+                limit={PAGE_LIMIT}
+                hasNext={hasNext}
+                loading={listLoading}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            ) : null}
+          </div>
         )}
       </Card>
 
@@ -212,6 +322,23 @@ export default function NotificationAdminApprovalPage() {
         onReasonChange={(reason) => setRejectModal((m) => ({ ...m, reason }))}
         onConfirm={confirmServerReject}
         submitting={rejectSubmitting}
+      />
+
+      <NotificationReadReportModal
+        open={readReport.open}
+        onClose={() => setReadReport({ open: false, id: null, title: '' })}
+        notificationId={readReport.id}
+        notificationTitle={readReport.title}
+        token={token}
+      />
+
+      <ParentMessageDetailModal
+        open={viewModalOpen}
+        onClose={closeViewModal}
+        loading={viewLoading}
+        error={viewError}
+        item={viewDetail}
+        modalTitle="School notice"
       />
     </div>
   )

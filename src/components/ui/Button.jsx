@@ -1,18 +1,16 @@
 const variants = {
   primary:
-    'border-0 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30 hover:from-indigo-500 hover:to-violet-500 hover:shadow-indigo-500/40',
+    'border border-indigo-700 bg-indigo-700 text-white hover:bg-indigo-800 hover:border-indigo-800',
   secondary:
-    'border border-slate-200/90 bg-white/90 text-slate-800 shadow-sm backdrop-blur-sm hover:border-indigo-200 hover:bg-indigo-50/80 hover:text-indigo-950',
-  ghost:
-    'border border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-  danger:
-    'border-0 bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-red-500/25 hover:from-red-500 hover:to-rose-500',
+    'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-400',
+  ghost: 'border border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+  danger: 'border border-red-700 bg-red-700 text-white hover:bg-red-800 hover:border-red-800',
 }
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-sm rounded-lg',
-  md: 'px-4 py-2.5 text-sm rounded-xl',
-  lg: 'px-5 py-3 text-sm rounded-xl',
+  sm: 'px-3 py-1.5 text-sm rounded-md',
+  md: 'px-4 py-2 text-sm rounded-md',
+  lg: 'px-5 py-2.5 text-sm rounded-md',
 }
 
 export function Button({
@@ -28,7 +26,7 @@ export function Button({
     <button
       type={type}
       disabled={disabled}
-      className={`inline-flex items-center justify-center font-semibold transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:pointer-events-none disabled:opacity-45 ${variants[variant] || variants.primary} ${sizes[size] || sizes.md} ${className}`}
+      className={`inline-flex items-center justify-center font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:pointer-events-none disabled:opacity-50 ${variants[variant] || variants.primary} ${sizes[size] || sizes.md} ${className}`}
       {...rest}
     >
       {children}

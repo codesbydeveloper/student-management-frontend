@@ -8,23 +8,14 @@ import { ROLES } from '../utils/constants'
 import { canAccessRoute } from '../utils/permissions'
 import { TeacherDashboardOverview } from '../components/dashboard/TeacherDashboardOverview'
 import { ParentDashboardOverview } from '../components/dashboard/ParentDashboardOverview'
+import { AdminDashboardOverview } from '../components/dashboard/AdminDashboardOverview'
 
-function Stat({ label, value, hint, accent }) {
-  const accents = {
-    indigo: 'from-indigo-500/15 to-violet-500/10 ring-indigo-200/60',
-    emerald: 'from-emerald-500/15 to-teal-500/10 ring-emerald-200/60',
-    amber: 'from-amber-500/15 to-orange-500/10 ring-amber-200/60',
-    rose: 'from-rose-500/15 to-pink-500/10 ring-rose-200/60',
-  }
-  const ring = accents[accent] || accents.indigo
+function Stat({ label, value, hint }) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ${ring}`}
-    >
-      <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/40 blur-2xl" />
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
-      {hint ? <p className="mt-2 text-xs font-semibold text-indigo-600/90">{hint}</p> : null}
+    <div className="dash-stat">
+      <p className="text-sm font-medium text-slate-600">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   )
 }
@@ -45,7 +36,6 @@ export default function DashboardHomePage() {
   }, [teachers, students, classes, parents])
 
   const quickLinks = [
-    { to: '/parent-dashboard', label: 'Family dashboard', key: 'parent_dashboard' },
     { to: '/parent-notifications', label: 'School messages', key: 'parent_notifications' },
     { to: '/parent-bus', label: 'Bus tracking', key: 'parent_bus' },
     { to: '/driver-transport', label: 'My trip', key: 'driver_transport' },
@@ -63,89 +53,71 @@ export default function DashboardHomePage() {
     { to: '/assigned-leads', label: 'Assigned leads', key: 'teacher_assigned_leads' },
     { to: '/visitor-logs', label: 'Visitor log', key: 'admin_visitor_logs' },
     { to: '/leads', label: 'Leads (CRM)', key: 'admin_leads' },
-  ]
-    .filter((l) => canAccessRoute(user.role, l.key))
-    .filter((l) => !(user.role === ROLES.PARENT && l.key === 'parent_dashboard'))
+  ].filter((l) => canAccessRoute(user.role, l.key))
 
   return (
-    <div className="space-y-10">
-      <div className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-800 p-6 text-white shadow-2xl shadow-indigo-900/30 sm:rounded-3xl sm:p-8">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl" />
-        <div className="relative">
+    <div className="space-y-6">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Welcome back, {user.fullName.split(' ')[0]}
+        </h1>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <RoleBadge role={user.role} />
           {user.role !== ROLES.TEACHER && user.role !== ROLES.PARENT ? (
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-200/90">Overview</p>
+            <span className="text-sm text-slate-600">
+              {hydrated ? 'Workspace loaded.' : 'Loading…'}
+            </span>
           ) : null}
-          <h1
-            className={`text-3xl font-bold tracking-tight sm:text-4xl ${
-              user.role === ROLES.TEACHER || user.role === ROLES.PARENT ? '' : 'mt-2'
-            }`}
-          >
-            Welcome back, {user.fullName.split(' ')[0]}
-          </h1>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <RoleBadge role={user.role} />
-            {user.role !== ROLES.TEACHER && user.role !== ROLES.PARENT ? (
-              <span className="text-sm font-medium text-indigo-100/90">
-                {hydrated ? 'Your workspace is ready.' : 'Loading your workspace…'}
-              </span>
-            ) : null}
-          </div>
         </div>
       </div>
 
       {user.role === ROLES.DRIVER ? (
         <Card>
-          <h2 className="text-lg font-bold text-slate-900">Transport</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Start and end your trip: the driver map uses real device GPS. Parents with the same assigned bus see your
-            position on an OpenStreetMap + Leaflet map when a trip is active (same browser demo, or Socket.IO when
-            configured) — not Google Maps.
+          <h2 className="text-base font-semibold text-slate-900">Transport</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Start and end your route trip. Parents on your bus can see live location while a trip is active.
           </p>
           <div className="mt-4">
-            <Link
-              to="/driver-transport"
-              className="inline-flex items-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-slate-800"
-            >
-              Open my trip
+            <Link to="/driver-transport">
+              <span className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+                Open my trip
+              </span>
             </Link>
           </div>
         </Card>
       ) : null}
 
+      {user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL ? (
+        <AdminDashboardOverview />
+      ) : null}
       {user.role === ROLES.TEACHER ? <TeacherDashboardOverview /> : null}
       {user.role === ROLES.PARENT ? <ParentDashboardOverview /> : null}
 
-      {user.role === ROLES.DRIVER || user.role === ROLES.TEACHER || user.role === ROLES.PARENT ? null : (
+      {user.role === ROLES.DRIVER ||
+      user.role === ROLES.TEACHER ||
+      user.role === ROLES.PARENT ||
+      user.role === ROLES.ADMIN ||
+      user.role === ROLES.PRINCIPAL ? null : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat
-            label="Teachers"
-            value={stats.teachers}
-            hint={`${stats.activeTeachers} active`}
-            accent="indigo"
-          />
-          <Stat label="Students" value={stats.students} accent="emerald" />
-          <Stat label="Classes" value={stats.classes} accent="amber" />
-          <Stat label="Parents / guardians" value={stats.parents} accent="rose" />
+          <Stat label="Teachers" value={stats.teachers} hint={`${stats.activeTeachers} active`} />
+          <Stat label="Students" value={stats.students} />
+          <Stat label="Classes" value={stats.classes} />
+          <Stat label="Parents / guardians" value={stats.parents} />
         </div>
       )}
 
-      {quickLinks.length && user.role !== ROLES.PARENT ? (
+      {quickLinks.length &&
+      user.role !== ROLES.PARENT &&
+      user.role !== ROLES.ADMIN &&
+      user.role !== ROLES.PRINCIPAL ? (
         <Card>
-          <h2 className="text-lg font-bold text-slate-900">Shortcuts</h2>
-          {user.role !== ROLES.TEACHER && user.role !== ROLES.PARENT ? (
-            <p className="mt-1 text-sm text-slate-600">Open a module you have permission to use.</p>
-          ) : null}
-          <div
-            className={`flex flex-wrap gap-3 ${
-              user.role === ROLES.TEACHER || user.role === ROLES.PARENT ? 'mt-4' : 'mt-5'
-            }`}
-          >
+          <h2 className="text-base font-semibold text-slate-900">Shortcuts</h2>
+          <div className="mt-4 flex flex-wrap gap-2">
             {quickLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to}
-                className="inline-flex items-center rounded-xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50 px-5 py-2.5 text-sm font-bold text-slate-800 shadow-md shadow-slate-900/[0.04] transition hover:border-indigo-300 hover:from-indigo-50 hover:to-violet-50 hover:text-indigo-950"
+                className="inline-flex rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 {l.label}
               </Link>

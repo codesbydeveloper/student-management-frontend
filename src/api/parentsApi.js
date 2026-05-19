@@ -1,6 +1,12 @@
 import { API_BASE_URL } from '../utils/constants'
+import { pickLastActivityFromApi } from '../utils/lastActivityDisplay'
 import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
 import { pickNotificationMediaUrl } from '../utils/notificationFormat'
+import {
+  applyParentMessageReadOverrides,
+  isParentMessageReadLocally,
+  rememberParentMessageRead,
+} from '../utils/parentMessageReadStore'
 import { extractPagedStudentsResponse, mapApiStudentToRow } from './studentsApi'
 
 function formatMutationError(data, status) {
@@ -172,6 +178,7 @@ export function mapApiParentToRow(raw) {
     password: o.password != null ? String(o.password) : '',
     studentIds,
     active,
+    ...pickLastActivityFromApi({ ...raw, ...o }),
   }
 }
 
@@ -659,6 +666,7 @@ export function mapApiParentMessageToFeedItem(raw) {
     _feedMatchingStudentIds: ids,
     _feedChildNames: displayNames,
     _feedChildNamesLabel: displayNames.join(', '),
+    isRead: parseParentMessageIsRead(raw),
   }
 }
 
@@ -718,7 +726,9 @@ export async function fetchParentMessages(token, { page = 1, limit = 20 } = {}) 
       }
     }
     const { list: rawList, total, page: resPage, limit: resLimit } = extractPagedParentMessages(data)
-    const messages = rawList.map((row) => mapApiParentMessageToFeedItem(row)).filter(Boolean)
+    const messages = applyParentMessageReadOverrides(
+      rawList.map((row) => mapApiParentMessageToFeedItem(row)).filter(Boolean),
+    )
     const meta = (data && typeof data === 'object' && data.pagination) || {}
     const totalSafe = Number.isFinite(total) ? total : messages.length
     const limitSafe = resLimit || lim
@@ -811,6 +821,96 @@ export async function fetchParentMessageById(token, messageId) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, message: null }
+  }
+}
+
+function messageIdsFromRaw(raw) {
+  if (!raw || typeof raw !== 'object') return []
+  return [
+    raw.id,
+    raw.notificationId,
+    raw.messageId,
+    raw.noticeId,
+  ]
+    .map((v) => String(v ?? '').trim())
+    .filter(Boolean)
+}
+
+function parseParentMessageIsRead(raw) {
+  if (!raw || typeof raw !== 'object') return false
+
+  for (const id of messageIdsFromRaw(raw)) {
+    if (isParentMessageReadLocally(id)) return true
+  }
+
+  if (raw.unread === true || raw.isUnread === true || raw.is_unread === true) return false
+  if (raw.unread === false || raw.isUnread === false || raw.is_unread === false) return true
+
+  const status = String(raw.readStatus ?? raw.read_status ?? raw.status ?? '').toLowerCase()
+  if (status === 'read' || status === 'seen' || status === 'opened') return true
+  if (status === 'unread' || status === 'new') return false
+
+  const receipt =
+    raw.parentReceipt ??
+    raw.parent_receipt ??
+    raw.readReceipt ??
+    raw.read_receipt ??
+    null
+  if (receipt && typeof receipt === 'object') {
+    if (parseParentMessageIsRead(receipt)) return true
+    const at = receipt.readAt ?? receipt.read_at ?? receipt.openedAt
+    if (at != null && String(at).trim() && String(at) !== 'false') return true
+  }
+
+  const readRaw =
+    raw.isRead ??
+    raw.is_read ??
+    raw.read ??
+    raw.parentRead ??
+    raw.parent_read ??
+    raw.hasRead ??
+    raw.has_read ??
+    raw.readAt ??
+    raw.read_at ??
+    raw.openedAt ??
+    raw.opened_at
+
+  if (readRaw === false || readRaw === 0 || readRaw === '0' || readRaw === 'false') return false
+
+  return (
+    readRaw === true ||
+    readRaw === 1 ||
+    readRaw === '1' ||
+    (typeof readRaw === 'string' && readRaw.length > 0 && readRaw !== 'false')
+  )
+}
+
+/**
+ * POST /api/parents/messages/:id/read — mark a school message as read (Bearer).
+ * @returns {Promise<{ ok: true } | { ok: false, error: string }>}
+ */
+export async function markParentMessageRead(token, messageId) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const id = encodeURIComponent(String(messageId ?? '').trim())
+  if (!id) return { ok: false, error: 'Invalid message id' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/parents/messages/${id}/read`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatParentMessagesError(data, res.status) }
+    }
+    rememberParentMessageRead(messageId)
+    return { ok: true, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
   }
 }
 
@@ -1147,6 +1247,117 @@ function unwrapParentDashboardPayload(raw) {
   return raw
 }
 
+function extractDashboardTeachersBlock(teachersBlock) {
+  if (teachersBlock == null) return { count: null, list: [] }
+  if (Array.isArray(teachersBlock)) {
+    return { count: teachersBlock.length, list: teachersBlock }
+  }
+  if (typeof teachersBlock !== 'object') return { count: null, list: [] }
+  const list = Array.isArray(teachersBlock.items)
+    ? teachersBlock.items
+    : Array.isArray(teachersBlock.list)
+      ? teachersBlock.list
+      : Array.isArray(teachersBlock.teachers)
+        ? teachersBlock.teachers
+        : Array.isArray(teachersBlock.data)
+          ? teachersBlock.data
+          : []
+  const count = firstFiniteNumber(teachersBlock.count, teachersBlock.total, list.length)
+  return { count, list }
+}
+
+function extractDashboardNoticesBlock(noticesBlock) {
+  if (noticesBlock == null) return { total: null, unread: null, recent: [] }
+  if (Array.isArray(noticesBlock)) {
+    return { total: noticesBlock.length, unread: null, recent: noticesBlock }
+  }
+  if (typeof noticesBlock !== 'object') return { total: null, unread: null, recent: [] }
+  const recent = Array.isArray(noticesBlock.recent)
+    ? noticesBlock.recent
+    : Array.isArray(noticesBlock.items)
+      ? noticesBlock.items
+      : Array.isArray(noticesBlock.messages)
+        ? noticesBlock.messages
+        : Array.isArray(noticesBlock.recentNotices)
+          ? noticesBlock.recentNotices
+          : Array.isArray(noticesBlock.recentMessages)
+            ? noticesBlock.recentMessages
+            : []
+  return {
+    total: firstFiniteNumber(
+      noticesBlock.total,
+      noticesBlock.totalCount,
+      noticesBlock.total_notices,
+      noticesBlock.count,
+    ),
+    unread: firstFiniteNumber(
+      noticesBlock.unread,
+      noticesBlock.unreadCount,
+      noticesBlock.unread_notices,
+    ),
+    recent,
+  }
+}
+
+function buildDashboardStudentTeachers(d, globalTeacherList) {
+  const studentTeachersRaw = Array.isArray(d.studentTeachers)
+    ? d.studentTeachers
+    : Array.isArray(d.studentsWithTeachers)
+      ? d.studentsWithTeachers
+      : Array.isArray(d.teachersByStudent)
+        ? d.teachersByStudent
+        : []
+
+  const fromGroups = studentTeachersRaw.map(mapStudentTeachersGroup).filter(Boolean)
+  if (fromGroups.length) return fromGroups
+
+  const students = Array.isArray(d.students) ? d.students : []
+  if (students.length) {
+    const built = students
+      .map((s) => {
+        if (!s || typeof s !== 'object') return null
+        const studentId = s.studentId ?? s.student_id ?? s.id
+        const studentName = s.studentName ?? s.student_name ?? s.name ?? s.fullName
+        const perStudent = Array.isArray(s.teachers)
+          ? s.teachers
+          : Array.isArray(s.assignedTeachers)
+            ? s.assignedTeachers
+            : globalTeacherList
+        return mapStudentTeachersGroup({
+          studentId,
+          studentName,
+          teachers: perStudent,
+        })
+      })
+      .filter(Boolean)
+    if (built.length) return built
+  }
+
+  if (globalTeacherList.length) {
+    const firstStudent = students[0]
+    const studentName =
+      String(
+        firstStudent?.studentName ??
+          firstStudent?.student_name ??
+          firstStudent?.name ??
+          firstStudent?.fullName ??
+          '',
+      ).trim() || 'Your child'
+    const studentId =
+      String(firstStudent?.studentId ?? firstStudent?.student_id ?? firstStudent?.id ?? '').trim() ||
+      'child'
+    return [
+      {
+        studentId,
+        studentName,
+        teachers: globalTeacherList.map(mapParentDashboardTeacher).filter(Boolean),
+      },
+    ]
+  }
+
+  return []
+}
+
 function mapParentDashboardTeacher(o) {
   if (!o || typeof o !== 'object') return null
   const id = String(o.id ?? o.teacherId ?? o.userId ?? o.teacherUserId ?? '').trim()
@@ -1158,12 +1369,20 @@ function mapParentDashboardTeacher(o) {
   } else if (Array.isArray(o.subjectList)) {
     subjects = o.subjectList.map((s) => String(s).trim()).filter(Boolean)
   }
-  const subjectSingle = String(o.subject ?? o.primarySubject ?? '').trim()
+  const subjectSingle = String(
+    o.subject ??
+      o.primarySubject ??
+      o.subjectFocus ??
+      o.subject_focus ??
+      o.focus ??
+      '',
+  ).trim()
   if (!subjects.length && subjectSingle) subjects = [subjectSingle]
+  const subjectLabel = subjects.length ? subjects.join(', ') : subjectSingle || ''
   return {
     id: id || `t-${name}`,
     name,
-    subjectLabel: subjects.length ? subjects.join(', ') : subjectSingle || '—',
+    subjectLabel: subjectLabel || '—',
   }
 }
 
@@ -1233,23 +1452,19 @@ export function normalizeParentDashboardPayload(raw) {
   if (!d || typeof d !== 'object') {
     return {
       studentTeachers: [],
+      teachersCount: null,
       totalNotices: null,
       unreadNotices: null,
       busTripActive: null,
+      busTripAssigned: null,
       recentNotices: [],
       recentPtmRequests: [],
     }
   }
 
-  const studentTeachersRaw = Array.isArray(d.studentTeachers)
-    ? d.studentTeachers
-    : Array.isArray(d.studentsWithTeachers)
-      ? d.studentsWithTeachers
-      : Array.isArray(d.assignedTeachers)
-        ? d.assignedTeachers
-        : Array.isArray(d.teachersByStudent)
-          ? d.teachersByStudent
-          : []
+  const teachersBlock = extractDashboardTeachersBlock(d.teachers)
+  const noticesBlock = extractDashboardNoticesBlock(d.notices)
+  const bus = d.busTrip && typeof d.busTrip === 'object' && !Array.isArray(d.busTrip) ? d.busTrip : {}
 
   const recentNoticesRaw = Array.isArray(d.recentNotices)
     ? d.recentNotices
@@ -1257,7 +1472,7 @@ export function normalizeParentDashboardPayload(raw) {
       ? d.recent_notices
       : Array.isArray(d.recentMessages)
         ? d.recentMessages
-        : []
+        : noticesBlock.recent
 
   const recentPtmRaw = Array.isArray(d.recentPtmRequests)
     ? d.recentPtmRequests
@@ -1265,25 +1480,50 @@ export function normalizeParentDashboardPayload(raw) {
       ? d.recentPtm
       : Array.isArray(d.ptmRequests)
         ? d.ptmRequests
-        : []
+        : Array.isArray(d.recent_ptm_requests)
+          ? d.recent_ptm_requests
+          : []
+
+  const studentTeachers = buildDashboardStudentTeachers(d, teachersBlock.list)
+  const teachersCount = firstFiniteNumber(
+    teachersBlock.count,
+    d.teachersCount,
+    d.teacherCount,
+    studentTeachers.reduce((n, g) => n + (g.teachers?.length || 0), 0) || null,
+  )
+
+  const busTripActive = coerceDashboardBoolean(
+    bus.active ??
+      bus.isActive ??
+      bus.tripActive ??
+      bus.isRunning ??
+      bus.running ??
+      d.busTripActive ??
+      d.tripActive,
+  )
+  const busTripAssigned = coerceDashboardBoolean(
+    bus.assigned ?? bus.hasBus ?? bus.has_bus ?? d.busAssigned,
+  )
 
   return {
-    studentTeachers: studentTeachersRaw.map(mapStudentTeachersGroup).filter(Boolean),
+    studentTeachers,
+    teachersCount,
     totalNotices: firstFiniteNumber(
+      noticesBlock.total,
       d.totalNotices,
       d.noticesTotal,
       d.total_notices,
       d.messagesTotal,
     ),
     unreadNotices: firstFiniteNumber(
+      noticesBlock.unread,
       d.unreadNotices,
       d.unread_notices,
       d.unreadNoticeCount,
       d.unreadMessages,
     ),
-    busTripActive: coerceDashboardBoolean(
-      d.busTripActive ?? d.tripActive ?? d.isTripActive ?? d.bus_trip_active,
-    ),
+    busTripActive,
+    busTripAssigned,
     recentNotices: recentNoticesRaw.slice(0, 5).map(mapParentDashboardNoticeRow).filter(Boolean),
     recentPtmRequests: recentPtmRaw.slice(0, 5).map(mapParentDashboardPtmRow).filter(Boolean),
   }

@@ -25,6 +25,7 @@ import {
 } from '../../api/driversApi'
 import { fetchBuses } from '../../api/busesApi'
 import { downloadBlobFile } from '../../utils/busAssignmentExport'
+import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
 
 const SEARCH_KEYS = ['fullName', 'email', 'phone', 'licenseNumber']
 const DRIVER_LIST_PAGE = 1
@@ -567,6 +568,32 @@ export function DriversModule() {
         render: (row) => (
           <span className="font-mono text-sm font-medium text-slate-800">{displayAssignedBus(row)}</span>
         ),
+      },
+      {
+        key: 'lastActivity',
+        header: 'Last login / seen',
+        thClassName: 'min-w-[15rem]',
+        render: (row) => {
+          const login = formatActivityTimestamp(row.lastLoginAt)
+          const seen = formatActivityTimestamp(row.lastSeenAt)
+          if (!login && !seen) {
+            return <span className="text-slate-400">—</span>
+          }
+          return (
+            <div className="min-w-[14rem] max-w-[18rem] text-xs leading-snug text-slate-700">
+              {login ? (
+                <div className="tabular-nums" title={String(row.lastLoginAt ?? '')}>
+                  <span className="font-semibold text-slate-500">Login:</span> {login}
+                </div>
+              ) : null}
+              {seen ? (
+                <div className="mt-0.5 tabular-nums" title={String(row.lastSeenAt ?? '')}>
+                  <span className="font-semibold text-slate-500">Seen:</span> {seen}
+                </div>
+              ) : null}
+            </div>
+          )
+        },
       },
       {
         key: 'active',

@@ -195,9 +195,7 @@ export default function DriverTransportPage() {
                         <td className="px-3 py-2 text-slate-900">{row.parentName}</td>
                         <td className="px-3 py-2">
                           <span className="font-medium text-slate-900">{row.studentName}</span>
-                          {row.studentId ? (
-                            <span className="ml-1 font-mono text-xs text-slate-500">· {row.studentId}</span>
-                          ) : null}
+                       
                         </td>
                         <td className="px-3 py-2 text-xs text-slate-700">
                           {[row.className, row.section].filter(Boolean).join(row.className && row.section ? ' · ' : '') ||

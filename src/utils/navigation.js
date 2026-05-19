@@ -24,6 +24,21 @@ export const OPERATIONS_NAV_KEYS = [
 /** Admin / principal: staff PTM queue and full history. */
 export const PTM_NAV_KEYS = ['staff_ptm_requests', 'staff_ptm_history']
 
+/** Teacher: grouped sidebar — Academics. */
+export const TEACHER_ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students']
+
+/** Teacher: Create Notice, Notifications, Create notification. */
+export const TEACHER_COMMUNICATIONS_NAV_KEYS = ['create_notice', 'notifications', 'notifications_create']
+
+/** Teacher: bus student overview. */
+export const TEACHER_TRANSPORT_NAV_KEYS = ['teacher_bus_overview']
+
+/** Teacher: PTM requests. */
+export const TEACHER_PTM_NAV_KEYS = ['teacher_ptm_requests']
+
+/** Teacher: leads, intake, visitor log. */
+export const TEACHER_CRM_NAV_KEYS = ['teacher_assigned_leads', 'create_lead', 'admin_visitor_logs']
+
 function groupedNavKeys() {
   return new Set([
     ...ACADEMICS_NAV_KEYS,
@@ -34,6 +49,16 @@ function groupedNavKeys() {
   ])
 }
 
+function teacherGroupedNavKeys() {
+  return new Set([
+    ...TEACHER_ACADEMICS_NAV_KEYS,
+    ...TEACHER_COMMUNICATIONS_NAV_KEYS,
+    ...TEACHER_TRANSPORT_NAV_KEYS,
+    ...TEACHER_PTM_NAV_KEYS,
+    ...TEACHER_CRM_NAV_KEYS,
+  ])
+}
+
 function isAdminOrPrincipal(role) {
   return role === ROLES.ADMIN || role === ROLES.PRINCIPAL
 }
@@ -41,7 +66,6 @@ function isAdminOrPrincipal(role) {
 /** Order = master list (filtered + reordered per role). */
 const items = [
   { key: 'dashboard', to: '/dashboard', label: 'Dashboard' },
-  { key: 'profile', to: '/profile', label: 'My profile' },
   { key: 'parent_dashboard', to: '/parent-dashboard', label: 'Family dashboard' },
   { key: 'parent_notifications', to: '/parent-notifications', label: 'School messages' },
   { key: 'parent_bus', to: '/parent-bus', label: 'Bus tracking' },
@@ -59,7 +83,7 @@ const items = [
   { key: 'create_notice', to: '/create-notice', label: 'Create Notice' },
   { key: 'notifications', to: '/notifications', label: 'Notifications' },
   { key: 'notifications_create', to: '/notifications/create', label: 'Create notification' },
-  { key: 'notifications_admin', to: '/notifications/admin-approval', label: 'Admin approvals' },
+  { key: 'notifications_admin', to: '/notifications/admin-approval', label: 'Notification approvals' },
   { key: 'notifications_principal', to: '/notifications/principal-approval', label: 'Principal approvals' },
   { key: 'notice_history', to: '/notifications/history', label: 'Notice approvals' },
   { key: 'teacher_ptm_requests', to: '/ptm-requests', label: 'PTM requests' },
@@ -98,6 +122,20 @@ export function buildFlatNav(role) {
     return dash ? [dash, ...academics, ...transport, ...notices, ...operations, ...ptm, ...tail] : filtered
   }
 
+  if (role === ROLES.TEACHER) {
+    const academics = TEACHER_ACADEMICS_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const communications = TEACHER_COMMUNICATIONS_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(
+      Boolean,
+    )
+    const transport = TEACHER_TRANSPORT_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const ptm = TEACHER_PTM_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const crm = TEACHER_CRM_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const tail = rest.filter((i) => !teacherGroupedNavKeys().has(i.key))
+    return dash
+      ? [dash, ...academics, ...communications, ...transport, ...ptm, ...crm, ...tail]
+      : filtered
+  }
+
   if (!dash) return filtered
   return [dash, ...rest]
 }
@@ -105,47 +143,47 @@ export function buildFlatNav(role) {
 /** @typedef {{ type: 'link', key: string, to: string, label: string }} NavSidebarLink */
 /** @typedef {{ type: 'group', key: string, label: string, children: NavSidebarLink[], hint?: string }} NavSidebarGroup */
 
-/** Sidebar: admin/principal get collapsible Academics, Transport, Notices, Operations, and PTM groups; others get a flat list. */
-export function getNavSidebarEntries(role) {
-  const flat = buildFlatNav(role)
-  if (!isAdminOrPrincipal(role)) {
-    return flat.map((item) => ({ type: 'link', ...item }))
-  }
-
-  const dash = flat.find((i) => i.key === 'dashboard')
-  const rest = flat.filter((i) => i.key !== 'dashboard')
-  const academics = ACADEMICS_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
-  const transport = TRANSPORT_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
-  const notices = NOTICES_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
-  const operations = OPERATIONS_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
-  const ptm = PTM_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
-  const tail = rest.filter((i) => !groupedNavKeys().has(i.key))
-
+function buildGroupedSidebarEntries(dash, rest, groups, tailKeys) {
+  const grouped = new Set(tailKeys)
+  const tail = rest.filter((i) => !grouped.has(i.key))
   /** @type {(NavSidebarLink | NavSidebarGroup)[]} */
   const out = []
   if (dash) out.push({ type: 'link', ...dash })
-  if (academics.length) {
-    out.push({ type: 'group', key: 'academics', label: 'Academics', children: academics })
-  }
-  if (transport.length) {
-    out.push({ type: 'group', key: 'transport', label: 'Transport', children: transport })
-  }
-  if (notices.length) {
-    out.push({ type: 'group', key: 'notices', label: 'Notices', children: notices })
-  }
-  if (operations.length) {
-    out.push({
-      type: 'group',
-      key: 'operations',
-      label: 'Operations',
-      children: operations,
-    })
-  }
-  if (ptm.length) {
-    out.push({ type: 'group', key: 'ptm', label: 'PTM', children: ptm })
+  for (const { key, label, keys } of groups) {
+    const children = keys.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    if (children.length) out.push({ type: 'group', key, label, children })
   }
   tail.forEach((item) => out.push({ type: 'link', ...item }))
   return out
+}
+
+/** Sidebar: admin/principal and teacher get collapsible groups; others get a flat list. */
+export function getNavSidebarEntries(role) {
+  const flat = buildFlatNav(role)
+  const dash = flat.find((i) => i.key === 'dashboard')
+  const rest = flat.filter((i) => i.key !== 'dashboard')
+
+  if (isAdminOrPrincipal(role)) {
+    return buildGroupedSidebarEntries(dash, rest, [
+      { key: 'academics', label: 'Academics', keys: ACADEMICS_NAV_KEYS },
+      { key: 'transport', label: 'Transport', keys: TRANSPORT_NAV_KEYS },
+      { key: 'notices', label: 'Notices', keys: NOTICES_NAV_KEYS },
+      { key: 'operations', label: 'Operations', keys: OPERATIONS_NAV_KEYS },
+      { key: 'ptm', label: 'PTM', keys: PTM_NAV_KEYS },
+    ], groupedNavKeys())
+  }
+
+  if (role === ROLES.TEACHER) {
+    return buildGroupedSidebarEntries(dash, rest, [
+      { key: 'academics', label: 'Academics', keys: TEACHER_ACADEMICS_NAV_KEYS },
+      { key: 'communications', label: 'Communications', keys: TEACHER_COMMUNICATIONS_NAV_KEYS },
+      { key: 'transport', label: 'Transport', keys: TEACHER_TRANSPORT_NAV_KEYS },
+      { key: 'ptm', label: 'PTM', keys: TEACHER_PTM_NAV_KEYS },
+      { key: 'crm', label: 'CRM & operations', keys: TEACHER_CRM_NAV_KEYS },
+    ], teacherGroupedNavKeys())
+  }
+
+  return flat.map((item) => ({ type: 'link', ...item }))
 }
 
 export function getNavItemsForRole(role) {

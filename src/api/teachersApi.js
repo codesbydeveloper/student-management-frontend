@@ -1,4 +1,6 @@
 import { API_BASE_URL } from '../utils/constants'
+import { pickLastActivityFromApi } from '../utils/lastActivityDisplay'
+import { pickApprovedAtMs } from '../utils/notificationTimestamps'
 
 function formatMutationError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -90,6 +92,7 @@ export function mapApiTeacherToRow(raw) {
           : true,
     classIds,
     classesDetail,
+    ...pickLastActivityFromApi(raw),
   }
 }
 
@@ -202,7 +205,14 @@ function mapTeacherDashboardNoticeRow(o) {
   } else {
     createdAt = null
   }
-  return { id: id || `n-${title}-${createdAt ?? 'x'}`, title, status, createdAt }
+  const approvedAt = pickApprovedAtMs(o)
+  return {
+    id: id || `n-${title}-${createdAt ?? 'x'}`,
+    title,
+    status,
+    createdAt,
+    ...(approvedAt != null ? { approvedAt } : {}),
+  }
 }
 
 function mapTeacherDashboardPtmRow(o) {

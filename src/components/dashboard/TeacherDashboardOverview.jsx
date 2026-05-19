@@ -6,6 +6,7 @@ import { useNotifications } from '../../context/NotificationContext'
 import { fetchTeacherDashboard } from '../../api/teachersApi'
 import { Card } from '../ui/Card'
 import { NOTIFICATION_STATUSES } from '../../utils/notificationConstants'
+import { formatApprovalDateTime } from '../../utils/notificationTimestamps'
 
 function fmtTime(ts) {
   if (ts == null) return '—'
@@ -177,20 +178,20 @@ export function TeacherDashboardOverview() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-indigo-500/15 to-violet-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-indigo-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Assigned classes</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">Assigned classes</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">
             {assignedClassesCount != null ? assignedClassesCount : '—'}
           </p>
         </div>
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-emerald-500/15 to-teal-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-emerald-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Students in those classes</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">Students in those classes</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">
             {studentsInAssignedCount != null ? studentsInAssignedCount : '—'}
           </p>
         </div>
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-amber-500/15 to-orange-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-amber-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Notifications</p>
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">Notifications</p>
           <div className="mt-2 flex flex-wrap gap-2 text-sm font-semibold text-slate-800">
             <span className="rounded-lg bg-white/80 px-2 py-1 text-emerald-800 ring-1 ring-emerald-200/60">
               Approved {notifCounts.approved}
@@ -202,12 +203,12 @@ export function TeacherDashboardOverview() {
               Pending {notifCounts.pending}
             </span>
           </div>
-          <Link to="/notifications" className="mt-3 inline-block text-xs font-bold text-indigo-700 hover:underline">
+          <Link to="/notifications" className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline">
             Open notifications →
           </Link>
         </div>
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-rose-500/15 to-pink-500/10 p-5 shadow-lg shadow-slate-900/[0.04] ring-1 ring-inset ring-rose-200/60">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">PTM</p>
+        <div className="dash-stat">
+          <p className="text-sm font-medium text-slate-600">PTM</p>
           <div className="mt-2 flex gap-4 text-sm">
             <div>
               <p className="text-2xl font-bold text-slate-900">{ptmUpcoming}</p>
@@ -218,18 +219,18 @@ export function TeacherDashboardOverview() {
               <p className="text-xs text-slate-500">Completed</p>
             </div>
           </div>
-          <Link to="/ptm-requests" className="mt-3 inline-block text-xs font-bold text-indigo-700 hover:underline">
+          <Link to="/ptm-requests" className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline">
             PTM requests →
           </Link>
         </div>
       </div>
 
       <Card>
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Assigned leads</p>
-        <p className="mt-2 text-3xl font-bold text-slate-900">{leadsDisplay}</p>
+        <p className="text-sm font-medium text-slate-600">Assigned leads</p>
+        <p className="mt-1 text-2xl font-semibold text-slate-900">{leadsDisplay}</p>
         <Link
           to="/assigned-leads"
-          className="mt-4 inline-flex items-center justify-center rounded-lg border border-slate-200/90 bg-white/90 px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:border-indigo-200 hover:bg-indigo-50/80 hover:text-indigo-950"
+          className="mt-4 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
         >
           View leads
         </Link>
@@ -258,7 +259,14 @@ export function TeacherDashboardOverview() {
                     <p className="truncate font-semibold text-slate-900">{n.title || 'Untitled'}</p>
                     <p className="text-xs text-slate-500">{fmtTime(n.createdAt)}</p>
                   </div>
-                  <span className={statusBadge(n.status)}>{String(n.status || '').replace(/_/g, ' ')}</span>
+                  <span className="flex flex-col items-end gap-0.5">
+                    <span className={statusBadge(n.status)}>{String(n.status || '').replace(/_/g, ' ')}</span>
+                    {n.status === NOTIFICATION_STATUSES.APPROVED && n.approvedAt ? (
+                      <span className="text-[10px] font-medium text-slate-500 tabular-nums">
+                        {formatApprovalDateTime(n.approvedAt)}
+                      </span>
+                    ) : null}
+                  </span>
                 </li>
               ))}
             </ul>
