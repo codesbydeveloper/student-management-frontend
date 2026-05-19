@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
 import { useNotifications } from '../../context/NotificationContext'
@@ -29,6 +30,9 @@ function mergeParentMessageReadState(prev, incoming) {
  * otherwise uses the in-app simulation from NotificationContext.
  */
 export function ParentNotificationFeed() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const openedFromBellRef = useRef(null)
   const { user, token } = useAuth()
   const { parents, students } = useAppData()
   const { getParentNotifications } = useNotifications()
@@ -67,6 +71,17 @@ export function ParentNotificationFeed() {
     },
     [useServerFeed, openMessageDetail],
   )
+
+  /** Open message from header bell via `location.state.openMessageId`. */
+  useEffect(() => {
+    const openId = location.state?.openMessageId
+    if (!openId || !useServerFeed || !token) return
+    const id = String(openId)
+    if (openedFromBellRef.current === id) return
+    openedFromBellRef.current = id
+    navigate(location.pathname, { replace: true, state: {} })
+    handleOpenMessage(id)
+  }, [location.pathname, location.state?.openMessageId, useServerFeed, token, navigate, handleOpenMessage])
 
   useEffect(() => {
     let debounceTimer = null

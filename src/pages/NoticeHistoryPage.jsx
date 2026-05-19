@@ -103,11 +103,9 @@ function isFinalStatus(status) {
   return status === NOTIFICATION_STATUSES.APPROVED || status === NOTIFICATION_STATUSES.REJECTED
 }
 
-function canShowReadReport(row, role) {
+function canShowReadReport(_row, role) {
   const r = String(role || '')
-  if (r !== ROLES.ADMIN && r !== ROLES.PRINCIPAL) return false
-  if (row.actions?.canViewReadReport === true) return true
-  return row.status === NOTIFICATION_STATUSES.APPROVED
+  return r === ROLES.ADMIN || r === ROLES.PRINCIPAL
 }
 
 function isPrincipalAdministrativeTab(isPrincipal, categoryFilter) {

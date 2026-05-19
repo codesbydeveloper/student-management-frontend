@@ -1,6 +1,12 @@
 import { STORAGE_KEYS } from './constants'
 
-const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000
+/** Fired when the sign-in page should refresh install prompt visibility. */
+export const PWA_INSTALL_LOGIN_PROMPT_EVENT = 'sm-pwa-install-login-prompt'
+
+/** Local calendar date key (YYYY-MM-DD) for once-per-day dismiss. */
+function getLocalDateKey() {
+  return new Date().toLocaleDateString('en-CA')
+}
 
 /** True when the app is already open as an installed PWA / home-screen shortcut. */
 export function isRunningAsInstalledPwa() {
@@ -15,12 +21,10 @@ export function isRunningAsInstalledPwa() {
   } catch {
     /* ignore */
   }
-  // iOS Safari home screen
   if (typeof navigator !== 'undefined' && navigator.standalone === true) return true
   return false
 }
 
-/** Coarse mobile detection (phones, tablets, iPadOS reporting as Mac). */
 export function isLikelyMobileDevice() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
@@ -29,13 +33,17 @@ export function isLikelyMobileDevice() {
   return false
 }
 
-/** iOS / iPadOS — no `beforeinstallprompt`; user adds via Share → Add to Home Screen. */
 export function isIosLike() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
   if (/iPhone|iPad|iPod/i.test(ua)) return true
   if (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua)) return true
   return false
+}
+
+export function isAndroidLike() {
+  if (typeof navigator === 'undefined') return false
+  return /Android/i.test(navigator.userAgent || '')
 }
 
 export function isPwaInstallBannerPermanentlyDismissed() {
@@ -46,29 +54,63 @@ export function isPwaInstallBannerPermanentlyDismissed() {
   }
 }
 
-export function markPwaInstallCompleted() {
+/** User tapped “Not yet” earlier today. */
+export function wasPwaInstallDismissedToday() {
   try {
-    localStorage.setItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_DONE, '1')
-    localStorage.removeItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_SNOOZE_UNTIL)
+    return localStorage.getItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED_DATE) === getLocalDateKey()
+  } catch {
+    return false
+  }
+}
+
+/** Hide the install prompt until tomorrow (local calendar day). */
+export function dismissPwaInstallForToday() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED_DATE, getLocalDateKey())
   } catch {
     /* ignore */
   }
 }
 
-export function getPwaInstallSnoozeUntil() {
+export function requestPwaInstallPromptOnLoginPage() {
+  if (typeof window === 'undefined') return
+  if (isRunningAsInstalledPwa()) return
+  window.dispatchEvent(new Event(PWA_INSTALL_LOGIN_PROMPT_EVENT))
+}
+
+/** @deprecated */
+export function requestPwaInstallPromptOnLogin() {
+  requestPwaInstallPromptOnLoginPage()
+}
+
+/** Show at most once per day on sign-in until the app is installed. */
+export function shouldShowPwaInstallPrompt() {
+  if (typeof window === 'undefined') return false
+  if (isRunningAsInstalledPwa()) return false
+  if (isPwaInstallBannerPermanentlyDismissed()) return false
+  if (wasPwaInstallDismissedToday()) return false
+  return true
+}
+
+export function markPwaInstallCompleted() {
   try {
-    const v = localStorage.getItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_SNOOZE_UNTIL)
-    if (!v) return 0
-    const n = Number(v)
-    return Number.isFinite(n) ? n : 0
+    localStorage.setItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_DONE, '1')
+    localStorage.removeItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED_DATE)
+    sessionStorage.removeItem(STORAGE_KEYS.PWA_INSTALL_SESSION_DISMISSED)
   } catch {
-    return 0
+    /* ignore */
   }
 }
 
-export function snoozePwaInstallBanner() {
+/** @deprecated Use dismissPwaInstallForToday */
+export function dismissPwaInstallForSession() {
+  dismissPwaInstallForToday()
+}
+
+/** @deprecated */
+export function clearPwaInstallSessionDismiss() {
   try {
-    localStorage.setItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_SNOOZE_UNTIL, String(Date.now() + SNOOZE_MS))
+    sessionStorage.removeItem(STORAGE_KEYS.PWA_INSTALL_SESSION_DISMISSED)
   } catch {
     /* ignore */
   }

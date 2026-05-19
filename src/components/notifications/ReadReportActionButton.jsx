@@ -1,5 +1,5 @@
 /**
- * Table action — opens parent read report for an approved notice.
+ * Table action — opens parent read report for a notice.
  */
 export function ReadReportActionButton({ disabled, onClick, className = '' }) {
   return (

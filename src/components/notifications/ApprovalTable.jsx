@@ -19,10 +19,8 @@ function formatDate(ts) {
   }
 }
 
-function canShowReadReport(row, showReadReportColumn) {
-  if (!showReadReportColumn) return false
-  if (row.actions?.canViewReadReport === true) return true
-  return row.status === NOTIFICATION_STATUSES.APPROVED
+function canShowReadReport(_row, showReadReportColumn) {
+  return showReadReportColumn
 }
 
 export function ApprovalTable({
