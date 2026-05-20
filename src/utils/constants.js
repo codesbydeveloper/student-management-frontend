@@ -32,8 +32,10 @@ export const STORAGE_KEYS = {
   APP_DATA: 'app_data',
   CUSTOM_USERS: 'custom_users',
   NOTIFICATIONS: 'notifications_v1',
-  /** User chose “Not now” on the mobile PWA install banner; value is snooze-until timestamp (ms). */
-  PWA_MOBILE_INSTALL_SNOOZE_UNTIL: 'pwa_mobile_install_snooze_until',
-  /** Setthis device. */
-PWA_MOBILE_INSTALL_DONE: 'pwa_mobile_install_done',
+  /** User completed install on this device. */
+  PWA_MOBILE_INSTALL_DONE: 'pwa_mobile_install_done',
+  /** Local date (YYYY-MM-DD) when user last tapped “Not yet” on install prompt. */
+  PWA_INSTALL_DISMISSED_DATE: 'pwa_install_dismissed_date',
+  /** @deprecated Legacy session dismiss key */
+  PWA_INSTALL_SESSION_DISMISSED: 'pwa_install_session_dismissed',
 }

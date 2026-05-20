@@ -1,11 +1,19 @@
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
+import { PwaLoginInstallCard } from '../components/layout/PwaLoginInstallCard'
 import { useLoginBranding } from '../hooks/useLoginBranding'
+import { requestPwaInstallPromptOnLoginPage } from '../utils/pwaInstall'
 
 export function AuthLayout() {
   const branding = useLoginBranding()
 
+  useEffect(() => {
+    requestPwaInstallPromptOnLoginPage()
+  }, [])
+
   return (
-    <div className="flex min-h-dvh flex-col bg-slate-100">
+    <div className="relative flex min-h-dvh flex-col bg-slate-100">
+      <PwaLoginInstallCard />
       <div
         className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:py-14"
         style={{

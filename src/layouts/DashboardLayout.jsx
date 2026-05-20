@@ -7,7 +7,6 @@ import { getNavItemsForRole, getNavSidebarEntries } from '../utils/navigation'
 import { RoleBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { MobileDockNav } from '../components/layout/MobileDockNav'
-import { PwaMobileInstallBanner } from '../components/layout/PwaMobileInstallBanner'
 import { HeaderNotificationBell } from '../components/layout/HeaderNotificationBell'
 import { InstitutionBrandMark } from '../components/layout/InstitutionBrandMark'
 import { useLoginBranding } from '../hooks/useLoginBranding'
@@ -16,13 +15,13 @@ import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
 import { PencilIcon } from '../components/icons/PencilIcon'
 
 function navClass({ isActive }) {
-  return `group flex min-h-[2.75rem] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+  return `group flex w-full min-h-[2.75rem] items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
     isActive ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
   }`
 }
 
 function navChildClass({ isActive }) {
-  return `group flex min-h-[2.5rem] items-center gap-2 rounded-md py-2 pl-9 pr-3 text-[13px] font-medium transition-colors ${
+  return `group flex w-full min-h-[2.5rem] items-center gap-2 rounded-md py-2 pl-7 pr-2.5 text-[13px] font-medium transition-colors ${
     isActive ? 'bg-slate-700/80 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
   }`
 }
@@ -172,13 +171,13 @@ export function DashboardLayout() {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex shrink-0 items-center gap-3 border-b border-slate-800 px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:min-h-[4rem] lg:px-6 lg:py-4 lg:pt-4">
+        <div className="flex shrink-0 flex-col items-center gap-2.5 border-b border-slate-800 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] text-center lg:min-h-[4rem] lg:px-4 lg:py-4 lg:pt-4">
           <InstitutionBrandMark branding={branding} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{institutionTitle}</p>
-          </div>
+          <p className="w-full text-sm font-semibold leading-snug text-white break-words">
+            {institutionTitle}
+          </p>
         </div>
-        <nav className="scrollbar-none min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3 lg:p-4">
+        <nav className="scrollbar-none min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain px-2 py-3 lg:px-3 lg:py-4">
           {sidebarEntries.map((entry) =>
             entry.type === 'link' ? (
               <NavLink
@@ -203,7 +202,7 @@ export function DashboardLayout() {
               <div key={entry.key} className="space-y-1">
                 <button
                   type="button"
-                  className={`flex w-full min-h-[2.75rem] items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
+                  className={`flex w-full min-h-[2.75rem] items-center gap-2 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
                     navGroupPathActive(entry.key, navGroupActive)
                       ? 'bg-slate-800/90 text-white ring-1 ring-indigo-500/40'
                       : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
@@ -232,7 +231,7 @@ export function DashboardLayout() {
                   <p className="ml-8 mr-2 pb-1.5 text-[10px] leading-snug text-slate-500">{entry.hint}</p>
                 ) : null}
                 {navGroupOpen[entry.key] ? (
-                  <div className="space-y-0.5 border-l border-slate-700/80 pl-1 ml-3">
+                  <div className="ml-2 space-y-0.5 border-l border-slate-700/80 pl-1">
                     {entry.children.map((item) => (
                       <NavLink
                         key={item.to}
@@ -259,7 +258,7 @@ export function DashboardLayout() {
             ),
           )}
         </nav>
-        <div className="shrink-0 border-t border-slate-800 px-5 py-3 text-xs text-slate-500 lg:py-3.5">
+        <div className="shrink-0 border-t border-slate-800 px-3 py-3 text-xs text-slate-500 lg:px-4 lg:py-3.5">
           School year 2026
         </div>
       </aside>
@@ -362,8 +361,6 @@ export function DashboardLayout() {
             </div>
           </div>
         </header>
-
-        <PwaMobileInstallBanner />
 
         <main className="scrollbar-none relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
           <Outlet />

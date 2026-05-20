@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom'
 import { fetchNotificationBell } from '../../api/notificationsApi'
 import { useAuth } from '../../context/AuthContext'
 import { BellIcon } from '../icons/BellIcon'
-import { getHeaderNotificationsViewAllPath } from './headerNotificationPreview'
+import {
+  getHeaderNotificationItemLink,
+  getHeaderNotificationsViewAllPath,
+} from './headerNotificationPreview'
 
 const PANEL_MAX = 3
 
@@ -97,15 +100,6 @@ export function HeaderNotificationBell() {
           aria-label="Recent notifications"
           className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2.5rem))] sm:w-80"
         >
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close notifications panel"
-            className="absolute -left-2 -top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white shadow-md transition hover:bg-slate-800"
-          >
-            ×
-          </button>
-
           <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/10">
             <div className="border-b border-slate-100 px-4 py-3">
               <p className="text-center text-sm text-slate-500">Here are some notifications you missed:</p>
@@ -124,21 +118,27 @@ export function HeaderNotificationBell() {
                 <li className="py-6 text-center text-sm text-slate-500">No messages yet.</li>
               ) : null}
               {!loading && !error
-                ? displayItems.map((item) => (
-                    <li key={item.id}>
-                      <article
-                        className={`rounded-xl border px-3 py-2.5 transition ${
-                          item.unread
-                            ? 'border-sky-200/90 bg-sky-50/40'
-                            : 'border-sky-100/80 bg-white'
-                        }`}
-                      >
-                        <h3 className="text-sm font-semibold leading-snug text-sky-700">{item.title}</h3>
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">{item.message}</p>
-                        <p className="mt-1.5 text-[11px] italic text-slate-400">{item.timeAgo}</p>
-                      </article>
-                    </li>
-                  ))
+                ? displayItems.map((item) => {
+                    const to = getHeaderNotificationItemLink(user?.role, item.id)
+                    return (
+                      <li key={item.id}>
+                        <Link
+                          to={to}
+                          onClick={close}
+                          className={`block rounded-xl border px-3 py-2.5 text-left transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 ${
+                            item.unread
+                              ? 'border-sky-200/90 bg-sky-50/40 hover:border-sky-300'
+                              : 'border-sky-100/80 bg-white hover:border-sky-200'
+                          }`}
+                        >
+                          <h3 className="text-sm font-semibold leading-snug text-sky-700">{item.title}</h3>
+                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">
+                            {item.message}
+                          </p>
+                        </Link>
+                      </li>
+                    )
+                  })
                 : null}
             </ul>
 
