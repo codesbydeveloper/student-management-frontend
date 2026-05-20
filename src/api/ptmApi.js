@@ -45,6 +45,31 @@ function normalizePtmStatus(raw) {
   return 'requested'
 }
 
+/**
+ * Backend sometimes returns human-readable IST, e.g. "05-10-2026, 02:00:00 PM IST" (DD-MM-YYYY).
+ * `Date.parse` does not reliably handle this.
+ */
+function pickIsoFromDdMmYyyyCommaTimeIst(s) {
+  if (typeof s !== 'string') return null
+  const m = s
+    .trim()
+    .match(/^(\d{2})-(\d{2})-(\d{4}),\s*(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)(?:\s*IST)?$/i)
+  if (!m) return null
+  const day = m[1]
+  const month = m[2]
+  const year = m[3]
+  let hour = parseInt(m[4], 10)
+  const minute = m[5]
+  const sec = m[6]
+  const ap = m[7].toUpperCase()
+  if (ap === 'PM' && hour < 12) hour += 12
+  if (ap === 'AM' && hour === 12) hour = 0
+  const ds = `${year}-${month}-${day}T${String(hour).padStart(2, '0')}:${minute}:${sec}+05:30`
+  const ms = Date.parse(ds)
+  if (!Number.isFinite(ms)) return null
+  return new Date(ms).toISOString()
+}
+
 function pickIso(...candidates) {
   for (const v of candidates) {
     if (v == null || v === '') continue
@@ -55,6 +80,8 @@ function pickIso(...candidates) {
     if (typeof v === 'string') {
       const t = Date.parse(v)
       if (Number.isFinite(t)) return new Date(t).toISOString()
+      const ist = pickIsoFromDdMmYyyyCommaTimeIst(v)
+      if (ist) return ist
     }
     if (v instanceof Date && Number.isFinite(v.getTime())) return v.toISOString()
   }
@@ -130,7 +157,15 @@ export function mapApiPtmRequestRow(raw) {
     teacherName: teacherName || 'Teacher',
     reason: String(raw.reason ?? raw.message ?? '').trim(),
     status: normalizePtmStatus(raw.status),
-    meetingAt: pickIso(raw.meetingAt, raw.meeting_time, raw.meetingTime, raw.scheduledAt, raw.scheduled_for),
+    meetingAt: pickIso(
+      raw.meetingAt,
+      raw.meeting_time,
+      raw.meetingTime,
+      raw.scheduledAt,
+      raw.scheduledat,
+      raw.scheduled_at,
+      raw.scheduled_for,
+    ),
     rejectionNote:
       raw.rejectionNote != null
         ? String(raw.rejectionNote).trim() || null
@@ -140,10 +175,12 @@ export function mapApiPtmRequestRow(raw) {
     staffReviewNote: staffReviewNote || null,
     principalRejectionNote: principalRejectionNote || null,
     meetingNote: String(raw.meetingNote ?? raw.meeting_note ?? '').trim() || null,
-    createdAt: pickIso(raw.createdAt, raw.created_at, raw.requestedAt) || new Date().toISOString(),
+    createdAt:
+      pickIso(raw.createdAt, raw.created_at, raw.createdat, raw.requestedAt, raw.requestedat) ||
+      new Date().toISOString(),
     updatedAt:
-      pickIso(raw.updatedAt, raw.updated_at) ||
-      pickIso(raw.createdAt, raw.created_at, raw.requestedAt) ||
+      pickIso(raw.updatedAt, raw.updated_at, raw.updatedat) ||
+      pickIso(raw.createdAt, raw.created_at, raw.createdat, raw.requestedAt, raw.requestedat) ||
       new Date().toISOString(),
   }
 }

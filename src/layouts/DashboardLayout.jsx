@@ -13,6 +13,7 @@ import { useLoginBranding } from '../hooks/useLoginBranding'
 import { useProfilePrefs } from '../hooks/useProfilePrefs'
 import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
 import { PencilIcon } from '../components/icons/PencilIcon'
+import { useTransportTripMaintenance } from '../modules/transport/useTransportTripMaintenance'
 
 function navClass({ isActive }) {
   return `group flex w-full min-h-[2.75rem] items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
@@ -38,6 +39,8 @@ function navLinkUsesEnd(to) {
     to === '/teachers' ||
     to === '/students' ||
     to === '/parents' ||
+    to === '/admins' ||
+    to === '/principals' ||
     to === '/notifications' ||
     to === '/notifications/admin-approval' ||
     to === '/notifications/principal-approval' ||
@@ -92,6 +95,8 @@ export function DashboardLayout() {
     enableWebpushrForUser()
   }, [user.role])
 
+  useTransportTripMaintenance(user.role === ROLES.DRIVER)
+
   const pathIn = (bases) =>
     bases.some((base) => location.pathname === base || location.pathname.startsWith(`${base}/`))
 
@@ -99,7 +104,7 @@ export function DashboardLayout() {
     academics: pathIn(
       user.role === ROLES.TEACHER
         ? ['/classes', '/teachers', '/students']
-        : ['/classes', '/teachers', '/students', '/parents'],
+        : ['/classes', '/teachers', '/students', '/parents', '/admins', '/principals'],
     ),
     transport: pathIn(
       user.role === ROLES.TEACHER

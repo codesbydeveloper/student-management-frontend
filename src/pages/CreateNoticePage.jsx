@@ -7,8 +7,7 @@ export default function CreateNoticePage() {
       <Card>
         <CardHeader
           title="Create Notice"
-          subtitle="Compose a notice with optional banner, videos, and links. This screen is UI-only until you connect your notice API."
-        />
+         />
         <div className="border-t border-slate-100 px-4 py-6 sm:px-6">
           <CreateNoticeForm />
         </div>

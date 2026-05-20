@@ -69,7 +69,7 @@ export default function NotificationsPage() {
           title="Notifications"
           subtitle={
             serverOk
-              ? `Your submissions from the server (GET /api/notifications/mine). Page ${page} of ${totalPages}.`
+              ? ``
               : 'Everything you have submitted and its approval status.'
           }
           action={

@@ -210,7 +210,7 @@ export default function NotificationPrincipalApprovalPage() {
           title="Academic approvals"
           subtitle={
             serverListOk
-              ? 'Pending items from the server (GET /api/notifications/pending/principal). Approve/reject uses your principal token.'
+              ? ''
               : 'Review and action pending Academic notifications from teachers.'
           }
           action={

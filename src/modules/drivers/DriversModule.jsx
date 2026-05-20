@@ -653,7 +653,8 @@ export function DriversModule() {
       <Card>
         <CardHeader
           title="Bus drivers"
-          subtitle="View everyone who drives a school bus. Add new drivers, update their details, turn access on or off, or remove someone from the list."
+         
+          subtitleCompact
           action={
             manage ? (
               <div className="flex flex-wrap gap-2">

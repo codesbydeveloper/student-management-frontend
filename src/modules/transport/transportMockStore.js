@@ -5,8 +5,13 @@ export const TRANSPORT_STORAGE_KEY = 'scs_transport_mock_v1'
 /** Simulated GPS interval (SOW: 10–15s). */
 export const MOCK_GPS_INTERVAL_MS = 15_000
 
-/** Demo auto-end when no position updates (driver closed app / lost connection). */
+/** Demo auto-end when no position updates (mock polyline trips only). */
 export const MOCK_INACTIVITY_AUTO_END_MS = 90_000
+
+/** Live GPS trip: auto-end if no new coordinates for this long (app tab open; clock from `lastUpdateTs`). */
+export const LIVE_TRIP_INACTIVITY_AUTO_END_MS = 45 * 60 * 1000
+
+const LIVE_TRIP_INACTIVITY_ENDED_EVENT = 'scs-transport-live-trip-inactivity-ended'
 
 const EVENT = 'scs-transport-mock'
 
@@ -47,7 +52,10 @@ export function pruneStaleTrips() {
   let changed = false
   for (const busId of Object.keys(trips)) {
     const t = trips[busId]
-    if (t?.active && now - (t.lastUpdateTs || 0) > MOCK_INACTIVITY_AUTO_END_MS) {
+    if (!t?.active) continue
+    // Only prune mock polyline demos. Live trips and legacy rows without mockAdvance stay until End trip.
+    if (t.mockAdvance !== true) continue
+    if (now - (t.lastUpdateTs || 0) > MOCK_INACTIVITY_AUTO_END_MS) {
       delete trips[busId]
       changed = true
     }
@@ -55,6 +63,41 @@ export function pruneStaleTrips() {
   if (changed) {
     saveTrips(trips)
   }
+}
+
+/**
+ * Remove live trips (`mockAdvance !== true`) when `lastUpdateTs` has not moved for
+ * {@link LIVE_TRIP_INACTIVITY_AUTO_END_MS} (no new GPS ingests).
+ */
+export function pruneInactiveLiveTrips() {
+  const now = Date.now()
+  const trips = loadTrips()
+  let changed = false
+  /** @type {string[]} */
+  const endedBusIds = []
+  for (const busId of Object.keys(trips)) {
+    const t = trips[busId]
+    if (!t?.active) continue
+    if (t.mockAdvance === true) continue
+    if (now - (t.lastUpdateTs || 0) <= LIVE_TRIP_INACTIVITY_AUTO_END_MS) continue
+    endedBusIds.push(busId)
+    delete trips[busId]
+    changed = true
+  }
+  if (changed) {
+    saveTrips(trips)
+    for (const busId of endedBusIds) {
+      window.dispatchEvent(
+        new CustomEvent(LIVE_TRIP_INACTIVITY_ENDED_EVENT, { detail: { busId } }),
+      )
+    }
+  }
+}
+
+export function subscribeLiveTripInactivityEnded(handler) {
+  const fn = (e) => handler(e)
+  window.addEventListener(LIVE_TRIP_INACTIVITY_ENDED_EVENT, fn)
+  return () => window.removeEventListener(LIVE_TRIP_INACTIVITY_ENDED_EVENT, fn)
 }
 
 /**

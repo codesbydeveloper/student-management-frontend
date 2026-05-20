@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
+import { parseDashboardTimestampMs } from '../utils/dashboardDateParse'
 import { pickLastActivityFromApi } from '../utils/lastActivityDisplay'
 import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
 import { pickNotificationMediaUrl } from '../utils/notificationFormat'
@@ -1409,16 +1410,18 @@ function mapParentDashboardNoticeRow(o) {
   if (!o || typeof o !== 'object') return null
   const id = String(o.id ?? o._id ?? o.messageId ?? '').trim()
   const title = String(o.title ?? o.subject ?? o.headline ?? '').trim() || 'School message'
-  let createdAt = o.createdAt ?? o.created_at ?? o.submittedAt ?? o.sentAt
-  if (typeof createdAt === 'string') {
-    const t = Date.parse(createdAt)
-    createdAt = Number.isFinite(t) ? t : null
-  } else if (typeof createdAt === 'number') {
-    if (createdAt > 0 && createdAt < 1e11) createdAt *= 1000
-  } else {
-    createdAt = null
-  }
-  const readRaw = o.isRead ?? o.read ?? o.readAt ?? o.read_at
+  const createdAt = parseDashboardTimestampMs(
+    o.createdAt ??
+      o.created_at ??
+      o.createdat ??
+      o.submittedAt ??
+      o.submitted_at ??
+      o.submittedat ??
+      o.sentAt ??
+      o.sent_at ??
+      o.sentat,
+  )
+  const readRaw = o.isRead ?? o.read ?? o.readAt ?? o.read_at ?? o.readat
   const isRead =
     readRaw === true ||
     readRaw === 1 ||
@@ -1430,17 +1433,35 @@ function mapParentDashboardNoticeRow(o) {
 function mapParentDashboardPtmRow(o) {
   if (!o || typeof o !== 'object') return null
   const id = String(o.id ?? o._id ?? o.requestId ?? '').trim() || `ptm-${Math.random().toString(36).slice(2, 9)}`
-  const studentName = String(o.studentName ?? o.student_name ?? '').trim()
-  const teacherName = String(o.teacherName ?? o.teacher_name ?? '').trim()
-  const label =
-    String(o.label ?? o.summary ?? '').trim() ||
-    [studentName, teacherName].filter(Boolean).join(' · ') ||
-    'PTM request'
-  const when = String(
-    o.meetingAt ?? o.meeting_at ?? o.slot ?? o.when ?? o.scheduledAt ?? o.scheduled_at ?? '',
+  const teacherBlock =
+    (o.teacher && typeof o.teacher === 'object' && o.teacher) ||
+    (o.teacherUser && typeof o.teacherUser === 'object' && o.teacherUser) ||
+    null
+  const studentBlock = (o.student && typeof o.student === 'object' && o.student) || null
+  const studentName = String(
+    o.studentName ?? o.student_name ?? studentBlock?.fullName ?? studentBlock?.name ?? '',
   ).trim()
+  const teacherName = String(
+    o.teacherName ?? o.teacher_name ?? teacherBlock?.fullName ?? teacherBlock?.name ?? '',
+  ).trim()
+  let label = String(o.familyLabel ?? o.family_label ?? o.label ?? o.summary ?? '').trim()
+  if (!label) {
+    label = [studentName, teacherName].filter(Boolean).join(' — ') || 'PTM request'
+  }
+  const whenRaw =
+    o.scheduledAt ??
+    o.scheduledat ??
+    o.scheduled_at ??
+    o.meetingAt ??
+    o.meeting_at ??
+    o.slot ??
+    o.when ??
+    ''
+  const when = parseDashboardTimestampMs(whenRaw)
+  const whenLabel =
+    when != null ? undefined : (typeof whenRaw === 'string' && whenRaw.trim() ? whenRaw.trim() : undefined)
   const status = String(o.status ?? o.state ?? '').trim()
-  return { id, label, when: when || '—', status: status || 'requested' }
+  return { id, label, when, whenLabel, status: status || 'requested' }
 }
 
 /**

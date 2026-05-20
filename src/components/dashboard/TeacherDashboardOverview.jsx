@@ -11,7 +11,14 @@ import { formatApprovalDateTime } from '../../utils/notificationTimestamps'
 function fmtTime(ts) {
   if (ts == null) return '—'
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(ts)
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(ts)
   } catch {
     return '—'
   }
@@ -257,7 +264,7 @@ export function TeacherDashboardOverview() {
                 <li key={n.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0">
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-slate-900">{n.title || 'Untitled'}</p>
-                    <p className="text-xs text-slate-500">{fmtTime(n.createdAt)}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{fmtTime(n.createdAt)}</p>
                   </div>
                   <span className="flex flex-col items-end gap-0.5">
                     <span className={statusBadge(n.status)}>{String(n.status || '').replace(/_/g, ' ')}</span>

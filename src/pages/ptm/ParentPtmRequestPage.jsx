@@ -167,7 +167,7 @@ export default function ParentPtmRequestPage() {
       <Card>
         <CardHeader
           title="Request a parent–teacher meeting"
-          subtitle="Choose your child, their teacher, and a short reason. Submitting sends POST /api/ptm-requests to your school (studentId, teacherId, reason). A copy may also be kept in this browser for history until you refresh from the server."
+          
         />
         <form onSubmit={onSubmit} className="space-y-5">
           <div>

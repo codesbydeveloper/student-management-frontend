@@ -191,24 +191,56 @@ function unwrapTeacherDashboardPayload(raw) {
   return raw
 }
 
+/** Same human-readable IST shape as some school APIs: "05-10-2026, 02:00:00 PM IST" (DD-MM-YYYY). */
+function parseDdMmYyyyCommaTimeIstToMs(s) {
+  if (typeof s !== 'string') return null
+  const m = s
+    .trim()
+    .match(/^(\d{2})-(\d{2})-(\d{4}),\s*(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)(?:\s*IST)?$/i)
+  if (!m) return null
+  const day = m[1]
+  const month = m[2]
+  const year = m[3]
+  let hour = parseInt(m[4], 10)
+  const minute = m[5]
+  const sec = m[6]
+  const ap = m[7].toUpperCase()
+  if (ap === 'PM' && hour < 12) hour += 12
+  if (ap === 'AM' && hour === 12) hour = 0
+  const ds = `${year}-${month}-${day}T${String(hour).padStart(2, '0')}:${minute}:${sec}+05:30`
+  const ms = Date.parse(ds)
+  return Number.isFinite(ms) ? ms : null
+}
+
+function parseDashboardTimestampMs(v) {
+  if (v == null || v === '') return null
+  if (typeof v === 'number') {
+    if (v > 0 && v < 1e11) return v * 1000
+    return Number.isFinite(v) ? v : null
+  }
+  if (typeof v === 'string') {
+    const t = Date.parse(v)
+    if (Number.isFinite(t)) return t
+    const ist = parseDdMmYyyyCommaTimeIstToMs(v)
+    if (ist != null) return ist
+  }
+  return null
+}
+
 function mapTeacherDashboardNoticeRow(o) {
   if (!o || typeof o !== 'object') return null
   const id = String(o.id ?? o._id ?? o.notificationId ?? '').trim()
   const title = String(o.title ?? o.subject ?? '').trim() || 'Untitled'
+  const message = String(o.message ?? o.body ?? o.content ?? o.summary ?? o.text ?? '').trim()
   const status = String(o.status ?? '').trim()
-  let createdAt = o.createdAt ?? o.created_at ?? o.submittedAt ?? o.submitted_at
-  if (typeof createdAt === 'string') {
-    const t = Date.parse(createdAt)
-    createdAt = Number.isFinite(t) ? t : null
-  } else if (typeof createdAt === 'number') {
-    if (createdAt > 0 && createdAt < 1e11) createdAt *= 1000
-  } else {
-    createdAt = null
-  }
+  let createdAt = parseDashboardTimestampMs(
+    o.createdAt ?? o.created_at ?? o.createdat ?? o.submittedAt ?? o.submitted_at ?? o.submittedat,
+  )
   const approvedAt = pickApprovedAtMs(o)
   return {
     id: id || `n-${title}-${createdAt ?? 'x'}`,
     title,
+    message: message || undefined,
     status,
     createdAt,
     ...(approvedAt != null ? { approvedAt } : {}),
@@ -218,10 +250,30 @@ function mapTeacherDashboardNoticeRow(o) {
 function mapTeacherDashboardPtmRow(o) {
   if (!o || typeof o !== 'object') return null
   const id = String(o.id ?? o._id ?? o.requestId ?? '').trim() || `ptm-${Math.random().toString(36).slice(2, 9)}`
-  const family = String(
-    o.family ?? o.parentAndStudent ?? o.label ?? o.summary ?? o.parentName ?? o.studentName ?? '',
+  let family = String(
+    o.family ??
+      o.familyLabel ??
+      o.family_label ??
+      o.parentAndStudent ??
+      o.label ??
+      o.summary ??
+      '',
   ).trim()
-  const when = String(o.slot ?? o.when ?? o.scheduledAt ?? o.scheduled_at ?? o.slotLabel ?? '').trim()
+  if (!family) {
+    const pName = String(
+      o.parentName ?? o.parent_full_name ?? (o.parent && (o.parent.fullName ?? o.parent.name)) ?? '',
+    ).trim()
+    const sName = String(
+      o.studentName ??
+        o.student_full_name ??
+        (o.student && (o.student.fullName ?? o.student.name)) ??
+        '',
+    ).trim()
+    if (pName || sName) family = [pName, sName].filter(Boolean).join(' — ')
+  }
+  const whenRaw =
+    o.slot ?? o.when ?? o.scheduledAt ?? o.scheduledat ?? o.scheduled_at ?? o.slotLabel ?? o.meetingAt ?? ''
+  const when = String(whenRaw ?? '').trim()
   const st = String(o.status ?? o.state ?? '').trim()
   let state = st || '—'
   if (/complete/i.test(st)) state = 'Completed'

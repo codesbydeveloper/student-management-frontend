@@ -11,11 +11,25 @@ import { ParentMessageDetailModal } from '../parent/ParentMessageDetailModal'
 function fmtTime(ts) {
   if (ts == null || ts === '—') return '—'
   try {
-    const d = typeof ts === 'number' ? ts : new Date(ts)
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(d)
+    const d = typeof ts === 'number' ? new Date(ts) : new Date(ts)
+    if (Number.isNaN(d.getTime())) return '—'
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d)
   } catch {
     return '—'
   }
+}
+
+function fmtPtmWhen(r) {
+  if (r.when != null && Number.isFinite(Number(r.when))) return fmtTime(r.when)
+  if (r.whenLabel) return r.whenLabel
+  return '—'
 }
 
 function countTeachers(groups) {
@@ -356,7 +370,7 @@ export function ParentDashboardOverview() {
                   {recentPtmRows.map((r) => (
                     <tr key={r.id}>
                       <td className="px-3 py-2 font-medium text-slate-900">{r.label}</td>
-                      <td className="px-3 py-2 text-slate-600">{fmtTime(r.when)}</td>
+                      <td className="px-3 py-2 text-slate-600">{fmtPtmWhen(r)}</td>
                       <td className="px-3 py-2">
                         <PtmStatusBadge status={r.status} />
                       </td>

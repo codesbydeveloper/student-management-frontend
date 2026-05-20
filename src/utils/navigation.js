@@ -1,8 +1,8 @@
 import { ROLES } from './constants'
 import { canAccessRoute } from './permissions'
 
-/** Admin / principal: grouped under "Academics" in the sidebar (order = Classes -> Teachers -> Students -> Parents). */
-export const ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students', 'parents']
+/** Admin / principal: grouped under "Academics" (Classes -> Teachers -> Students -> Parents -> Admins -> Principals). */
+export const ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students', 'parents', 'admins', 'principals']
 
 /** Admin / principal: grouped under "Transport" in the sidebar. */
 export const TRANSPORT_NAV_KEYS = ['drivers', 'admin_assign_bus', 'admin_create_buses']
@@ -77,6 +77,8 @@ const items = [
   { key: 'drivers', to: '/drivers', label: 'Bus drivers' },
   { key: 'students', to: '/students', label: 'Students' },
   { key: 'parents', to: '/parents', label: 'Parents' },
+  { key: 'admins', to: '/admins', label: 'Admins' },
+  { key: 'principals', to: '/principals', label: 'Principals' },
   { key: 'admin_assign_bus', to: '/transport/assign-bus', label: 'Assign bus' },
   { key: 'admin_create_buses', to: '/transport/buses', label: 'Create buses' },
   { key: 'create_category', to: '/create-category', label: 'Create Category' },

@@ -12,12 +12,19 @@ import {
   staffRejectPtmRequest,
 } from '../../api/ptmApi'
 
-const PAGE_LIMIT = 20
+const PAGE_LIMIT = 10
 
 function fmt(iso) {
   if (!iso) return '—'
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(iso))
   } catch {
     return iso
   }

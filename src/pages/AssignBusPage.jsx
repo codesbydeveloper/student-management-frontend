@@ -146,10 +146,7 @@ export default function AssignBusPage() {
 
       <div className="scroll-mt-20">
         <Card>
-          <CardHeader
-            title="Assign bus"
-            subtitle="Choose one bus, then select every student who should be on that bus."
-          />
+          <CardHeader title="Assign bus" />
 
           <div className="mx-auto max-w-xl space-y-6">
             {!token ? (
@@ -187,7 +184,7 @@ export default function AssignBusPage() {
                   <p className="mt-1.5 text-xs text-slate-500">No buses in the list.</p>
                 ) : (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    Full bus list from the server. Each option shows name and number plate.
+                     Each option shows name and number plate.
                   </p>
                 )
               ) : null}

@@ -8,13 +8,14 @@ import { Button } from '../components/ui/Button'
 import { LiveTripMap } from '../components/transport/LiveTripMap'
 import { getDriverBusIdForUser } from '../modules/transport/transportAssignmentStore'
 import { useTransportAssignmentRevision } from '../modules/transport/useTransportAssignmentRevision'
-import { startLiveTrip, stopTrip, loadTrips, saveTrips } from '../modules/transport/transportMockStore'
-import { isSocketTransportEnabled } from '../modules/transport/transportSocketConfig'
+import { startLiveTrip, stopTrip, loadTrips, saveTrips, subscribeLiveTripInactivityEnded } from '../modules/transport/transportMockStore'
 import { isDemoTransportBusKey } from '../modules/transport/transportMapConstants'
 import { useDriverIdleMapGeolocation } from '../modules/transport/useDriverIdleMapGeolocation'
 import { useDriverLiveTracking } from '../modules/transport/useDriverLiveTracking'
 import { useTransportTrips } from '../modules/transport/useTransportTrips'
 import { ROLES } from '../utils/constants'
+
+const MY_ROUTE_PAGE_SIZE = 10
 
 export default function DriverTransportPage() {
   const { user, token } = useAuth()
@@ -24,6 +25,9 @@ export default function DriverTransportPage() {
   const localBusId = useMemo(() => getDriverBusIdForUser(user), [user, assignRev])
 
   const [myRouteRows, setMyRouteRows] = useState([])
+  const [myRoutePage, setMyRoutePage] = useState(1)
+  const [myRouteTotal, setMyRouteTotal] = useState(0)
+  const [myRouteTotalPages, setMyRouteTotalPages] = useState(1)
   const [myRouteAssignedBus, setMyRouteAssignedBus] = useState('')
   const [myRouteLoading, setMyRouteLoading] = useState(false)
   const [myRouteError, setMyRouteError] = useState('')
@@ -31,6 +35,9 @@ export default function DriverTransportPage() {
   useEffect(() => {
     if (!token || user?.role !== ROLES.DRIVER) {
       setMyRouteRows([])
+      setMyRoutePage(1)
+      setMyRouteTotal(0)
+      setMyRouteTotalPages(1)
       setMyRouteAssignedBus('')
       setMyRouteLoading(false)
       setMyRouteError('')
@@ -40,14 +47,18 @@ export default function DriverTransportPage() {
     setMyRouteLoading(true)
     setMyRouteError('')
     void (async () => {
-      const res = await fetchDriverMyRoute(token)
+      const res = await fetchDriverMyRoute(token, { page: myRoutePage, limit: MY_ROUTE_PAGE_SIZE })
       if (cancelled) return
       setMyRouteLoading(false)
       if (res.ok) {
         setMyRouteRows(res.rows)
-        setMyRouteAssignedBus(res.assignedBus)
+        setMyRouteTotal(res.total)
+        setMyRouteTotalPages(Math.max(1, res.totalPages))
+        setMyRouteAssignedBus((prev) => String(res.assignedBus || '').trim() || prev)
       } else {
         setMyRouteRows([])
+        setMyRouteTotal(0)
+        setMyRouteTotalPages(1)
         setMyRouteAssignedBus('')
         setMyRouteError(res.error)
       }
@@ -55,12 +66,49 @@ export default function DriverTransportPage() {
     return () => {
       cancelled = true
     }
-  }, [token, user?.role])
+  }, [token, user?.role, myRoutePage])
+
+  useEffect(() => {
+    setMyRoutePage((p) => Math.min(Math.max(1, p), myRouteTotalPages))
+  }, [myRouteTotalPages])
+
+  const myRouteSafePage = Math.min(Math.max(1, myRoutePage), myRouteTotalPages)
+
+  const goMyRoutePrev = useCallback(() => {
+    setMyRoutePage((p) => Math.max(1, p - 1))
+  }, [])
+
+  const goMyRouteNext = useCallback(() => {
+    setMyRoutePage((p) => Math.min(myRouteTotalPages, p + 1))
+  }, [myRouteTotalPages])
 
   const driverId = user?.id != null ? String(user.id) : ''
 
+  /** Active trip for this driver may be keyed by plate while `liveBusId` is still a demo id during my-route load — find by driver so refresh does not look "ended". */
+  const activeTripForDriver = useMemo(() => {
+    if (!driverId) return null
+    for (const [bid, t] of Object.entries(trips)) {
+      if (t?.active && String(t.driverUserId) === String(driverId)) {
+        return { busId: bid, trip: t }
+      }
+    }
+    return null
+  }, [trips, driverId])
+
   const apiAssignedBus = String(myRouteAssignedBus ?? '').trim()
   const liveBusId = apiAssignedBus || localBusId
+  const trackingBusId = activeTripForDriver?.busId || liveBusId
+
+  useEffect(() => {
+    if (user?.role !== ROLES.DRIVER) return undefined
+    return subscribeLiveTripInactivityEnded((e) => {
+      const bid = e.detail?.busId
+      if (bid == null) return
+      if (String(bid) === String(trackingBusId)) {
+        toast.info('Trip ended automatically after 45 minutes with no new location updates.')
+      }
+    })
+  }, [user?.role, trackingBusId])
 
   /** If my-route loads after a trip started on the mock id, move the active trip to the real vehicle key so GPS uses the same busId the server resolves to `buses.plate`. */
   useEffect(() => {
@@ -80,8 +128,8 @@ export default function DriverTransportPage() {
     if (changed) saveTrips(all)
   }, [myRouteLoading, liveBusId, driverId])
 
-  const vehicleLabel = liveBusId || ''
-  const trip = trips[liveBusId] && trips[liveBusId].active ? trips[liveBusId] : null
+  const vehicleLabel = liveBusId || activeTripForDriver?.busId || ''
+  const trip = activeTripForDriver?.trip ?? null
 
   const plateContractIssue = useMemo(() => {
     if (!token || myRouteLoading || myRouteError) return null
@@ -90,11 +138,10 @@ export default function DriverTransportPage() {
     return null
   }, [token, myRouteLoading, myRouteError, apiAssignedBus, localBusId])
 
-  const socketMode = isSocketTransportEnabled()
   const gpsTripActive = Boolean(trip?.active)
 
   const { livePosition, geoError } = useDriverLiveTracking({
-    busId: liveBusId,
+    busId: trackingBusId,
     driverUserId: driverId,
     tripActive: gpsTripActive,
     token,
@@ -128,21 +175,17 @@ export default function DriverTransportPage() {
     }
     // No initial fake-coord POST. The real first ping is sent by
     // `useDriverLiveTracking` as soon as `navigator.geolocation` returns.
-    toast.success(
-      socketMode
-        ? 'Trip started. Map follows your real GPS. Parents get bus:location over Socket.IO once your device returns a position.'
-        : 'Trip started. Map follows your real GPS. Set VITE_API_URL so Socket.IO matches your backend.',
-    )
-  }, [liveBusId, driverId, socketMode, plateContractIssue])
+    toast.success('Trip started.')
+  }, [liveBusId, driverId, plateContractIssue])
 
   const onStop = useCallback(() => {
-    const res = stopTrip(liveBusId, driverId)
+    const res = stopTrip(trackingBusId, driverId)
     if (!res.ok) {
       toast.error(res.error)
       return
     }
     toast.success('Trip ended.')
-  }, [liveBusId, driverId])
+  }, [trackingBusId, driverId])
 
   return (
     <div className="space-y-6">
@@ -172,39 +215,70 @@ export default function DriverTransportPage() {
                 {myRouteError}
               </p>
             ) : null}
-            {!myRouteLoading && !myRouteError && myRouteRows.length === 0 ? (
+            {!myRouteLoading && !myRouteError && myRouteTotal === 0 ? (
               <p className="mt-3 text-sm text-slate-600">
                 No families listed yet, or your school has not linked parents to this route.
               </p>
             ) : null}
-            {!myRouteLoading && myRouteRows.length > 0 ? (
-              <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/90">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2">Sr No</th>
-                      <th className="px-3 py-2">Parent name</th>
-                      <th className="px-3 py-2">Student</th>
-                      <th className="px-3 py-2">Class</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {myRouteRows.map((row, idx) => (
-                      <tr key={`${row.parentUserId || 'p'}-${row.studentId || idx}`}>
-                        <td className="px-3 py-2 tabular-nums text-slate-800">{idx + 1}</td>
-                        <td className="px-3 py-2 text-slate-900">{row.parentName}</td>
-                        <td className="px-3 py-2">
-                          <span className="font-medium text-slate-900">{row.studentName}</span>
-                       
-                        </td>
-                        <td className="px-3 py-2 text-xs text-slate-700">
-                          {[row.className, row.section].filter(Boolean).join(row.className && row.section ? ' · ' : '') ||
-                            '—'}
-                        </td>
+            {!myRouteLoading && !myRouteError && myRouteTotal > 0 ? (
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-3 py-2">Sr No</th>
+                        <th className="px-3 py-2">Parent name</th>
+                        <th className="px-3 py-2">Student</th>
+                        <th className="px-3 py-2">Class</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {myRouteRows.map((row, idx) => (
+                        <tr key={`${row.parentUserId || 'p'}-${row.studentId || idx}-${(myRouteSafePage - 1) * MY_ROUTE_PAGE_SIZE + idx}`}>
+                          <td className="px-3 py-2 tabular-nums text-slate-800">
+                            {(myRouteSafePage - 1) * MY_ROUTE_PAGE_SIZE + idx + 1}
+                          </td>
+                          <td className="px-3 py-2 text-slate-900">{row.parentName}</td>
+                          <td className="px-3 py-2">
+                            <span className="font-medium text-slate-900">{row.studentName}</span>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-slate-700">
+                            {[row.className, row.section].filter(Boolean).join(row.className && row.section ? ' · ' : '') ||
+                              '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-indigo-50/20 px-4 py-3.5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="font-medium">
+                    Showing{' '}
+                    <span className="text-slate-900">
+                      {myRouteTotal === 0
+                        ? '0'
+                        : `${(myRouteSafePage - 1) * MY_ROUTE_PAGE_SIZE + 1}–${Math.min(myRouteSafePage * MY_ROUTE_PAGE_SIZE, myRouteTotal)}`}
+                    </span>{' '}
+                    of <span className="text-slate-900">{myRouteTotal}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="secondary" size="sm" disabled={myRouteSafePage <= 1} onClick={goMyRoutePrev}>
+                      Previous
+                    </Button>
+                    <span className="rounded-lg bg-white/80 px-2.5 py-1 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100">
+                      {myRouteSafePage} / {myRouteTotalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={myRouteSafePage >= myRouteTotalPages}
+                      onClick={goMyRouteNext}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : null}
           </div>

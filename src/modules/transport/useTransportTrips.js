@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { loadTrips, pruneStaleTrips, subscribeTransportMock } from './transportMockStore'
+import {
+  loadTrips,
+  pruneInactiveLiveTrips,
+  pruneStaleTrips,
+  subscribeTransportMock,
+} from './transportMockStore'
 
 /** Live read of mock trips from localStorage (same tab + other tabs). */
 export function useTransportTrips() {
@@ -8,6 +13,7 @@ export function useTransportTrips() {
   useEffect(() => {
     const sync = () => {
       pruneStaleTrips()
+      pruneInactiveLiveTrips()
       setTrips(loadTrips())
     }
     sync()

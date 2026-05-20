@@ -358,6 +358,7 @@ function extractDriverMyRouteList(data) {
   if (!data || typeof data !== 'object') return []
   if (Array.isArray(data)) return data
   if (Array.isArray(data.families)) return data.families
+  if (Array.isArray(data.users)) return data.users
   if (Array.isArray(data.assignments)) return data.assignments
   if (Array.isArray(data.parents)) return data.parents
   if (Array.isArray(data.students)) return data.students
@@ -386,16 +387,52 @@ function flattenDriverMyRouteItems(list) {
   return out
 }
 
-/**
- * GET /api/drivers/my-route — parents / students assigned to this driver’s vehicle (Bearer driver JWT).
- * @returns {Promise<{ ok: true, assignedBus: string, rows: object[] } | { ok: false, error: string, assignedBus: string, rows: [] }>}
- */
-export async function fetchDriverMyRoute(token) {
-  if (!token) {
-    return { ok: false, error: 'Not signed in', assignedBus: '', rows: [] }
+/** @param {object | null} data @param {number} rowsLen @param {number} pageReq @param {number} limitReq */
+function extractDriverMyRoutePaginationMeta(data, rowsLen, pageReq, limitReq) {
+  const root = data && typeof data === 'object' && !Array.isArray(data) ? data : null
+  const p = root ? root.pagination || root.meta || {} : {}
+  const totalRaw = root
+    ? Number(root.total ?? root.totalCount ?? p.total ?? p.totalItems ?? p.count ?? NaN)
+    : NaN
+  let total
+  if (Number.isFinite(totalRaw) && totalRaw >= 0) {
+    total = totalRaw
+  } else {
+    total = pageReq === 1 ? rowsLen : (pageReq - 1) * limitReq + rowsLen
   }
+  const limit = Number(p.limit ?? p.perPage ?? root?.limit ?? limitReq) || limitReq
+  const page = Number(p.page ?? root?.page ?? pageReq) || pageReq
+  let totalPages = Number(p.totalPages ?? p.totalpages ?? NaN)
+  if (!Number.isFinite(totalPages) || totalPages < 1) {
+    totalPages = Math.max(1, Math.ceil(total / limit))
+  }
+  return { total, page, limit, totalPages }
+}
+
+/**
+ * GET /api/drivers/my-route?page=&limit= — roster for this driver’s vehicle (Bearer driver JWT).
+ * @param {string} token
+ * @param {{ page?: number, limit?: number }} [opts]
+ * @returns {Promise<{ ok: true, assignedBus: string, rows: object[], total: number, page: number, limit: number, totalPages: number } | { ok: false, error: string, assignedBus: string, rows: [], total: 0, page: 1, limit: number, totalPages: 1 }>}
+ */
+export async function fetchDriverMyRoute(token, { page = 1, limit = 10 } = {}) {
+  if (!token) {
+    return {
+      ok: false,
+      error: 'Not signed in',
+      assignedBus: '',
+      rows: [],
+      total: 0,
+      page: 1,
+      limit,
+      totalPages: 1,
+    }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || 10))
+  const qs = new URLSearchParams({ page: String(p), limit: String(lim) })
   try {
-    const res = await fetch(`${API_BASE_URL}/api/drivers/my-route`, {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-route?${qs}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -404,7 +441,15 @@ export async function fetchDriverMyRoute(token) {
     })
     const data = await res.json().catch(() => null)
     if (res.status === 404) {
-      return { ok: true, assignedBus: '', rows: [] }
+      return {
+        ok: true,
+        assignedBus: '',
+        rows: [],
+        total: 0,
+        page: p,
+        limit: lim,
+        totalPages: 1,
+      }
     }
     if (!res.ok) {
       return {
@@ -412,6 +457,10 @@ export async function fetchDriverMyRoute(token) {
         error: formatMyRouteError(data, res.status),
         assignedBus: '',
         rows: [],
+        total: 0,
+        page: p,
+        limit: lim,
+        totalPages: 1,
       }
     }
 
@@ -422,23 +471,43 @@ export async function fetchDriverMyRoute(token) {
     if (rows.length === 0 && list.length === 0 && data && typeof data === 'object' && !Array.isArray(data)) {
       const single = mapDriverMyRouteRow(data)
       if (single) {
+        const meta = extractDriverMyRoutePaginationMeta(data, 1, p, lim)
         return {
           ok: true,
           assignedBus: assignedBus || vehicleIdFromMyRoutePayload(data),
           rows: [single],
+          total: Math.max(meta.total, 1),
+          page: meta.page,
+          limit: meta.limit,
+          totalPages: Math.max(meta.totalPages, 1),
         }
       }
     }
+
+    const meta = extractDriverMyRoutePaginationMeta(data, rows.length, p, lim)
 
     return {
       ok: true,
       assignedBus: assignedBus || '',
       rows,
+      total: meta.total,
+      page: meta.page,
+      limit: meta.limit,
+      totalPages: meta.totalPages,
     }
   } catch (e) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
-    return { ok: false, error: msg, assignedBus: '', rows: [] }
+    return {
+      ok: false,
+      error: msg,
+      assignedBus: '',
+      rows: [],
+      total: 0,
+      page: p,
+      limit: lim,
+      totalPages: 1,
+    }
   }
 }
 

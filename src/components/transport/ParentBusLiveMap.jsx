@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Tooltip, Polyline, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { OSM_TILE_ATTRIBUTION, OSM_TILE_LAYER_URL } from '../../modules/transport/transportMapConstants'
+import { OSM_TILE_LAYER_URL } from '../../modules/transport/transportMapConstants'
 import { getBusMapIcon } from '../../modules/transport/transportBusMapIcon'
 
 function MapFollowPosition({ center }) {
@@ -26,12 +26,13 @@ export function ParentBusLiveMap({ position, routeLine = [], label = 'Bus', clas
       <MapContainer
         center={position}
         zoom={15}
-        className="z-0 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+        attributionControl={false}
+        className="z-0 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 [&_.leaflet-control-attribution]:hidden"
         style={{ minHeight: 'min(50vh, 22rem)' }}
         scrollWheelZoom
         aria-label="Map showing bus location"
       >
-        <TileLayer attribution={OSM_TILE_ATTRIBUTION} url={OSM_TILE_LAYER_URL} />
+        <TileLayer attribution="" url={OSM_TILE_LAYER_URL} />
         {line.length ? (
           <Polyline positions={line} pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.75 }} />
         ) : null}

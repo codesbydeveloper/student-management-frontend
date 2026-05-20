@@ -317,9 +317,9 @@ export function useParentBusLiveMap(busId, token, options = {}) {
   const hasFreshPoint = Boolean(socketPoint && !socketPoint.hydrated)
 
   const sourceLabel = hasFreshPoint
-    ? 'Live (Socket.IO)'
+    ? ''
     : connError
-      ? `Live channel: ${connError}`
+      ? `Connection issue: ${connError}`
       : joinedRoomMissing
         ? 'Waiting for the driver to start the trip (no bus room yet)…'
         : socketPoint?.hydrated

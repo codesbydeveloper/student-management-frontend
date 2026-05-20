@@ -335,7 +335,6 @@ export function BusStudentOverview({
       <Card>
         <CardHeader
           title="Bus ↔ student overview"
-          subtitle="Summary per bus. Export downloads bus name, plate, driver, and every assigned student (CSV)."
           action={
             showExport ? (
               <div className="flex flex-wrap gap-2">

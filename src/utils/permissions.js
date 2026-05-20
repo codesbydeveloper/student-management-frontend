@@ -9,6 +9,9 @@ export const ROUTE_ACCESS = {
   students: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER, ROLES.PARENT],
   classes: [ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER],
   parents: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Staff directories — admin only (not principals, teachers, parents, drivers). */
+  admins: [ROLES.ADMIN],
+  principals: [ROLES.ADMIN],
   notifications: [ROLES.TEACHER],
   notifications_create: [ROLES.TEACHER],
   notifications_admin: [ROLES.ADMIN],
@@ -68,6 +71,20 @@ export function canManageStudents(role) {
 
 export function canManageParents(role) {
   return role === ROLES.ADMIN || role === ROLES.PRINCIPAL
+}
+
+export function canManageStaffRoles(role) {
+  return role === ROLES.ADMIN
+}
+
+/** POST /api/auth/register/admin — logged-in admin (bootstrap is public, not used from this UI). */
+export function canCreateStaffAdmin(role) {
+  return role === ROLES.ADMIN
+}
+
+/** POST /api/auth/register/principal — admin only. */
+export function canCreateStaffPrincipal(role) {
+  return role === ROLES.ADMIN
 }
 
 export function canDeleteStudent(role) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -13,7 +13,7 @@ import {
   fetchVisitors,
 } from '../../api/visitorsApi'
 
-const PAGE_LIMIT = 20
+const PAGE_LIMIT = 10
 
 function fmt(iso) {
   if (!iso) return '—'
@@ -31,6 +31,7 @@ export default function AdminVisitorLogsPage() {
   const [visitors, setVisitors] = useState(null)
   const [audit, setAudit] = useState(null)
   const [page, setPage] = useState(1)
+  const [auditPage, setAuditPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [listError, setListError] = useState('')
   const [auditError, setAuditError] = useState('')
@@ -91,6 +92,28 @@ export default function AdminVisitorLogsPage() {
     setAudit(null)
     void loadAudit()
   }, [loadAudit])
+
+  const auditTotalPages = useMemo(() => {
+    if (!Array.isArray(audit) || audit.length === 0) return 1
+    return Math.max(1, Math.ceil(audit.length / PAGE_LIMIT))
+  }, [audit])
+
+  const auditSlice = useMemo(() => {
+    if (!Array.isArray(audit) || audit.length === 0) return []
+    const safe = Math.min(Math.max(1, auditPage), auditTotalPages)
+    const start = (safe - 1) * PAGE_LIMIT
+    return audit.slice(start, start + PAGE_LIMIT)
+  }, [audit, auditPage, auditTotalPages])
+
+  useEffect(() => {
+    if (!Array.isArray(audit)) return
+    if (audit.length === 0) {
+      setAuditPage(1)
+      return
+    }
+    const pages = Math.max(1, Math.ceil(audit.length / PAGE_LIMIT))
+    if (auditPage > pages) setAuditPage(pages)
+  }, [audit, auditPage])
 
   const onAdd = async (e) => {
     e.preventDefault()
@@ -158,6 +181,8 @@ export default function AdminVisitorLogsPage() {
   const totalPages = total > 0 ? Math.max(1, Math.ceil(total / PAGE_LIMIT)) : 1
   const hasPrev = page > 1
   const hasNext = page < totalPages
+  const auditHasPrev = auditPage > 1
+  const auditHasNext = auditPage < auditTotalPages
 
   return (
     <div className="space-y-6">
@@ -183,10 +208,7 @@ export default function AdminVisitorLogsPage() {
       </div>
 
       <Card>
-        <CardHeader
-          title="Visitor log"
-          
-        />
+        <CardHeader title="Visitor log" />
         <form onSubmit={onAdd} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Visitor name</label>
@@ -240,7 +262,7 @@ export default function AdminVisitorLogsPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Visitor history" subtitle="Most recent first." />
+        <CardHeader title="Visitor history" />
         {visitors === null ? (
           <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
             Loading visitors…
@@ -307,7 +329,7 @@ export default function AdminVisitorLogsPage() {
           </div>
         ) : null}
 
-        {total > PAGE_LIMIT ? (
+        {totalPages > 1 ? (
           <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
             <span>
               Page {page} of {totalPages} · {total} total
@@ -343,7 +365,7 @@ export default function AdminVisitorLogsPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Delete audit" subtitle="Who removed which visitor record, and why." />
+        <CardHeader title="Delete audit" />
         {audit === null ? (
           <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
             Loading audit…
@@ -359,7 +381,7 @@ export default function AdminVisitorLogsPage() {
         ) : null}
         {Array.isArray(audit) && audit.length > 0 ? (
           <ul className="space-y-2 text-sm">
-            {audit.map((a) => (
+            {auditSlice.map((a) => (
               <li key={a.id} className="rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2">
                 <div className="flex flex-wrap items-center gap-x-2">
                   <span className="font-medium text-slate-800">{a.visitorNameSnapshot}</span>
@@ -375,6 +397,34 @@ export default function AdminVisitorLogsPage() {
               </li>
             ))}
           </ul>
+        ) : null}
+
+        {audit !== null && Array.isArray(audit) && audit.length > PAGE_LIMIT ? (
+          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              Page {auditPage} of {auditTotalPages} · {audit.length} total
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={!auditHasPrev}
+                onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={!auditHasNext}
+                onClick={() => setAuditPage((p) => Math.min(auditTotalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         ) : null}
       </Card>
     </div>

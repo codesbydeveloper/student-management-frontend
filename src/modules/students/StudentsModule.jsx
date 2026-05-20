@@ -1153,7 +1153,7 @@ export function StudentsModule() {
           title="Students"
           subtitle={
             readOnly
-              ? 'Linked students for your household (read-only).'
+              ? 'your student.'
               : 'Enrollment, guardians, and class placement.'
           }
           action={

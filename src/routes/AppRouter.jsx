@@ -13,6 +13,8 @@ const TeachersPage = lazy(() => import('../pages/TeachersPage.jsx'))
 const StudentsPage = lazy(() => import('../pages/StudentsPage.jsx'))
 const ClassesPage = lazy(() => import('../pages/ClassesPage.jsx'))
 const ParentsPage = lazy(() => import('../pages/ParentsPage.jsx'))
+const AdminsPage = lazy(() => import('../pages/AdminsPage.jsx'))
+const PrincipalsPage = lazy(() => import('../pages/PrincipalsPage.jsx'))
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage.jsx'))
 const NotificationCreatePage = lazy(() => import('../pages/NotificationCreatePage.jsx'))
 const NotificationAdminApprovalPage = lazy(() => import('../pages/NotificationAdminApprovalPage.jsx'))
@@ -140,6 +142,22 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <ParentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admins"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                <AdminsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="principals"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                <PrincipalsPage />
               </ProtectedRoute>
             }
           />

@@ -16,8 +16,12 @@ function fmt(iso) {
   if (!iso) return '—'
   try {
     return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     }).format(new Date(iso))
   } catch {
     return iso
@@ -116,8 +120,7 @@ export default function ParentPtmHistoryPage() {
       <Card>
         <CardHeader
           title="PTM history"
-          subtitle={`From GET /api/ptm-requests/mine?page=&limit=${PAGE_LIMIT} (parent token). Includes school workflow statuses (e.g. awaiting principal) and staff notes when the API sends them.`}
-        />
+          />
 
         {apiRows === null ? (
           <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">

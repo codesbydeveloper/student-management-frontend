@@ -14,7 +14,14 @@ const PAGE_LIMIT = 10
 function fmt(iso) {
   if (!iso) return '—'
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(iso))
   } catch {
     return iso
   }
@@ -175,7 +182,7 @@ export default function StaffPtmHistoryPage() {
           </p>
         ) : null}
 
-        {apiRows !== null && meta.total > PAGE_LIMIT ? (
+        {apiRows !== null && meta.totalPages > 1 ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
             <span>
               Page {page} of {Math.max(1, meta.totalPages)} · {meta.total} total

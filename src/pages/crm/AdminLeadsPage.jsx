@@ -10,7 +10,7 @@ import { createLead, fetchLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
 import { fetchTeachersPicker } from '../../api/teachersApi'
 
-const PAGE_LIMIT = 20
+const PAGE_LIMIT = 10
 
 export default function AdminLeadsPage() {
   const { token } = useAuth()
@@ -367,7 +367,7 @@ export default function AdminLeadsPage() {
           </div>
         ) : null}
 
-        {total > PAGE_LIMIT ? (
+        {totalPages > 1 ? (
           <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
             <span>
               Page {page} of {totalPages} · {total} total
