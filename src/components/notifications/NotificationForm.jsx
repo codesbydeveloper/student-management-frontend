@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
-import { useNotifications } from '../../context/NotificationContext'
 import { useAppData } from '../../context/AppDataContext'
 import { useAuth } from '../../context/AuthContext'
 import { fetchClassesAssigned } from '../../api/classesApi'
@@ -20,7 +19,6 @@ import {
 export function NotificationForm() {
   const navigate = useNavigate()
   const { token } = useAuth()
-  const { createNotification } = useNotifications()
   const { classes, students } = useAppData()
   /** When set (including `[]`), class/section targets use GET /api/classes/assigned; when `undefined`, use app context classes. */
   const [summaryClasses, setSummaryClasses] = useState(undefined)
@@ -103,59 +101,33 @@ export function NotificationForm() {
   const onSubmit = async (e) => {
     e.preventDefault()
     if (invalid) return
-
-    if (token) {
-      setSubmitting(true)
-      try {
-        const body = buildTeacherNotificationBody({
-          title,
-          message,
-          category,
-          targetType,
-          targetIds,
-        })
-        const apiRes = await postTeacherNotification(token, body)
-        if (apiRes.ok) {
-          const msg =
-            (apiRes.data && typeof apiRes.data.message === 'string' && apiRes.data.message) ||
-            'Notification sent to the server.'
-          toast.success(msg)
-          const local = createNotification({
-            title,
-            message,
-            category,
-            targetType,
-            targetIds,
-          })
-          if (!local.ok) {
-            toast.info('Sent to server; local list could not be updated.')
-          }
-          navigate('/notifications')
-          return
-        }
-        if (!apiRes.useClient) {
-          toast.error(apiRes.error)
-          return
-        }
-        toast.info('Could not reach notification API — saving locally for approval.')
-      } finally {
-        setSubmitting(false)
-      }
-    }
-
-    const res = createNotification({
-      title,
-      message,
-      category,
-      targetType,
-      targetIds,
-    })
-    if (!res.ok) {
-      toast.error(res.error || 'Could not submit.')
+    if (!token) {
+      toast.error('Sign in to send a notification.')
       return
     }
-    toast.success('Notification submitted for approval.')
-    navigate('/notifications')
+
+    setSubmitting(true)
+    try {
+      const body = buildTeacherNotificationBody({
+        title,
+        message,
+        category,
+        targetType,
+        targetIds,
+      })
+      const apiRes = await postTeacherNotification(token, body)
+      if (!apiRes.ok) {
+        toast.error(apiRes.error || 'Could not send notification.')
+        return
+      }
+      const msg =
+        (apiRes.data && typeof apiRes.data.message === 'string' && apiRes.data.message) ||
+        'Notification sent.'
+      toast.success(msg)
+      navigate('/notifications')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -229,7 +201,7 @@ export function NotificationForm() {
           Cancel
         </Button>
         <Button type="submit" disabled={invalid || submitting}>
-          {submitting ? 'Sending…' : token ? 'Send notification' : 'Submit for approval'}
+          {submitting ? 'Sending…' : 'Send notification'}
         </Button>
       </div>
     </form>

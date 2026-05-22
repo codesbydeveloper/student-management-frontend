@@ -1,8 +1,7 @@
 import { ROLES, STORAGE_KEYS } from './constants'
-import { SEED_PARENTS } from '../data/seedParents'
 
 /**
- * Student IDs linked to a parent account (directory + persisted parents + optional auth.children).
+ * Student IDs linked to a parent account (API auth user + optional persisted parents cache).
  */
 export function getLinkedStudentIdsForParent(authUser, parentsFromApp) {
   if (!authUser || authUser.role !== ROLES.PARENT) return []
@@ -19,9 +18,6 @@ export function getLinkedStudentIdsForParent(authUser, parentsFromApp) {
   if (Array.isArray(authUser.children) && authUser.children.length) {
     return [...authUser.children]
   }
-
-  const seed = SEED_PARENTS.find((p) => (p.email || '').trim().toLowerCase() === em)
-  if (seed?.studentIds?.length) return [...seed.studentIds]
 
   return []
 }

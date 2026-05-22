@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
-import { useNotifications } from '../context/NotificationContext'
 import { fetchTeacherNotificationsMine } from '../api/notificationsApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -13,7 +12,6 @@ const MINE_PAGE_LIMIT = 20
 
 export default function NotificationsPage() {
   const { token, user } = useAuth()
-  const { getNotificationsByRole } = useNotifications()
 
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -53,10 +51,9 @@ export default function NotificationsPage() {
     return () => window.clearTimeout(t)
   }, [load])
 
-  const localRows = getNotificationsByRole()
   const awaitingFirstTeacherFetch =
     Boolean(token && user?.role === ROLES.TEACHER) && loading && !serverOk
-  const rows = awaitingFirstTeacherFetch ? [] : serverOk ? serverRows : localRows
+  const rows = awaitingFirstTeacherFetch ? [] : serverOk ? serverRows : []
 
   const totalPages = Math.max(1, Math.ceil(total / MINE_PAGE_LIMIT))
   const canPrev = page > 1

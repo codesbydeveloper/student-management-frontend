@@ -1,4 +1,4 @@
-import { MOCK_ROUTE_POINTS, getRouteCenter } from './transportMockData'
+import { getRouteCenter } from './transportMapUtils'
 
 export const TRANSPORT_STORAGE_KEY = 'scs_transport_mock_v1'
 
@@ -110,9 +110,7 @@ export function startTrip(busId, driverUserId) {
   if (existing?.active && String(existing.driverUserId) !== String(driverUserId)) {
     return { ok: false, error: 'This bus already has an active trip by another driver.' }
   }
-  const pts = MOCK_ROUTE_POINTS[busId]
-  const hasRoute = Boolean(pts?.length)
-  const [lat, lng] = hasRoute ? pts[0] : getRouteCenter(busId)
+  const [lat, lng] = getRouteCenter()
   const now = Date.now()
   trips[busId] = {
     active: true,
@@ -123,8 +121,7 @@ export function startTrip(busId, driverUserId) {
     lastLng: lng,
     lastUpdateTs: now,
     startedAt: now,
-    /** When true, demo advances along `MOCK_ROUTE_POINTS` on an interval. */
-    mockAdvance: hasRoute,
+    mockAdvance: false,
   }
   saveTrips(trips)
   return { ok: true }
@@ -142,7 +139,7 @@ export function startLiveTrip(busId, driverUserId) {
     return { ok: false, error: 'This bus already has an active trip by another driver.' }
   }
   const now = Date.now()
-  const [lat, lng] = getRouteCenter(busId)
+  const [lat, lng] = getRouteCenter()
   trips[busId] = {
     active: true,
     busId,
@@ -208,25 +205,8 @@ export function stopTrip(busId, driverUserId) {
  * Advance one step along mock route (simulates GPS ping).
  * @param {string} busId
  */
-export function advanceTripPosition(busId) {
-  const trips = loadTrips()
-  const t = trips[busId]
-  if (!t?.active) return { ok: false }
-  if (t.mockAdvance === false) return { ok: false }
-  const pts = MOCK_ROUTE_POINTS[busId]
-  if (!pts?.length) return { ok: false }
-  const nextIdx = (t.routeIndex + 1) % pts.length
-  const [lat, lng] = pts[nextIdx]
-  const now = Date.now()
-  trips[busId] = {
-    ...t,
-    routeIndex: nextIdx,
-    lastLat: lat,
-    lastLng: lng,
-    lastUpdateTs: now,
-  }
-  saveTrips(trips)
-  return { ok: true, lat, lng }
+export function advanceTripPosition() {
+  return { ok: false }
 }
 
 export function subscribeTransportMock(callback) {

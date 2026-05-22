@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
-import { useNotifications } from '../context/NotificationContext'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ApprovalTable } from '../components/notifications/ApprovalTable'
@@ -25,7 +24,6 @@ const PAGE_LIMIT = 10
 
 export default function NotificationPrincipalApprovalPage() {
   const { user, token } = useAuth()
-  const { getNotificationsByRole, approveNotification, rejectNotification } = useNotifications()
 
   const [serverPending, setServerPending] = useState([])
   const [serverListOk, setServerListOk] = useState(false)
@@ -92,60 +90,44 @@ export default function NotificationPrincipalApprovalPage() {
     if (!token) setSettledRows([])
   }, [token])
 
-  const localRows = getNotificationsByRole()
   const awaitingServerList =
     Boolean(token && user?.role === ROLES.PRINCIPAL) && listLoading && !listError && !serverListOk
 
   const rows = useMemo(() => {
-    if (awaitingServerList) return []
-    if (!serverListOk) return localRows
+    if (awaitingServerList || !serverListOk) return []
     const ids = new Set(serverPending.map((n) => String(n.id)))
     const extras = settledRows.filter((s) => !ids.has(String(s.id)))
     return [...serverPending, ...extras]
-  }, [awaitingServerList, serverListOk, serverPending, localRows, settledRows])
+  }, [awaitingServerList, serverListOk, serverPending, settledRows])
 
   const onApprove = async (id) => {
-    if (serverListOk && token) {
-      const sid = String(id)
-      const snapshot = serverPending.find((n) => String(n.id) === sid)
-      const res = await patchNotificationApprove(token, id)
-      if (res.ok) {
-        toast.success('Approved successfully.')
-        const d = res.data
-        const title = typeof d?.title === 'string' ? d.title : serverPending.find((n) => n.id === id)?.title || ''
-        setDelivery({ open: true, title })
-        if (snapshot) {
-          setSettledRows((prev) => [
-            {
-              ...snapshot,
-              status: NOTIFICATION_STATUSES.APPROVED,
-              approvedAt: pickApprovedAtMs(d, Date.now()),
-            },
-            ...prev.filter((x) => String(x.id) !== sid),
-          ])
-        }
-        requestParentMessagesRefresh()
-        await loadPending()
-        return
-      }
-      if (!res.useClient) {
-        toast.error(res.error)
-        return
-      }
-      toast.info('Approve API unavailable — trying local queue.')
+    if (!serverListOk || !token) {
+      toast.error('Sign in and load the approval queue from the server first.')
+      return
     }
-
-    const res = approveNotification(id, user.role)
+    const sid = String(id)
+    const snapshot = serverPending.find((n) => String(n.id) === sid)
+    const res = await patchNotificationApprove(token, id)
     if (!res.ok) {
       toast.error(res.error || 'Unable to approve.')
       return
     }
     toast.success('Approved successfully.')
+    const d = res.data
+    const title = typeof d?.title === 'string' ? d.title : serverPending.find((n) => n.id === id)?.title || ''
+    setDelivery({ open: true, title })
+    if (snapshot) {
+      setSettledRows((prev) => [
+        {
+          ...snapshot,
+          status: NOTIFICATION_STATUSES.APPROVED,
+          approvedAt: pickApprovedAtMs(d, Date.now()),
+        },
+        ...prev.filter((x) => String(x.id) !== sid),
+      ])
+    }
     requestParentMessagesRefresh()
-    setDelivery({
-      open: true,
-      title: res.notification?.title || '',
-    })
+    await loadPending()
   }
 
   const closeRejectModal = () => {
@@ -173,34 +155,24 @@ export default function NotificationPrincipalApprovalPage() {
         await loadPending()
         return
       }
-      if (!res.useClient) {
-        toast.error(res.error)
-        return
-      }
-      toast.info('Reject API unavailable — trying local queue.')
+      toast.error(res.error || 'Unable to reject.')
     } finally {
       setRejectSubmitting(false)
     }
   }
 
   const onReject = async (id) => {
-    if (serverListOk && token) {
-      const row = serverPending.find((n) => String(n.id) === String(id))
-      setRejectModal({
-        open: true,
-        id,
-        reason: '',
-        title: row?.title || '',
-      })
+    if (!serverListOk || !token) {
+      toast.error('Sign in and load the approval queue from the server first.')
       return
     }
-
-    const res = rejectNotification(id, user.role)
-    if (!res.ok) {
-      toast.error(res.error || 'Unable to reject.')
-      return
-    }
-    toast.info('Rejected')
+    const row = serverPending.find((n) => String(n.id) === String(id))
+    setRejectModal({
+      open: true,
+      id,
+      reason: '',
+      title: row?.title || '',
+    })
   }
 
   return (

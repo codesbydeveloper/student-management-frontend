@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { useNotifications } from '../../context/NotificationContext'
 import { fetchParentMessages } from '../../api/parentsApi'
 import { useParentMessageViewer } from '../../hooks/useParentMessageViewer'
 import { onParentMessagesRefreshRequested } from '../../utils/parentMessagesRefreshBus'
@@ -90,12 +89,7 @@ export function ParentRecentMessages() {
     }
   }, [useServerFeed, token, refreshKey])
 
-  const localPreview = useMemo(() => {
-    if (useServerFeed || !user?.id) return []
-    return getParentNotifications(user.id, 'all').slice(0, PREVIEW_LIMIT)
-  }, [useServerFeed, user?.id, getParentNotifications])
-
-  const displayItems = useServerFeed ? items : localPreview
+  const displayItems = items
 
   const onRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1)

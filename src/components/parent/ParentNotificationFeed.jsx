@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
-import { useNotifications } from '../../context/NotificationContext'
 import { fetchParentMessages } from '../../api/parentsApi'
 import { useParentMessageViewer } from '../../hooks/useParentMessageViewer'
 import { getLinkedStudentIdsForParent } from '../../utils/parentUtils'
@@ -25,17 +24,13 @@ function mergeParentMessageReadState(prev, incoming) {
   )
 }
 
-/**
- * School messages for parents: loads from GET /api/parents/messages when signed in as a parent;
- * otherwise uses the in-app simulation from NotificationContext.
- */
+/** School messages for parents via GET /api/parents/messages. */
 export function ParentNotificationFeed() {
   const location = useLocation()
   const navigate = useNavigate()
   const openedFromBellRef = useRef(null)
   const { user, token } = useAuth()
   const { parents, students } = useAppData()
-  const { getParentNotifications } = useNotifications()
   const [filterStudentId, setFilterStudentId] = useState('all')
 
   const useServerFeed = Boolean(token && user?.role === ROLES.PARENT)
@@ -161,12 +156,7 @@ export function ParentNotificationFeed() {
     })
   }, [serverItems, filterStudentId])
 
-  const localItems = useMemo(
-    () => (useServerFeed ? [] : getParentNotifications(user.id, filterStudentId)),
-    [useServerFeed, getParentNotifications, user.id, filterStudentId],
-  )
-
-  const items = useServerFeed ? filteredServerItems : localItems
+  const items = filteredServerItems
 
   return (
     <div className="space-y-6">

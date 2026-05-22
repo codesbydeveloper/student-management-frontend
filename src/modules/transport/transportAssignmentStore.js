@@ -1,10 +1,3 @@
-import {
-  DEFAULT_DRIVER_BUS_ID,
-  DEFAULT_PARENT_BUS_ID,
-  STATIC_DRIVER_BUS_BY_USER_ID,
-  STATIC_PARENT_BUS_BY_USER_ID,
-} from './transportMockData'
-
 const STORAGE_KEY = 'scs_transport_assignments_v1'
 const EVENT = 'scs-transport-assignments'
 
@@ -35,22 +28,18 @@ function saveRaw(data) {
   notifyTransportAssignmentListeners()
 }
 
-/** Effective bus for a signed-in parent (`users.id` from JWT). */
+/** Effective bus for a signed-in parent (`users.id` from JWT) — local override only; prefer API. */
 export function getParentAssignedBusId(user) {
   const key = user?.id != null ? String(user.id) : ''
-  if (!key) return DEFAULT_PARENT_BUS_ID
-  const overrides = loadRaw().parentBus
-  if (overrides[key]) return overrides[key]
-  return STATIC_PARENT_BUS_BY_USER_ID[key] || DEFAULT_PARENT_BUS_ID
+  if (!key) return ''
+  return loadRaw().parentBus[key] || ''
 }
 
-/** Effective bus for a signed-in driver (`users.id` from JWT). */
+/** Effective bus for a signed-in driver (`users.id` from JWT) — local override only; prefer API. */
 export function getDriverBusIdForUser(user) {
   const key = user?.id != null ? String(user.id) : ''
-  if (!key) return DEFAULT_DRIVER_BUS_ID
-  const overrides = loadRaw().driverBus
-  if (overrides[key]) return overrides[key]
-  return STATIC_DRIVER_BUS_BY_USER_ID[key] || DEFAULT_DRIVER_BUS_ID
+  if (!key) return ''
+  return loadRaw().driverBus[key] || ''
 }
 
 export function setParentBusForUser(parentUserId, busId) {

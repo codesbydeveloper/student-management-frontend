@@ -6,58 +6,24 @@ import {
   useState,
   useEffect,
 } from 'react'
-import { SEED_TEACHERS } from '../data/seedTeachers'
-import { SEED_CLASSES } from '../data/seedClasses'
-import { SEED_STUDENTS } from '../data/seedStudents'
-import { SEED_PARENTS } from '../data/seedParents'
-import { SEED_DRIVERS } from '../data/seedDrivers'
-import { STORAGE_KEYS } from '../utils/constants'
 
 const AppDataContext = createContext(null)
 
-const defaultState = () => ({
-  teachers: SEED_TEACHERS.map((t) => ({ ...t })),
-  classes: SEED_CLASSES.map((c) => ({ ...c, teacherIds: [...c.teacherIds] })),
-  students: SEED_STUDENTS.map((s) => ({ ...s })),
-  parents: SEED_PARENTS.map((p) => ({ ...p, studentIds: [...p.studentIds] })),
-  drivers: SEED_DRIVERS.map((d) => ({ ...d })),
+const emptyState = () => ({
+  teachers: [],
+  classes: [],
+  students: [],
+  parents: [],
+  drivers: [],
 })
 
-function loadPersisted() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.APP_DATA)
-    if (!raw) return null
-    const data = JSON.parse(raw)
-    if (!data?.teachers || !data?.classes || !data?.students || !data?.parents) {
-      return null
-    }
-    if (!Array.isArray(data.drivers)) {
-      data.drivers = SEED_DRIVERS.map((d) => ({ ...d }))
-    }
-    return data
-  } catch {
-    return null
-  }
-}
-
-function savePersisted(state) {
-  localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(state))
-}
-
 export function AppDataProvider({ children }) {
-  const [state, setState] = useState(defaultState)
+  const [state, setState] = useState(emptyState)
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    const persisted = loadPersisted()
-    if (persisted) setState(persisted)
     setHydrated(true)
   }, [])
-
-  useEffect(() => {
-    if (!hydrated) return
-    savePersisted(state)
-  }, [state, hydrated])
 
   const setTeachers = useCallback((updater) => {
     setState((s) => ({

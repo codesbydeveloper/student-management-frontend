@@ -1,4 +1,3 @@
-import { SEED_USERS } from '../data/seedUsers'
 import { STORAGE_KEYS } from './constants'
 
 function readCustomUsers() {
@@ -14,10 +13,10 @@ function readCustomUsers() {
 
 export function isEmailTaken(email) {
   const n = email.trim().toLowerCase()
-  return [...SEED_USERS, ...readCustomUsers()].some((u) => u.email.toLowerCase() === n)
+  return readCustomUsers().some((u) => u.email.toLowerCase() === n)
 }
 
-/** True if email exists on seed directory, custom directory, teachers, or parents. */
+/** True if email exists in custom directory, teachers, or parents from API/cache. */
 export function isEmailRegisteredAnywhere(email, teachers = [], parents = []) {
   const n = email.trim().toLowerCase()
   if (isEmailTaken(email)) return true

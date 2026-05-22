@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
-import { useNotifications } from '../../context/NotificationContext'
 import { fetchTeacherDashboard } from '../../api/teachersApi'
 import { Card } from '../ui/Card'
 import { NOTIFICATION_STATUSES } from '../../utils/notificationConstants'
@@ -36,12 +35,11 @@ function statusBadge(status) {
 }
 
 /**
- * Teacher home dashboard — GET /api/teachers/dashboard when a token is present; local data fills gaps.
+ * Teacher home dashboard — GET /api/teachers/dashboard.
  */
 export function TeacherDashboardOverview() {
   const { user, token } = useAuth()
   const { teachers, students, classes, hydrated } = useAppData()
-  const { notifications } = useNotifications()
 
   const [apiDashboard, setApiDashboard] = useState(null)
   const [apiLoading, setApiLoading] = useState(false)
@@ -95,41 +93,6 @@ export function TeacherDashboardOverview() {
     return students.filter((s) => set.has(String(s.classId))).length
   }, [students, assignedClassIds])
 
-  const myNotifications = useMemo(
-    () => (notifications || []).filter((n) => String(n.createdBy) === String(user?.id)),
-    [notifications, user?.id],
-  )
-
-  const clientNotifCounts = useMemo(() => {
-    let approved = 0
-    let rejected = 0
-    let pending = 0
-    for (const n of myNotifications) {
-      if (n.status === NOTIFICATION_STATUSES.APPROVED) approved += 1
-      else if (n.status === NOTIFICATION_STATUSES.REJECTED) rejected += 1
-      else if (
-        n.status === NOTIFICATION_STATUSES.PENDING_ADMIN ||
-        n.status === NOTIFICATION_STATUSES.PENDING_PRINCIPAL
-      )
-        pending += 1
-    }
-    return { approved, rejected, pending }
-  }, [myNotifications])
-
-  const clientRecentNotices = useMemo(
-    () =>
-      [...myNotifications]
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 5)
-        .map((n) => ({
-          id: n.id,
-          title: n.title || 'Untitled',
-          status: n.status,
-          createdAt: n.createdAt,
-        })),
-    [myNotifications],
-  )
-
   const dash = apiDashboard
 
   const assignedClassesCount =
@@ -148,15 +111,12 @@ export function TeacherDashboardOverview() {
 
   const notifCounts = useMemo(() => {
     const a = apiDashboard?.notificationCounts
-    if (a && (a.approved != null || a.rejected != null || a.pending != null)) {
-      return {
-        approved: a.approved ?? 0,
-        rejected: a.rejected ?? 0,
-        pending: a.pending ?? 0,
-      }
+    return {
+      approved: a?.approved ?? 0,
+      rejected: a?.rejected ?? 0,
+      pending: a?.pending ?? 0,
     }
-    return clientNotifCounts
-  }, [apiDashboard?.notificationCounts, clientNotifCounts])
+  }, [apiDashboard?.notificationCounts])
 
   const ptmUpcoming =
     dash?.ptmCounts?.upcoming != null && Number.isFinite(Number(dash.ptmCounts.upcoming))
@@ -174,7 +134,7 @@ export function TeacherDashboardOverview() {
       ? String(dash.assignedLeadsTotal)
       : '—'
 
-  const recentNoticesRows = dash?.recentNotices?.length ? dash.recentNotices : clientRecentNotices
+  const recentNoticesRows = Array.isArray(dash?.recentNotices) ? dash.recentNotices : []
 
   return (
     <div className={`space-y-6 ${apiLoading ? 'opacity-70' : ''}`}>

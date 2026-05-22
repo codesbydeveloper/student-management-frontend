@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
-import { usePhase6 } from '../../context/Phase6Context'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { PtmStatusBadge } from '../../components/phase6/PtmStatusBadge'
@@ -30,8 +29,6 @@ function fmt(iso) {
 
 export default function ParentPtmHistoryPage() {
   const { user, token } = useAuth()
-  const { parentPtmList } = usePhase6()
-
   /** `null` = loading, [] = loaded empty, array = loaded rows. */
   const [apiRows, setApiRows] = useState(null)
   const [page, setPage] = useState(1)
@@ -66,29 +63,12 @@ export default function ParentPtmHistoryPage() {
     void load(1)
   }, [load])
 
-  /**
-   * Merge: API rows are authoritative. Anything in the local optimistic store
-   * that doesn't have a matching API row (recent submission, server hasn't
-   * indexed it yet, or the page filter excludes it) is appended afterwards so
-   * the parent always sees what they just submitted.
-   */
   const merged = useMemo(() => {
     const api = Array.isArray(apiRows) ? apiRows : []
-    const apiByTriple = new Set(
-      api.map((r) => `${r.studentId}|${r.teacherUserId}|${r.reason}`),
-    )
-    const apiByCreated = new Set(api.map((r) => r.createdAt))
-    const localExtras = parentPtmList.filter((r) => {
-      const tripleKey = `${r.studentId}|${r.teacherUserId}|${r.reason}`
-      if (apiByTriple.has(tripleKey)) return false
-      if (apiByCreated.has(r.createdAt)) return false
-      return true
-    })
-    const all = [...api, ...localExtras]
-    return all.sort(
+    return [...api].sort(
       (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt),
     )
-  }, [apiRows, parentPtmList])
+  }, [apiRows])
 
   const totalPages = total > 0 ? Math.max(1, Math.ceil(total / PAGE_LIMIT)) : 1
   const hasPrev = page > 1

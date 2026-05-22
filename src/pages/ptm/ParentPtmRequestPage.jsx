@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
-import { usePhase6 } from '../../context/Phase6Context'
-import { useAppData } from '../../context/AppDataContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { SearchableSingleSelect } from '../../components/SearchableSingleSelect'
@@ -14,8 +12,6 @@ import { ROLES } from '../../utils/constants'
 
 export default function ParentPtmRequestPage() {
   const { user, token } = useAuth()
-  const { teachers } = useAppData()
-  const { addPtmRequest } = usePhase6()
 
   const [myStudents, setMyStudents] = useState(null)
   const [studentId, setStudentId] = useState('')
@@ -67,32 +63,16 @@ export default function ParentPtmRequestPage() {
     }
   }, [token, user?.role])
 
-  /**
-   * Prefer GET /api/teachers/picker; fall back to local AppData teachers if the API
-   * is unavailable so the form remains usable. Both lists are deduped by id.
-   */
   const teacherOptions = useMemo(() => {
-    const fromApi = Array.isArray(pickerTeachers)
-      ? pickerTeachers.map((opt) => ({
-          id: String(opt.value),
-          fullName: opt.label,
-          subtext: opt.subtext || '',
-          source: 'api',
-        }))
-      : []
-    if (fromApi.length > 0) {
-      return fromApi.sort((a, b) => a.fullName.localeCompare(b.fullName))
-    }
-    return teachers
-      .filter((t) => t.active)
-      .map((t) => ({
-        id: String(t.id),
-        fullName: t.fullName,
-        subtext: [t.email, t.subject].filter(Boolean).join(' · '),
-        source: 'local',
+    if (!Array.isArray(pickerTeachers)) return []
+    return pickerTeachers
+      .map((opt) => ({
+        id: String(opt.value),
+        fullName: opt.label,
+        subtext: opt.subtext || '',
       }))
       .sort((a, b) => a.fullName.localeCompare(b.fullName))
-  }, [pickerTeachers, teachers])
+  }, [pickerTeachers])
 
   const selectedStudent = useMemo(() => {
     if (!Array.isArray(myStudents) || !studentId) return null
@@ -128,17 +108,6 @@ export default function ParentPtmRequestPage() {
         toast.error(apiRes.error)
         return
       }
-
-      // Mirror into the local Phase 6 store so PTM history shows the row even
-      // before the backend list endpoint is wired up. Ignore duplicate-triple
-      // errors here — the server already accepted the request.
-      addPtmRequest({
-        studentId,
-        studentName: selectedStudent?.fullName,
-        teacherUserId: teacherId,
-        teacherName: selectedTeacher?.fullName,
-        reason,
-      })
 
       toast.success('PTM request sent.')
       setReason('')
@@ -220,8 +189,7 @@ export default function ParentPtmRequestPage() {
             />
             {pickerError ? (
               <p className="mt-2 text-xs text-amber-800">
-                Could not load teachers from your school ({pickerError}). Showing the saved school directory
-                until we can reach the server.
+                Could not load teachers from your school ({pickerError}).
               </p>
             ) : null}
             {!pickerError && Array.isArray(pickerTeachers) && pickerTeachers.length === 0 ? (

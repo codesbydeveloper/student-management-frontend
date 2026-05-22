@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
+import { fetchBuses } from '../api/busesApi'
 import { assignDriverTransport, fetchDriverAssignments, fetchDriversPicker } from '../api/driversApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -9,21 +10,15 @@ import { Label } from '../components/ui/Label'
 import { Select } from '../components/ui/Select'
 import { Input } from '../components/ui/Input'
 import {
-  getDriverBusIdForUser,
-  getParentAssignedBusId,
-  loadAssignmentOverrides,
   resetAllTransportAssignmentOverrides,
   setDriverBusForUser,
   setParentBusForUser,
   clearParentBusOverride,
   clearDriverBusOverride,
 } from '../modules/transport/transportAssignmentStore'
-import { STATIC_DRIVER_BUS_BY_USER_ID, STATIC_PARENT_BUS_BY_USER_ID, getAllBusSelectOptions } from '../modules/transport/transportMockData'
+import { getAllBusSelectOptions } from '../modules/transport/transportMapUtils'
 import { useBusRegistryRevision } from '../modules/transport/busRegistryStore'
 import { useTransportAssignmentRevision } from '../modules/transport/useTransportAssignmentRevision'
-
-const SUGGESTED_PARENT_LOGINS = [{ id: '7', label: 'Demo parent (users.id 7)' }]
-const SUGGESTED_DRIVER_LOGINS = [{ id: '41', label: 'Demo driver (users.id 41)' }]
 
 const textareaClass =
   'mt-1.5 w-full min-h-[7rem] rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-inner shadow-slate-900/[0.03] transition placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25'
@@ -42,10 +37,28 @@ export default function TransportAssignmentsPage() {
   const { token } = useAuth()
   const revision = useTransportAssignmentRevision()
   const busRegistryRev = useBusRegistryRevision()
-  const allBusOptions = useMemo(() => getAllBusSelectOptions(), [revision, busRegistryRev])
+  const [apiBusOptions, setApiBusOptions] = useState([])
+  const localBusOptions = useMemo(() => getAllBusSelectOptions(), [revision, busRegistryRev])
+  const allBusOptions = useMemo(() => {
+    const seen = new Set()
+    const out = []
+    for (const b of apiBusOptions) {
+      const id = String(b.id ?? '').trim()
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      out.push(b)
+    }
+    for (const b of localBusOptions) {
+      const id = String(b.id ?? '').trim()
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      out.push(b)
+    }
+    return out
+  }, [apiBusOptions, localBusOptions])
 
-  const [routeBusId, setRouteBusId] = useState('bus-1')
-  const [routeDriverUserId, setRouteDriverUserId] = useState(SUGGESTED_DRIVER_LOGINS[0].id)
+  const [routeBusId, setRouteBusId] = useState('')
+  const [routeDriverUserId, setRouteDriverUserId] = useState('')
   const [routeParentIdsText, setRouteParentIdsText] = useState('')
 
   const [pickerDrivers, setPickerDrivers] = useState([])
@@ -76,6 +89,32 @@ export default function TransportAssignmentsPage() {
   useEffect(() => {
     void loadDriverPicker()
   }, [loadDriverPicker])
+
+  useEffect(() => {
+    if (!token) {
+      setApiBusOptions([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const res = await fetchBuses(token, { page: 1, limit: 100 })
+      if (cancelled) return
+      if (res.ok) {
+        setApiBusOptions(
+          res.buses.map((b) => ({
+            id: String(b.id),
+            number: b.numberPlate || b.name || String(b.id),
+            routeName: b.routeName || b.name || '',
+          })),
+        )
+      } else {
+        setApiBusOptions([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, busRegistryRev])
 
   const loadAssignmentsFromApi = useCallback(async () => {
     if (!token) {
@@ -123,75 +162,14 @@ export default function TransportAssignmentsPage() {
     setRouteBusId(row.vehicleId)
   }
 
-  /** When API picker loads, drop demo seed ids (e.g. 41) that are not in the response. */
   useEffect(() => {
-    if (pickerDrivers.length === 0) {
-      setRouteDriverUserId(SUGGESTED_DRIVER_LOGINS[0].id)
-      setRouteBusId('bus-1')
-      return
-    }
+    if (pickerDrivers.length === 0) return
     setRouteDriverUserId((prev) => (pickerDrivers.some((d) => d.userId === prev) ? prev : ''))
     setRouteBusId((prev) => (pickerDrivers.some((d) => d.vehicleId === prev) ? prev : ''))
   }, [pickerDrivers])
 
-  const overrides = useMemo(() => loadAssignmentOverrides(), [revision])
-
-  const parentRows = useMemo(() => {
-    const ids = new Set([
-      ...Object.keys(STATIC_PARENT_BUS_BY_USER_ID),
-      ...Object.keys(overrides.parentBus),
-    ])
-    return [...ids]
-      .sort()
-      .map((uid) => ({
-        userId: uid,
-        busId: getParentAssignedBusId({ id: uid }),
-        isOverride: Boolean(overrides.parentBus[uid]),
-        role: 'Parent',
-      }))
-  }, [overrides.parentBus, revision])
-
-  const driverRows = useMemo(() => {
-    const ids = new Set([
-      ...Object.keys(STATIC_DRIVER_BUS_BY_USER_ID),
-      ...Object.keys(overrides.driverBus),
-    ])
-    return [...ids]
-      .sort()
-      .map((uid) => ({
-        userId: uid,
-        busId: getDriverBusIdForUser({ id: uid }),
-        isOverride: Boolean(overrides.driverBus[uid]),
-        role: 'Driver',
-      }))
-  }, [overrides.driverBus, revision])
-
-  const summaryRows = useMemo(() => {
-    const merged = [...driverRows, ...parentRows]
-    return merged.sort((a, b) => {
-      const busA = String(a.busId ?? '')
-      const busB = String(b.busId ?? '')
-      if (busA !== busB) return busA.localeCompare(busB)
-      if (a.role !== b.role) return a.role === 'Driver' ? -1 : 1
-      return String(a.userId).localeCompare(String(b.userId))
-    })
-  }, [driverRows, parentRows])
-
-  const localDisplayRows = useMemo(
-    () =>
-      summaryRows.map((row) => ({
-        key: `${row.role}-${row.userId}`,
-        role: row.role,
-        userId: row.userId,
-        busId: row.busId,
-        sourceLabel: row.isOverride ? 'Saved in browser' : 'Seed / default',
-        clearable: Boolean(row.isOverride),
-      })),
-    [summaryRows],
-  )
-
   const tableRows = useMemo(() => {
-    if (!token) return localDisplayRows
+    if (!token) return []
     if (assignmentsStatus === 'uninitialized' || assignmentsStatus === 'loading') return null
     if (assignmentsStatus === 'success') {
       return serverAssignmentRows.map((row) => ({
@@ -203,8 +181,8 @@ export default function TransportAssignmentsPage() {
         clearable: false,
       }))
     }
-    return localDisplayRows
-  }, [token, assignmentsStatus, serverAssignmentRows, localDisplayRows])
+    return []
+  }, [token, assignmentsStatus, serverAssignmentRows])
 
   const applyRouteTogether = async () => {
     const bid = String(routeBusId ?? '').trim()
@@ -336,7 +314,7 @@ export default function TransportAssignmentsPage() {
             ) : (
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <Label htmlFor="ta-route-bus">Demo bus (picker empty or not signed in)</Label>
+                  <Label htmlFor="ta-route-bus">Bus / vehicle</Label>
                   <Select
                     id="ta-route-bus"
                     value={routeBusId}
@@ -360,13 +338,6 @@ export default function TransportAssignmentsPage() {
                     className="mt-1.5"
                     aria-label="Driver user id"
                   />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {SUGGESTED_DRIVER_LOGINS.map((s) => (
-                      <Button key={s.id} type="button" variant="secondary" size="sm" onClick={() => setRouteDriverUserId(s.id)}>
-                        Use {s.id}
-                      </Button>
-                    ))}
-                  </div>
                 </div>
               </div>
             )}
@@ -381,25 +352,6 @@ export default function TransportAssignmentsPage() {
                 className={textareaClass}
                 aria-label="Parent user ids bulk"
               />
-              <div className="mt-2 flex flex-wrap gap-2">
-                {SUGGESTED_PARENT_LOGINS.map((s) => (
-                  <Button
-                    key={s.id}
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() =>
-                      setRouteParentIdsText((prev) => {
-                        const trimmed = prev.trim()
-                        const next = trimmed ? `${trimmed}, ${s.id}` : s.id
-                        return next
-                      })
-                    }
-                  >
-                    Append {s.id}
-                  </Button>
-                ))}
-              </div>
             </div>
 
             <Button
