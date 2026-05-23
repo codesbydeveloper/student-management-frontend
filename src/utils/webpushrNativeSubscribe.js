@@ -5,6 +5,21 @@ const WEBPUSHR_PUBLIC_KEY =
 const SW_PATH = '/webpushr-sw.js'
 const SUBSCRIBE_URL = 'https://subscriber.webpushr.com/subscribe/'
 
+import {
+  dismissWebpushrCustomPrompt,
+  getNotificationPermission,
+  hasActiveWebpushrServiceWorker,
+  hasStoredPushEndpoint,
+  hasWebpushrSwSetupDone,
+  isPushPermissionRequestInFlight,
+  markPushPromptCompleted,
+  markWebpushrSwSetupDone,
+  setPushPermissionRequestInFlight,
+  shouldOfferPushPermissionOnce,
+} from './pushPermission'
+
+let subscribeInFlight = null
+
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -52,45 +67,99 @@ async function postSubscriptionToWebpushr(subscription) {
   return res.text()
 }
 
+async function registerWebpushrServiceWorker() {
+  const existing = await navigator.serviceWorker.getRegistration('/')
+  const activeScript = existing?.active?.scriptURL || ''
+  if (existing && activeScript.includes('webpushr')) {
+    return existing
+  }
+
+  if (hasWebpushrSwSetupDone()) {
+    return existing
+  }
+
+  markWebpushrSwSetupDone()
+  return navigator.serviceWorker.register(SW_PATH, { scope: '/' })
+}
+
 /**
- * Subscribe on the current origin (browser permission dialog here — no wpush.io window).
- * Works on https and on http://localhost where Webpushr’s HTTP-label flow would open a popup.
+ * @param {{ requestPermission?: boolean }} [options]
  */
-export async function nativeWebpushrSubscribe() {
+export async function nativeWebpushrSubscribe(options = {}) {
+  const { requestPermission = false } = options
+
   if (!('Notification' in window) || !('serviceWorker' in navigator)) {
     return { ok: false, reason: 'unsupported' }
   }
 
-  const permission = await Notification.requestPermission()
-  if (permission !== 'granted') {
-    return { ok: false, reason: permission }
+  const perm = getNotificationPermission()
+
+  if (perm === 'granted' && hasStoredPushEndpoint()) {
+    return { ok: true }
   }
 
-  let registration = await navigator.serviceWorker.getRegistration('/')
-  const activeScript = registration?.active?.scriptURL || ''
-  if (!registration || !activeScript.includes('webpushr')) {
-    registration = await navigator.serviceWorker.register(SW_PATH, { scope: '/' })
-  }
-  await navigator.serviceWorker.ready
-
-  let subscription = await registration.pushManager.getSubscription()
-  if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(WEBPUSHR_PUBLIC_KEY),
-    })
+  if (perm === 'denied') {
+    return { ok: false, reason: 'denied' }
   }
 
-  await postSubscriptionToWebpushr(subscription)
+  if (!requestPermission) {
+    if (perm === 'default') {
+      return { ok: false, reason: 'not_requested' }
+    }
+    if (perm !== 'granted') {
+      return { ok: false, reason: perm }
+    }
+  }
 
-  setWebpushrLocal('endpoint', subscription.endpoint)
-  setWebpushrCookie('_webpushrEndPoint', subscription.endpoint, 90)
-  sessionStorage.setItem('_webpushrPromptAction', 'Approve')
+  if (perm === 'default' && requestPermission) {
+    if (!shouldOfferPushPermissionOnce() || isPushPermissionRequestInFlight()) {
+      return { ok: false, reason: 'already_asked' }
+    }
+    setPushPermissionRequestInFlight(true)
+    try {
+      const result = await Notification.requestPermission()
+      markPushPromptCompleted(result === 'granted' ? 'Approve' : 'Deny')
+      dismissWebpushrCustomPrompt()
+      if (result !== 'granted') {
+        return { ok: false, reason: result }
+      }
+    } finally {
+      setPushPermissionRequestInFlight(false)
+    }
+  }
 
-  const wrapper = document.getElementById('webpushr-prompt-wrapper')
-  if (wrapper) wrapper.innerHTML = ''
+  if (subscribeInFlight) return subscribeInFlight
 
-  return { ok: true }
+  subscribeInFlight = (async () => {
+    try {
+      const registration = await registerWebpushrServiceWorker()
+      if (!registration) {
+        return { ok: false, reason: 'no_service_worker' }
+      }
+      await navigator.serviceWorker.ready
+
+      let subscription = await registration.pushManager.getSubscription()
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(WEBPUSHR_PUBLIC_KEY),
+        })
+      }
+
+      await postSubscriptionToWebpushr(subscription)
+      setWebpushrLocal('endpoint', subscription.endpoint)
+      setWebpushrCookie('_webpushrEndPoint', subscription.endpoint, 90)
+      markPushPromptCompleted('Approve')
+      dismissWebpushrCustomPrompt()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, reason: err?.message || 'error' }
+    } finally {
+      subscribeInFlight = null
+    }
+  })()
+
+  return subscribeInFlight
 }
 
 export function isWpushSubscribePopupUrl(url) {

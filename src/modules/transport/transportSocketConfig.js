@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../../utils/constants'
  * Live transport — Socket.IO on the **same host** as the REST API by default.
  *
  * **Backend (Express + Socket.IO):**
- * - URL: same as `VITE_API_URL` / `API_BASE_URL` (default production: `https://studioagashe.com`).
+ * - URL: same as `VITE_API_URL` / `API_BASE_URL` (default production: `https://sch-managment.thevrikshara.com`).
  * - Path: `/socket.io` (default; set explicitly for clarity).
  * - Auth: `io(url, { auth: { token: jwt } })` — same Bearer as REST.
  * - Parent: server may auto-join `bus-<numericId>`; optional `socket.emit('subscribe:bus', { busId: <number> })`.

@@ -1,4 +1,11 @@
 import { isWpushSubscribePopupUrl, nativeWebpushrSubscribe } from './webpushrNativeSubscribe'
+import {
+  getNotificationPermission,
+  hasActiveWebpushrServiceWorker,
+  hasStoredPushEndpoint,
+  markPushPromptCompleted,
+  shouldOfferPushPermissionOnce,
+} from './pushPermission'
 
 /** Webpushr site key (from Webpushr dashboard). */
 export const WEBPUSHR_PUBLIC_KEY =
@@ -40,7 +47,6 @@ function injectWebpushrScript() {
   scriptInjected = true
 }
 
-/** Block Webpushr’s HTTP-label popup; run same-page subscribe instead. */
 function installWebpushrInterceptors() {
   if (typeof window === 'undefined' || interceptorsInstalled) return
   interceptorsInstalled = true
@@ -48,37 +54,68 @@ function installWebpushrInterceptors() {
   originalWindowOpen = window.open.bind(window)
   window.open = function webpushrOpenGuard(url, target, features) {
     if (isWpushSubscribePopupUrl(url)) {
-      void nativeWebpushrSubscribe()
+      void handlePushYesClick()
       return null
     }
     return originalWindowOpen(url, target, features)
   }
 
-  const onApproveClick = (event) => {
-    const btn = event.target?.closest?.('#webpushr-approve-button')
-    if (!btn) return
-    event.preventDefault()
-    event.stopImmediatePropagation()
-    void nativeWebpushrSubscribe()
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (event.target?.closest?.('#webpushr-deny-button')) {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        markPushPromptCompleted('Deny')
+        return
+      }
+      if (!event.target?.closest?.('#webpushr-approve-button')) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      void handlePushYesClick()
+    },
+    true,
+  )
+}
+
+/** YES on Webpushr banner → browser Allow (if needed) → subscribe once. */
+async function handlePushYesClick() {
+  if (!shouldOfferPushPermissionOnce() && getNotificationPermission() === 'default') {
+    return
   }
-  document.addEventListener('click', onApproveClick, true)
+
+  const perm = getNotificationPermission()
+  if (perm === 'granted' || hasStoredPushEndpoint()) {
+    markPushPromptCompleted('Approve')
+    await nativeWebpushrSubscribe({ requestPermission: false })
+    return
+  }
+
+  await nativeWebpushrSubscribe({ requestPermission: true })
 }
 
 /**
- * Enable Webpushr for non-drivers. Never pass integration: "popup" (forces wpush.io).
- * Interceptors keep YES on the custom prompt from opening schoolapp.wpush.io.
+ * Load Webpushr so the YES/NOT YET banner can show once.
+ * No auto-subscribe on page load (that caused the refresh loop).
  */
 export function enableWebpushrForUser() {
   if (typeof document === 'undefined') return
   document.body.classList.remove(DRIVER_WEBPUSHR_BODY_CLASS)
   installWebpushrInterceptors()
   injectWebpushrScript()
-  if (setupDone) return
-  queueWebpushr('setup', {
-    key: WEBPUSHR_PUBLIC_KEY,
-    sw: '/webpushr-sw.js',
-  })
-  setupDone = true
+  if (!setupDone) {
+    queueWebpushr('setup', {
+      key: WEBPUSHR_PUBLIC_KEY,
+      sw: '/webpushr-sw.js',
+    })
+    setupDone = true
+  }
+
+  void (async () => {
+    if (getNotificationPermission() !== 'granted' || !hasStoredPushEndpoint()) return
+    if (!(await hasActiveWebpushrServiceWorker())) return
+    void nativeWebpushrSubscribe({ requestPermission: false })
+  })()
 }
 
 export function disableWebpushrForDriver() {
@@ -86,7 +123,7 @@ export function disableWebpushrForDriver() {
   document.body.classList.add(DRIVER_WEBPUSHR_BODY_CLASS)
 }
 
-/** Header toggle / manual opt-in — same-page browser permission. */
 export function requestWebpushrSubscribe() {
-  void nativeWebpushrSubscribe()
+  const perm = getNotificationPermission()
+  void nativeWebpushrSubscribe({ requestPermission: perm === 'default' })
 }

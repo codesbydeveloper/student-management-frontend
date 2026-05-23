@@ -10,7 +10,12 @@ import { AppDataProvider } from './context/AppDataContext'
 import { NotificationProvider } from './context/NotificationContext'
 import { ConfirmProvider } from './context/ConfirmContext'
 
-registerSW({ immediate: true })
+registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    /* Avoid reload loop when Webpushr service worker registers beside the PWA worker. */
+  },
+})
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
