@@ -38,6 +38,15 @@ function isHttpUrl(s) {
   return /^https?:\/\//i.test(String(s || '').trim())
 }
 
+function rejectionDisplayText(item) {
+  const reason = String(item?.rejectionReason ?? '').trim()
+  const message = String(item?.rejectedMessage ?? '').trim()
+  if (reason && message && reason !== message) {
+    return `${reason}\n\n${message}`
+  }
+  return reason || message
+}
+
 function LineList({ label, lines }) {
   if (!lines.length) return null
   return (
@@ -85,6 +94,10 @@ export function ParentMessageDetailModal({
   const showBody = !loading && !error && item
   const videoLines = showBody && item.videoUrls ? splitLines(item.videoUrls) : []
   const externalLines = showBody && item.externalLinks ? splitLines(item.externalLinks) : []
+  const rejectionText = showBody ? rejectionDisplayText(item) : ''
+  const showRejection =
+    showBody &&
+    (item.status === NOTIFICATION_STATUSES.REJECTED || Boolean(rejectionText || item.rejectedAt))
 
   return (
     <Modal
@@ -125,6 +138,23 @@ export function ParentMessageDetailModal({
               )}
             </div>
           </div>
+
+          {showRejection ? (
+            <div
+              className="rounded-xl border border-red-200/90 bg-red-50/90 px-4 py-3 text-red-950"
+              role="status"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-800">
+                Rejection reason
+              </p>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed">
+                {rejectionText || 'No reason was provided.'}
+              </p>
+              {item.rejectedAt ? (
+                <p className="mt-2 text-xs text-red-800/80">Rejected {item.rejectedAt}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           {item.bannerDisplayUrl ? (
             <div className="mx-auto max-w-2xl overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50">

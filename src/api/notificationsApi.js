@@ -291,6 +291,8 @@ export async function postNoticeCategory(token, label, role, categoryKind) {
  *   videoUrlsText?: string,
  *   externalLinksText?: string,
  *   bannerFile?: File | null,
+ *   bannerImageUrl?: string,
+ *   bannerAssetId?: string,
  * }} fields
  * @returns {Promise<{ ok: true, data: object | null } | { ok: false, error: string, useClient?: boolean }>}
  */
@@ -344,6 +346,16 @@ export async function postNotificationCreate(token, fields) {
 
   if (fields.bannerFile instanceof File) {
     form.append('banner_image', fields.bannerFile, fields.bannerFile.name)
+  }
+
+  const bannerUrl = String(fields.bannerImageUrl ?? '').trim()
+  if (bannerUrl && !(fields.bannerFile instanceof File)) {
+    form.append('bannerImageUrl', bannerUrl)
+  }
+
+  const bannerAssetId = String(fields.bannerAssetId ?? '').trim()
+  if (bannerAssetId && !(fields.bannerFile instanceof File)) {
+    form.append('bannerAssetId', bannerAssetId)
   }
 
   try {
@@ -857,7 +869,7 @@ export async function fetchAdminNotifications(
   }
 }
 
-function resolveNotificationAssetUrl(url) {
+export function resolveNotificationAssetUrl(url) {
   const s = String(url || '').trim()
   if (!s) return ''
   if (s.startsWith('//')) return `https:${s}`
@@ -867,6 +879,97 @@ function resolveNotificationAssetUrl(url) {
     return `${base}${s}`
   }
   return s
+}
+
+function extractBannerAssetList(data) {
+  if (Array.isArray(data)) return data
+  if (!data || typeof data !== 'object') return []
+  const inner = data.data
+  if (Array.isArray(inner)) return inner
+  if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+    for (const key of ['assets', 'bannerAssets', 'items', 'results', 'banners', 'files']) {
+      if (Array.isArray(inner[key])) return inner[key]
+    }
+  }
+  for (const key of ['assets', 'bannerAssets', 'items', 'results', 'banners', 'files', 'data']) {
+    if (Array.isArray(data[key])) return data[key]
+  }
+  return []
+}
+
+function mapBannerAssetRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id ?? raw._id ?? raw.assetId ?? raw.uuid
+  const url =
+    resolveNotificationAssetUrl(
+      pickNotificationMediaUrl(raw) ||
+        raw.path ||
+        raw.filePath ||
+        raw.storagePath ||
+        raw.relativePath,
+    ) || ''
+  if (!url) return null
+  const thumb = resolveNotificationAssetUrl(
+    raw.thumbnailUrl ?? raw.thumbUrl ?? raw.previewUrl ?? url,
+  )
+  return {
+    id: id != null ? String(id) : url,
+    url,
+    thumbnailUrl: thumb || url,
+    fileName: String(raw.fileName ?? raw.filename ?? raw.originalName ?? raw.name ?? '').trim(),
+    createdAt: raw.createdAt ?? raw.uploadedAt ?? null,
+  }
+}
+
+/**
+ * GET /api/notifications/banner-assets?page=&limit= — previously uploaded notice banners.
+ * @returns {Promise<
+ *   | { ok: true, assets: object[], total: number, page: number, limit: number, hasNext: boolean }
+ *   | { ok: false, error: string, assets: [], total: 0 }
+ * >}
+ */
+export async function fetchNotificationBannerAssets(token, { page = 1, limit = 24 } = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', assets: [], total: 0 }
+  }
+  const p = Math.max(1, Number(page) || 1)
+  const lim = Math.min(100, Math.max(1, Number(limit) || 24))
+  const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/banner-assets?${params}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatListError(data, res.status),
+        assets: [],
+        total: 0,
+      }
+    }
+    const list = extractBannerAssetList(data)
+    const assets = list.map(mapBannerAssetRow).filter(Boolean)
+    const envelope =
+      data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? { ...data, ...data.data }
+        : data
+    const total = extractPagedTotal(envelope, assets.length)
+    const explicitNext = envelope?.hasNextPage ?? envelope?.hasNext ?? envelope?.meta?.hasNextPage
+    let hasNext = typeof explicitNext === 'boolean' ? explicitNext : p * lim < total
+    if (typeof explicitNext !== 'boolean' && total === 0 && assets.length >= lim) {
+      hasNext = true
+    }
+    return { ok: true, assets, total, page: p, limit: lim, hasNext }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, assets: [], total: 0 }
+  }
 }
 
 function extractAdminNotificationDetailPayload(data) {
@@ -923,6 +1026,21 @@ function audienceLabelsFromNotificationRaw(raw) {
   return labels.length ? labels : ['—']
 }
 
+/** Rejection copy from GET /api/notifications/:id (and admin detail) payloads. */
+function extractNotificationRejectionInfo(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { rejectionReason: '', rejectedMessage: '', rejectedAt: '' }
+  }
+  const rejectionReason = String(
+    raw.rejectionReason ?? raw.rejectReason ?? raw.rejection_reason ?? '',
+  ).trim()
+  const rejectedMessage = String(
+    raw.rejectedMessage ?? raw.rejected_message ?? raw.rejectMessage ?? '',
+  ).trim()
+  const rejectedAt = String(raw.rejectedAt ?? raw.rejected_at ?? '').trim()
+  return { rejectionReason, rejectedMessage, rejectedAt }
+}
+
 /**
  * Detail payload for {@link ParentMessageDetailModal} from GET /api/admin/notifications/:id.
  * @param {object} raw
@@ -952,12 +1070,15 @@ export function mapAdminNotificationDetailToModalItem(raw) {
       ? { fullName: submitterEmail, email: submitterEmail }
       : null
 
+  const { rejectionReason, rejectedMessage, rejectedAt } = extractNotificationRejectionInfo(raw)
+  const status = row.status || normalizeApiNotificationStatus(raw.status, row.category) || NOTIFICATION_STATUSES.APPROVED
+
   return {
     id: row.id,
     title: row.title,
     message: row.message,
     category: row.category,
-    status: row.status || NOTIFICATION_STATUSES.APPROVED,
+    status,
     createdByName: submitterName || undefined,
     bannerDisplayUrl,
     targetUrl: String(raw.targetUrl ?? '').trim() || undefined,
@@ -965,6 +1086,9 @@ export function mapAdminNotificationDetailToModalItem(raw) {
     externalLinks: String(raw.externalLinks ?? raw.external_links ?? '').trim() || undefined,
     sender,
     _feedChildNames: audienceLabelsFromNotificationRaw(raw),
+    rejectionReason: rejectionReason || undefined,
+    rejectedMessage: rejectedMessage || undefined,
+    rejectedAt: rejectedAt || undefined,
   }
 }
 
@@ -1131,6 +1255,11 @@ export function fetchPendingAdminNotificationById(token, notificationId) {
 /** GET /api/notifications/pending/principal/:id */
 export function fetchPendingPrincipalNotificationById(token, notificationId) {
   return fetchPendingNotificationById(token, '/api/notifications/pending/principal', notificationId)
+}
+
+/** GET /api/notifications/:id — teacher’s own notice detail for View modal (Bearer). */
+export function fetchTeacherNotificationById(token, notificationId) {
+  return fetchPendingNotificationById(token, '/api/notifications', notificationId)
 }
 
 /**

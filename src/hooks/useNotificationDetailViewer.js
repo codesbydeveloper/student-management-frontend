@@ -3,11 +3,12 @@ import {
   fetchAdminNotificationById,
   fetchPendingAdminNotificationById,
   fetchPendingPrincipalNotificationById,
+  fetchTeacherNotificationById,
 } from '../api/notificationsApi'
 
 /**
  * @param {string | null | undefined} token
- * @param {'admin-history' | 'pending-admin' | 'pending-principal'} source
+ * @param {'admin-history' | 'pending-admin' | 'pending-principal' | 'teacher-mine'} source
  */
 export function useNotificationDetailViewer(token, source = 'admin-history') {
   const [viewModalOpen, setViewModalOpen] = useState(false)
@@ -44,6 +45,8 @@ export function useNotificationDetailViewer(token, source = 'admin-history') {
         res = await fetchPendingAdminNotificationById(token, id)
       } else if (source === 'pending-principal') {
         res = await fetchPendingPrincipalNotificationById(token, id)
+      } else if (source === 'teacher-mine') {
+        res = await fetchTeacherNotificationById(token, id)
       } else {
         res = await fetchAdminNotificationById(token, id)
       }

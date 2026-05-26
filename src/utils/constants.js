@@ -40,6 +40,8 @@ export const STORAGE_KEYS = {
   PWA_INSTALL_SESSION_DISMISSED: 'pwa_install_session_dismissed',
   /** Browser push Allow/Block was already shown on this device. */
   PUSH_PERMISSION_ASKED: 'scs_push_permission_asked',
+  /** Local date (YYYY-MM-DD) when user tapped “Not yet” on push banner. */
+  PUSH_PERMISSION_DISMISSED_DATE: 'scs_push_permission_dismissed_date',
   /** Webpushr service worker registration was attempted (prevents reload loop). */
   PUSH_SW_SETUP_DONE: 'scs_push_sw_setup_done',
 }

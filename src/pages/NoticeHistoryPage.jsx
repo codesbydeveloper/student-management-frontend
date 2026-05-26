@@ -454,8 +454,8 @@ export default function NoticeHistoryPage() {
                     <th className="whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Submitted
                     </th>
-                    <th className="max-w-[14rem] px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
-                      Message
+                    <th className="min-w-[5.5rem] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                      View
                     </th>
                     <th className="min-w-[9.5rem] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Actions

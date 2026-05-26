@@ -9,6 +9,7 @@ import {
   fetchNoticeCategoriesByCategoryKind,
   postNotificationCreate,
 } from '../../api/notificationsApi'
+import { BannerAssetPicker } from './BannerAssetPicker'
 import { fetchAllStudentsAssignedMinimal } from '../../api/studentsApi'
 import { ROLES } from '../../utils/constants'
 import { Button } from '../ui/Button'
@@ -17,6 +18,7 @@ import { Label } from '../ui/Label'
 import { Select } from '../ui/Select'
 import { TargetSelector } from './TargetSelector'
 import {
+  NOTIFICATION_BANNER_MAX_BYTES,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_TARGET_TYPES,
@@ -109,6 +111,8 @@ export function CreateNoticeForm() {
   const [subCategoriesError, setSubCategoriesError] = useState(null)
   const [bannerFile, setBannerFile] = useState(null)
   const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null)
+  const [selectedBannerAsset, setSelectedBannerAsset] = useState(null)
+  const [bannerLibraryOpen, setBannerLibraryOpen] = useState(false)
   const [videoUrlsText, setVideoUrlsText] = useState('')
   const [externalLinksText, setExternalLinksText] = useState('')
   const [targetType, setTargetType] = useState(NOTIFICATION_TARGET_TYPES.CLASS)
@@ -210,7 +214,7 @@ export function CreateNoticeForm() {
 
   useEffect(() => {
     return () => {
-      if (bannerPreviewUrl) URL.revokeObjectURL(bannerPreviewUrl)
+      if (bannerPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(bannerPreviewUrl)
     }
   }, [bannerPreviewUrl])
 
@@ -221,8 +225,6 @@ export function CreateNoticeForm() {
         ? studentTargetsFromApi ?? []
         : students
 
-  const BANNER_MAX_BYTES = 8 * 1024 * 1024
-
   const onBannerFile = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -230,16 +232,24 @@ export function CreateNoticeForm() {
       toast.error('Choose an image file (PNG, JPG, …).')
       return
     }
-    if (file.size > BANNER_MAX_BYTES) {
-      toast.error(`Banner image is too large (max ${Math.round(BANNER_MAX_BYTES / (1024 * 1024))} MB).`)
+    if (file.size > NOTIFICATION_BANNER_MAX_BYTES) {
+      toast.error('Banner image must be at most 380 KB.')
       return
     }
+    setSelectedBannerAsset(null)
     setBannerFile(file)
     setBannerPreviewUrl(URL.createObjectURL(file))
   }
 
+  const onSelectBannerAsset = (asset) => {
+    setBannerFile(null)
+    setSelectedBannerAsset(asset)
+    setBannerPreviewUrl(asset.url)
+  }
+
   const clearBanner = () => {
     setBannerFile(null)
+    setSelectedBannerAsset(null)
     setBannerPreviewUrl(null)
   }
 
@@ -269,6 +279,8 @@ export function CreateNoticeForm() {
         videoUrlsText,
         externalLinksText,
         bannerFile,
+        bannerImageUrl: selectedBannerAsset?.url,
+        bannerAssetId: selectedBannerAsset?.id,
       })
       if (apiRes.ok) {
         const msg =
@@ -347,13 +359,27 @@ export function CreateNoticeForm() {
         <div className="mt-4 space-y-4">
           <div>
             <Label htmlFor="cn-banner-file" className="text-sm text-slate-800">
-              Upload banner image (optional, max 8 MB)
+              Banner image (optional, max 380 KB)
             </Label>
+            <p className="mt-1 text-xs text-slate-500">
+              Upload a new image or choose one you used on a previous notice.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={!token}
+                onClick={() => setBannerLibraryOpen(true)}
+              >
+                Choose from library
+              </Button>
+            </div>
             <input
               id="cn-banner-file"
               type="file"
               accept="image/*"
-              className="mt-1.5 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-800 hover:file:bg-indigo-100"
+              className="mt-2 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-800 hover:file:bg-indigo-100"
               onChange={onBannerFile}
             />
             {bannerPreviewUrl ? (
@@ -363,12 +389,22 @@ export function CreateNoticeForm() {
                   alt="Banner preview"
                   className="max-h-40 max-w-full rounded-lg border border-slate-200 object-contain"
                 />
+                {selectedBannerAsset?.fileName ? (
+                  <p className="text-xs text-slate-500">From library: {selectedBannerAsset.fileName}</p>
+                ) : null}
                 <Button type="button" variant="secondary" size="sm" onClick={clearBanner}>
                   Clear banner
                 </Button>
               </div>
             ) : null}
           </div>
+          <BannerAssetPicker
+            token={token}
+            open={bannerLibraryOpen}
+            selectedId={selectedBannerAsset?.id}
+            onClose={() => setBannerLibraryOpen(false)}
+            onSelect={onSelectBannerAsset}
+          />
           <div>
             <Label htmlFor="cn-videos">Video URLs (one per line)</Label>
             <textarea

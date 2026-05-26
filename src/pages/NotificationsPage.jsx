@@ -6,6 +6,8 @@ import { fetchTeacherNotificationsMine } from '../api/notificationsApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { NotificationTable } from '../components/notifications/NotificationTable'
+import { ParentMessageDetailModal } from '../components/parent/ParentMessageDetailModal'
+import { useNotificationDetailViewer } from '../hooks/useNotificationDetailViewer'
 import { ROLES } from '../utils/constants'
 
 const MINE_PAGE_LIMIT = 20
@@ -18,6 +20,16 @@ export default function NotificationsPage() {
   const [serverRows, setServerRows] = useState([])
   const [serverOk, setServerOk] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  const {
+    viewModalOpen,
+    viewLoading,
+    viewLoadingId,
+    viewDetail,
+    viewError,
+    closeViewModal,
+    openNotificationDetail,
+  } = useNotificationDetailViewer(token, 'teacher-mine')
 
   const load = useCallback(async () => {
     if (!token || user?.role !== ROLES.TEACHER) {
@@ -90,7 +102,13 @@ export default function NotificationsPage() {
           </p>
         ) : (
           <>
-            <NotificationTable notifications={rows} />
+            <NotificationTable
+              notifications={rows}
+              showViewColumn={user?.role === ROLES.TEACHER}
+              viewDisabled={!token}
+              viewLoadingId={viewLoading ? viewLoadingId : null}
+              onView={(n) => void openNotificationDetail(n.id)}
+            />
             {serverOk && totalPages > 1 ? (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-1 pt-4 text-sm text-slate-600">
                 <span>
@@ -127,6 +145,15 @@ export default function NotificationsPage() {
           </>
         )}
       </Card>
+
+      <ParentMessageDetailModal
+        open={viewModalOpen}
+        onClose={closeViewModal}
+        loading={viewLoading}
+        error={viewError}
+        item={viewDetail}
+        modalTitle="Your notice"
+      />
     </div>
   )
 }

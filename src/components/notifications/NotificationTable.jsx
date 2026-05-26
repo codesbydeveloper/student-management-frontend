@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAppData } from '../../context/AppDataContext'
+import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { StatusBadge } from './StatusBadge'
 import { NOTIFICATION_CATEGORY_LABELS } from '../../utils/notificationConstants'
@@ -17,7 +18,13 @@ function formatDate(ts) {
   }
 }
 
-export function NotificationTable({ notifications }) {
+export function NotificationTable({
+  notifications,
+  showViewColumn = false,
+  onView,
+  viewLoadingId = null,
+  viewDisabled = false,
+}) {
   const { classes, students } = useAppData()
   const [query, setQuery] = useState('')
 
@@ -59,12 +66,20 @@ export function NotificationTable({ notifications }) {
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Target</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Submitted</th>
+                {showViewColumn ? (
+                  <th className="min-w-[5.5rem] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
+                    View
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm font-medium text-slate-500">
+                  <td
+                    colSpan={5 + (showViewColumn ? 1 : 0)}
+                    className="px-4 py-12 text-center text-sm font-medium text-slate-500"
+                  >
                     No notifications yet. Create one to see it here.
                   </td>
                 </tr>
@@ -89,6 +104,24 @@ export function NotificationTable({ notifications }) {
                       <StatusBadge status={n.status} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(n.createdAt)}</td>
+                    {showViewColumn ? (
+                      <td className="min-w-[5.5rem] whitespace-nowrap px-4 py-3 text-center align-middle">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={
+                            viewDisabled ||
+                            (viewLoadingId != null && String(viewLoadingId) === String(n.id))
+                          }
+                          onClick={() => onView?.(n)}
+                        >
+                          {viewLoadingId != null && String(viewLoadingId) === String(n.id)
+                            ? 'Loading…'
+                            : 'View'}
+                        </Button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))
               )}

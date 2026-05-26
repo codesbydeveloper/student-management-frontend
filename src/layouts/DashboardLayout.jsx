@@ -8,6 +8,7 @@ import { RoleBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { MobileDockNav } from '../components/layout/MobileDockNav'
 import { HeaderNotificationBell } from '../components/layout/HeaderNotificationBell'
+import { PushNotificationPermissionBanner } from '../components/layout/PushNotificationPermissionBanner'
 import { InstitutionBrandMark } from '../components/layout/InstitutionBrandMark'
 import { useLoginBranding } from '../hooks/useLoginBranding'
 import { useProfilePrefs } from '../hooks/useProfilePrefs'
@@ -375,9 +376,12 @@ export function DashboardLayout() {
           </div>
         </header>
 
-        <main className="scrollbar-none relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
-          <Outlet />
-        </main>
+        <div className="relative min-h-0 flex-1">
+          <PushNotificationPermissionBanner />
+          <main className="scrollbar-none relative min-h-0 h-full overflow-x-hidden overflow-y-auto px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
+            <Outlet />
+          </main>
+        </div>
 
         <MobileDockNav items={dockItems} onNavigate={() => setOpen(false)} />
       </div>

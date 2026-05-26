@@ -111,6 +111,12 @@
   color: #fff;
 }
 
+/* Use in-app push banner; hide Webpushr’s duplicate floating prompt. */
+#webpushr-prompt-wrapper {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 /* Drivers: hide Webpushr floating opt-in and bell (push not used for drivers). */
 body.driver-no-webpushr #webpushr-prompt-wrapper,
 body.driver-no-webpushr #webpushr-subscription-wrapper,

@@ -8,12 +8,9 @@ const SUBSCRIBE_URL = 'https://subscriber.webpushr.com/subscribe/'
 import {
   dismissWebpushrCustomPrompt,
   getNotificationPermission,
-  hasActiveWebpushrServiceWorker,
   hasStoredPushEndpoint,
-  hasWebpushrSwSetupDone,
   isPushPermissionRequestInFlight,
   markPushPromptCompleted,
-  markWebpushrSwSetupDone,
   setPushPermissionRequestInFlight,
   shouldOfferPushPermissionOnce,
 } from './pushPermission'
@@ -67,26 +64,32 @@ async function postSubscriptionToWebpushr(subscription) {
   return res.text()
 }
 
-async function registerWebpushrServiceWorker() {
-  const existing = await navigator.serviceWorker.getRegistration('/')
-  const activeScript = existing?.active?.scriptURL || ''
-  if (existing && activeScript.includes('webpushr')) {
-    return existing
+async function getPushRegistration() {
+  if (!('serviceWorker' in navigator)) return null
+
+  const registrations = await navigator.serviceWorker.getRegistrations()
+  for (const reg of registrations) {
+    const url = reg.active?.scriptURL || reg.installing?.scriptURL || ''
+    if (url.includes('webpushr')) return reg
   }
 
-  if (hasWebpushrSwSetupDone()) {
-    return existing
+  try {
+    return await navigator.serviceWorker.register(SW_PATH, { scope: '/' })
+  } catch {
+    return navigator.serviceWorker.ready
   }
+}
 
-  markWebpushrSwSetupDone()
-  return navigator.serviceWorker.register(SW_PATH, { scope: '/' })
+function persistSubscription(subscription) {
+  setWebpushrLocal('endpoint', subscription.endpoint)
+  setWebpushrCookie('_webpushrEndPoint', subscription.endpoint, 90)
 }
 
 /**
- * @param {{ requestPermission?: boolean }} [options]
+ * @param {{ requestPermission?: boolean, force?: boolean }} [options]
  */
 export async function nativeWebpushrSubscribe(options = {}) {
-  const { requestPermission = false } = options
+  const { requestPermission = false, force = false } = options
 
   if (!('Notification' in window) || !('serviceWorker' in navigator)) {
     return { ok: false, reason: 'unsupported' }
@@ -112,15 +115,19 @@ export async function nativeWebpushrSubscribe(options = {}) {
   }
 
   if (perm === 'default' && requestPermission) {
-    if (!shouldOfferPushPermissionOnce() || isPushPermissionRequestInFlight()) {
+    if (!force && (!shouldOfferPushPermissionOnce() || isPushPermissionRequestInFlight())) {
+      if (getNotificationPermission() === 'granted') {
+        markPushPromptCompleted('Approve')
+        return { ok: true, webpushrSyncFailed: true }
+      }
       return { ok: false, reason: 'already_asked' }
     }
     setPushPermissionRequestInFlight(true)
     try {
       const result = await Notification.requestPermission()
-      markPushPromptCompleted(result === 'granted' ? 'Approve' : 'Deny')
-      dismissWebpushrCustomPrompt()
       if (result !== 'granted') {
+        markPushPromptCompleted('Deny')
+        dismissWebpushrCustomPrompt()
         return { ok: false, reason: result }
       }
     } finally {
@@ -132,10 +139,16 @@ export async function nativeWebpushrSubscribe(options = {}) {
 
   subscribeInFlight = (async () => {
     try {
-      const registration = await registerWebpushrServiceWorker()
-      if (!registration) {
+      const registration = await getPushRegistration()
+      if (!registration?.pushManager) {
+        if (getNotificationPermission() === 'granted') {
+          markPushPromptCompleted('Approve')
+          dismissWebpushrCustomPrompt()
+          return { ok: true, webpushrSyncFailed: true }
+        }
         return { ok: false, reason: 'no_service_worker' }
       }
+
       await navigator.serviceWorker.ready
 
       let subscription = await registration.pushManager.getSubscription()
@@ -146,14 +159,26 @@ export async function nativeWebpushrSubscribe(options = {}) {
         })
       }
 
-      await postSubscriptionToWebpushr(subscription)
-      setWebpushrLocal('endpoint', subscription.endpoint)
-      setWebpushrCookie('_webpushrEndPoint', subscription.endpoint, 90)
+      persistSubscription(subscription)
+
+      try {
+        await postSubscriptionToWebpushr(subscription)
+      } catch {
+        markPushPromptCompleted('Approve')
+        dismissWebpushrCustomPrompt()
+        return { ok: true, webpushrSyncFailed: true }
+      }
+
       markPushPromptCompleted('Approve')
       dismissWebpushrCustomPrompt()
       return { ok: true }
-    } catch (err) {
-      return { ok: false, reason: err?.message || 'error' }
+    } catch {
+      if (getNotificationPermission() === 'granted') {
+        markPushPromptCompleted('Approve')
+        dismissWebpushrCustomPrompt()
+        return { ok: true, webpushrSyncFailed: true }
+      }
+      return { ok: false, reason: 'error' }
     } finally {
       subscribeInFlight = null
     }

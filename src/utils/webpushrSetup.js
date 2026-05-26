@@ -1,10 +1,10 @@
 import { isWpushSubscribePopupUrl, nativeWebpushrSubscribe } from './webpushrNativeSubscribe'
 import {
+  dismissWebpushrCustomPrompt,
   getNotificationPermission,
   hasActiveWebpushrServiceWorker,
   hasStoredPushEndpoint,
   markPushPromptCompleted,
-  shouldOfferPushPermissionOnce,
 } from './pushPermission'
 
 /** Webpushr site key (from Webpushr dashboard). */
@@ -47,6 +47,24 @@ function injectWebpushrScript() {
   scriptInjected = true
 }
 
+function isWebpushrApproveClick(target) {
+  if (!target?.closest) return false
+  return Boolean(
+    target.closest('#webpushr-approve-button') ||
+      target.closest('[id*="webpushr-approve"]') ||
+      target.closest('.webpushr-approve-button'),
+  )
+}
+
+function isWebpushrDenyClick(target) {
+  if (!target?.closest) return false
+  return Boolean(
+    target.closest('#webpushr-deny-button') ||
+      target.closest('[id*="webpushr-deny"]') ||
+      target.closest('.webpushr-deny-button'),
+  )
+}
+
 function installWebpushrInterceptors() {
   if (typeof window === 'undefined' || interceptorsInstalled) return
   interceptorsInstalled = true
@@ -54,7 +72,7 @@ function installWebpushrInterceptors() {
   originalWindowOpen = window.open.bind(window)
   window.open = function webpushrOpenGuard(url, target, features) {
     if (isWpushSubscribePopupUrl(url)) {
-      void handlePushYesClick()
+      void handlePushNotificationYes()
       return null
     }
     return originalWindowOpen(url, target, features)
@@ -63,40 +81,47 @@ function installWebpushrInterceptors() {
   document.addEventListener(
     'click',
     (event) => {
-      if (event.target?.closest?.('#webpushr-deny-button')) {
+      if (isWebpushrDenyClick(event.target)) {
         event.preventDefault()
         event.stopImmediatePropagation()
         markPushPromptCompleted('Deny')
         return
       }
-      if (!event.target?.closest?.('#webpushr-approve-button')) return
+      if (!isWebpushrApproveClick(event.target)) return
       event.preventDefault()
       event.stopImmediatePropagation()
-      void handlePushYesClick()
+      void handlePushNotificationYes()
     },
     true,
   )
 }
 
-/** YES on Webpushr banner → browser Allow (if needed) → subscribe once. */
-async function handlePushYesClick() {
-  if (!shouldOfferPushPermissionOnce() && getNotificationPermission() === 'default') {
-    return
+/** User tapped YES — always request permission / subscribe (not blocked by prior dismiss). */
+export async function handlePushNotificationYes() {
+  if (getNotificationPermission() === 'denied') {
+    return { ok: false, reason: 'denied' }
   }
 
-  const perm = getNotificationPermission()
-  if (perm === 'granted' || hasStoredPushEndpoint()) {
+  if (getNotificationPermission() === 'granted' && hasStoredPushEndpoint()) {
     markPushPromptCompleted('Approve')
-    await nativeWebpushrSubscribe({ requestPermission: false })
-    return
+    dismissWebpushrCustomPrompt()
+    return { ok: true }
   }
 
-  await nativeWebpushrSubscribe({ requestPermission: true })
+  const result = await nativeWebpushrSubscribe({ requestPermission: true, force: true })
+  if (result.ok) return result
+
+  if (getNotificationPermission() === 'granted') {
+    markPushPromptCompleted('Approve')
+    dismissWebpushrCustomPrompt()
+    return { ok: true, webpushrSyncFailed: true }
+  }
+
+  return result
 }
 
 /**
- * Load Webpushr so the YES/NOT YET banner can show once.
- * No auto-subscribe on page load (that caused the refresh loop).
+ * Load Webpushr SDK for push subscription. UI is our in-app banner, not Webpushr’s popup.
  */
 export function enableWebpushrForUser() {
   if (typeof document === 'undefined') return
@@ -114,7 +139,7 @@ export function enableWebpushrForUser() {
   void (async () => {
     if (getNotificationPermission() !== 'granted' || !hasStoredPushEndpoint()) return
     if (!(await hasActiveWebpushrServiceWorker())) return
-    void nativeWebpushrSubscribe({ requestPermission: false })
+    void nativeWebpushrSubscribe({ requestPermission: false, force: true })
   })()
 }
 
@@ -125,5 +150,5 @@ export function disableWebpushrForDriver() {
 
 export function requestWebpushrSubscribe() {
   const perm = getNotificationPermission()
-  void nativeWebpushrSubscribe({ requestPermission: perm === 'default' })
+  void nativeWebpushrSubscribe({ requestPermission: perm === 'default', force: true })
 }

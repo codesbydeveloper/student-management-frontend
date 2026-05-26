@@ -1,3 +1,6 @@
+/** Server limit for notice banner uploads (multipart `banner_image`). */
+export const NOTIFICATION_BANNER_MAX_BYTES = 380 * 1024
+
 export const NOTIFICATION_CATEGORIES = {
   ADMINISTRATIVE: 'administrative',
   ACADEMIC: 'academic',
