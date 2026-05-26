@@ -9,11 +9,13 @@ import { Modal } from '../../components/Modal'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PasswordInput } from '../../components/ui/PasswordInput'
+import { PhoneInput } from '../../components/ui/PhoneInput'
 import { Label } from '../../components/ui/Label'
 import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { canManageDrivers } from '../../utils/permissions'
-import { email, minLength, required } from '../../utils/validators'
+import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
 import {
   createDriver,
   deleteDriver,
@@ -178,7 +180,7 @@ export function DriversModule() {
       fullName: row.fullName ?? '',
       email: row.email ?? '',
       password: '',
-      phone: row.phone ?? '',
+      phone: sanitizePhoneDigits(row.phone ?? ''),
       licenseNumber: row.licenseNumber ?? '',
       busId: row.busId ?? '',
       active: Boolean(row.active),
@@ -197,7 +199,7 @@ export function DriversModule() {
     const e1 = required(form.fullName, 'Name')
     const e2 = required(form.email, 'Email')
     const e3 = email(form.email)
-    const e4 = required(form.phone, 'Phone')
+    const e4 = required(form.phone, 'Phone') || phone10Digits(form.phone, 'Phone')
     const e5 = required(form.licenseNumber, 'License number')
     let ePwd = ''
     if (!editing) {
@@ -229,7 +231,7 @@ export function DriversModule() {
                   ...d,
                   fullName: form.fullName.trim(),
                   email: emailNorm,
-                  phone: form.phone.trim(),
+                  phone: sanitizePhoneDigits(form.phone),
                   licenseNumber: form.licenseNumber.trim(),
                   busId: form.busId.trim() || '',
                   active: form.active,
@@ -246,7 +248,7 @@ export function DriversModule() {
         const patchBody = {
           fullName: form.fullName.trim(),
           email: emailNorm,
-          phone: form.phone.trim(),
+          phone: sanitizePhoneDigits(form.phone),
           licenseNumber: form.licenseNumber.trim(),
           assignedBus: form.busId.trim(),
           isActive: form.active,
@@ -271,7 +273,7 @@ export function DriversModule() {
                   ...d,
                   fullName: form.fullName.trim(),
                   email: emailNorm,
-                  phone: form.phone.trim(),
+                  phone: sanitizePhoneDigits(form.phone),
                   licenseNumber: form.licenseNumber.trim(),
                   busId: form.busId.trim() || '',
                   active: form.active,
@@ -296,7 +298,7 @@ export function DriversModule() {
       const apiRes = await createDriver(token, {
         fullName: form.fullName.trim(),
         email: emailNorm,
-        phone: form.phone.trim(),
+        phone: sanitizePhoneDigits(form.phone),
         licenseNumber: form.licenseNumber.trim(),
         assignedBus: form.busId.trim(),
         isActive: form.active,
@@ -844,9 +846,8 @@ export function DriversModule() {
           </div>
           <div>
             <Label htmlFor="drv-password">{editing ? 'New password' : 'Password'}</Label>
-            <Input
+            <PasswordInput
               id="drv-password"
-              type="password"
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               placeholder={editing ? 'Leave blank to keep current password' : 'At least 8 characters'}
@@ -860,7 +861,7 @@ export function DriversModule() {
           </div>
           <div>
             <Label htmlFor="drv-phone">Phone</Label>
-            <Input
+            <PhoneInput
               id="drv-phone"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}

@@ -7,6 +7,7 @@ import { SettingsNav } from '../../components/settings/SettingsNav'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PasswordInput } from '../../components/ui/PasswordInput'
 
 export default function SmtpSettingsPage() {
   const { token } = useAuth()
@@ -169,9 +170,8 @@ export default function SmtpSettingsPage() {
               <label htmlFor="smtp-pass" className="text-xs font-bold uppercase tracking-wide text-slate-500">
                 SMTP password
               </label>
-              <Input
+              <PasswordInput
                 id="smtp-pass"
-                type="password"
                 autoComplete="new-password"
                 className="mt-1"
                 placeholder={hasPassword ? 'Leave blank to keep current password' : 'App password or SMTP password'}

@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { UniversalLoader } from '../components/ui/UniversalLoader'
 
 /**
  * @param {object} props
@@ -12,8 +13,8 @@ export function ProtectedRoute({ children, allowedRoles }) {
 
   if (!ready) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-slate-50 text-sm text-slate-500">
-        Loading…
+      <div className="flex min-h-dvh items-center justify-center bg-slate-50">
+        <UniversalLoader variant="page" label="Restoring session…" />
       </div>
     )
   }

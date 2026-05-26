@@ -4,8 +4,24 @@ export const NOTIFICATION_CATEGORIES = {
 }
 
 export const NOTIFICATION_CATEGORY_LABELS = {
-  [NOTIFICATION_CATEGORIES.ADMINISTRATIVE]: 'Administrative',
-  [NOTIFICATION_CATEGORIES.ACADEMIC]: 'Academic',
+  [NOTIFICATION_CATEGORIES.ADMINISTRATIVE]: 'Admin',
+  [NOTIFICATION_CATEGORIES.ACADEMIC]: 'Principal',
+}
+
+/** Display label for API category values (`administrative`, `academic`, or legacy text). */
+export function getNotificationCategoryLabel(category) {
+  const key = String(category ?? '').trim().toLowerCase()
+  if (NOTIFICATION_CATEGORY_LABELS[key]) return NOTIFICATION_CATEGORY_LABELS[key]
+  if (key === 'administrative' || key.includes('administr')) {
+    return NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]
+  }
+  if (key === 'academic' || key.includes('academic')) {
+    return NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]
+  }
+  const raw = String(category ?? '').trim()
+  if (/^administrative$/i.test(raw)) return NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]
+  if (/^academic$/i.test(raw)) return NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]
+  return raw || '—'
 }
 
 export const NOTIFICATION_TARGET_TYPES = {

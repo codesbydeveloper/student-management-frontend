@@ -19,10 +19,12 @@ import { Modal } from '../../components/Modal'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PasswordInput } from '../../components/ui/PasswordInput'
+import { PhoneInput } from '../../components/ui/PhoneInput'
 import { Label } from '../../components/ui/Label'
 import { Badge } from '../../components/ui/Badge'
 import { canManageParents } from '../../utils/permissions'
-import { email, minLength, required } from '../../utils/validators'
+import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
 import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 import { parseCsv } from '../../utils/csvParse'
 import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
@@ -46,7 +48,7 @@ function parseCsvActive(value) {
 function csvRowToParentDraft(row) {
   const fullName = pickCsvField(row, ['name', 'full_name', 'fullname', 'guardian'])
   const emailVal = pickCsvField(row, ['email']).toLowerCase()
-  const phone = pickCsvField(row, ['phone', 'number', 'mobile'])
+  const phone = sanitizePhoneDigits(pickCsvField(row, ['phone', 'number', 'mobile']))
   const password = pickCsvField(row, ['password'])
   const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
   const studentsRaw =
@@ -562,7 +564,7 @@ export function ParentsModule() {
     setForm({
       fullName: row.fullName,
       email: row.email,
-      phone: row.phone,
+      phone: sanitizePhoneDigits(row.phone),
       password: '',
       studentIds: [...row.studentIds],
       active: row.active !== false,
@@ -580,9 +582,10 @@ export function ParentsModule() {
       editing &&
       form.password.trim() &&
       minLength(form.password, 6, 'Password')
+    const ePhone = phone10Digits(form.phone, 'Phone', { required: false })
     const ePassword = ePass || ePassEdit
-    setErrors({ fullName: e1, email: e2, password: ePassword })
-    if (e1 || e2 || ePassword) return
+    setErrors({ fullName: e1, email: e2, phone: ePhone, password: ePassword })
+    if (e1 || e2 || ePhone || ePassword) return
 
     if (editing) {
       const id = editing.id
@@ -595,7 +598,7 @@ export function ParentsModule() {
           const res = await updateParent(token, id, {
             fullName: form.fullName.trim(),
             email: form.email.trim().toLowerCase(),
-            phone: form.phone.trim(),
+            phone: sanitizePhoneDigits(form.phone),
             active: form.active,
             studentIds: nextIds,
             password: form.password.trim(),
@@ -615,7 +618,7 @@ export function ParentsModule() {
                 ...p,
                 fullName: form.fullName.trim(),
                 email: form.email.trim().toLowerCase(),
-                phone: form.phone.trim(),
+                phone: sanitizePhoneDigits(form.phone),
                 studentIds: nextIds,
                 active: form.active,
                 ...pwdPatch,
@@ -641,7 +644,7 @@ export function ParentsModule() {
         const res = await createParent(token, {
           fullName: form.fullName.trim(),
           email: form.email.trim().toLowerCase(),
-          phone: form.phone.trim(),
+          phone: sanitizePhoneDigits(form.phone),
           password: form.password.trim(),
           studentIds: nextIds,
         })
@@ -659,7 +662,7 @@ export function ParentsModule() {
           ...mapped,
           fullName: mapped.fullName || form.fullName.trim(),
           email: mapped.email || form.email.trim().toLowerCase(),
-          phone: mapped.phone || form.phone.trim(),
+          phone: mapped.phone || sanitizePhoneDigits(form.phone),
           password: form.password.trim(),
           active: typeof mapped.active === 'boolean' ? mapped.active : true,
           studentIds:
@@ -693,7 +696,7 @@ export function ParentsModule() {
           id,
           fullName: form.fullName.trim(),
           email: form.email.trim().toLowerCase(),
-          phone: form.phone.trim(),
+          phone: sanitizePhoneDigits(form.phone),
           password: form.password.trim(),
           studentIds: nextIds,
           active: true,
@@ -1195,19 +1198,20 @@ export function ParentsModule() {
           </div>
           <div>
             <Label htmlFor="pa-phone">Phone</Label>
-            <Input
+            <PhoneInput
               id="pa-phone"
               value={form.phone}
               disabled={!manage}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              error={errors.phone}
             />
+            {errors.phone ? <p className="mt-1 text-xs text-red-600">{errors.phone}</p> : null}
           </div>
           {manage ? (
             <div className="sm:col-span-2">
               <Label htmlFor="pa-password">{editing ? 'New password' : 'Password'}</Label>
-              <Input
+              <PasswordInput
                 id="pa-password"
-                type="password"
                 autoComplete={editing ? 'new-password' : 'new-password'}
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}

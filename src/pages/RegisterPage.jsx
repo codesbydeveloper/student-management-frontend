@@ -4,6 +4,7 @@ import { toast } from 'react-toastify'
 import { registerAccount } from '../api/authRegister'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { PasswordInput } from '../components/ui/PasswordInput'
 import { Label } from '../components/ui/Label'
 import { Select } from '../components/ui/Select'
 import { useAuth } from '../context/AuthContext'
@@ -130,9 +131,8 @@ export default function RegisterPage() {
         ) : null}
         <div>
           <Label htmlFor="reg-password">Password</Label>
-          <Input
+          <PasswordInput
             id="reg-password"
-            type="password"
             autoComplete="new-password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
@@ -143,9 +143,8 @@ export default function RegisterPage() {
         </div>
         <div>
           <Label htmlFor="reg-confirm">Confirm password</Label>
-          <Input
+          <PasswordInput
             id="reg-confirm"
-            type="password"
             autoComplete="new-password"
             value={form.confirmPassword}
             onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}

@@ -18,6 +18,7 @@ import { Select } from '../ui/Select'
 import { TargetSelector } from './TargetSelector'
 import {
   NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_TARGET_TYPES,
 } from '../../utils/notificationConstants'
 
@@ -177,8 +178,8 @@ export function CreateNoticeForm() {
             if (res.httpStatus === 403) {
               setSubCategoriesError(
                 category === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
-                  ? 'Administrative sub-categories are only available to administrators.'
-                  : 'Academic sub-categories are only available to the principal.',
+                  ? 'Admin sub-categories are only available to administrators.'
+                  : 'Principal sub-categories are only available to the principal.',
               )
             } else {
               const msg = res.error || 'Could not load sub-categories.'
@@ -310,8 +311,12 @@ export function CreateNoticeForm() {
         <div>
           <Label htmlFor="cn-category">Category</Label>
           <Select id="cn-category" value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value={NOTIFICATION_CATEGORIES.ADMINISTRATIVE}>Administrative</option>
-            <option value={NOTIFICATION_CATEGORIES.ACADEMIC}>Academic</option>
+            <option value={NOTIFICATION_CATEGORIES.ADMINISTRATIVE}>
+              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
+            </option>
+            <option value={NOTIFICATION_CATEGORIES.ACADEMIC}>
+              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
+            </option>
           </Select>
         </div>
         <div>

@@ -21,13 +21,21 @@ export const ROUTE_ACCESS = {
   parent_dashboard: [ROLES.PARENT],
   parent_notifications: [ROLES.PARENT],
   parent_bus: [ROLES.PARENT],
+  /** GET /api/parents/my-transport — driver, bus, route per child. */
+  parent_my_transport: [ROLES.PARENT],
   parent_ptm_request: [ROLES.PARENT],
   parent_ptm_history: [ROLES.PARENT],
   driver_transport: [ROLES.DRIVER],
+  /** GET /api/drivers/my-transport-routes — driver route roster. */
+  driver_my_routes: [ROLES.DRIVER],
   /** Admin / principal — assign students to a bus (UI shell). */
   admin_assign_bus: [ROLES.ADMIN, ROLES.PRINCIPAL],
   /** Admin / principal — register buses (local until API). */
   admin_create_buses: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Admin / principal — pick up points (UI until API). */
+  admin_pick_up_points: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Admin / principal — transport routes (UI until API). */
+  admin_transport_routes: [ROLES.ADMIN, ROLES.PRINCIPAL],
   teacher_ptm_requests: [ROLES.TEACHER],
   teacher_assigned_leads: [ROLES.TEACHER],
   /** Teacher — read-only bus ↔ student overview. */

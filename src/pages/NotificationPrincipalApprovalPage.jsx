@@ -5,12 +5,13 @@ import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ApprovalTable } from '../components/notifications/ApprovalTable'
 import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
-import { DeliveryModal } from '../components/notifications/DeliveryModal'
 import { RejectReasonModal } from '../components/notifications/RejectReasonModal'
 import { NotificationReadReportModal } from '../components/notifications/NotificationReadReportModal'
 import { ParentMessageDetailModal } from '../components/parent/ParentMessageDetailModal'
 import { useNotificationDetailViewer } from '../hooks/useNotificationDetailViewer'
+import { NotificationApprovalStatsBoxes } from '../components/notifications/NotificationApprovalStatsBoxes'
 import {
+  fetchNotificationStats,
   fetchPendingPrincipalNotifications,
   patchNotificationApprove,
   patchNotificationReject,
@@ -30,7 +31,6 @@ export default function NotificationPrincipalApprovalPage() {
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState(null)
 
-  const [delivery, setDelivery] = useState({ open: false, title: '' })
   const [settledRows, setSettledRows] = useState([])
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
@@ -38,6 +38,8 @@ export default function NotificationPrincipalApprovalPage() {
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
   const [readReport, setReadReport] = useState({ open: false, id: null, title: '' })
+  const [statsBundle, setStatsBundle] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(false)
 
   const {
     viewModalOpen,
@@ -48,6 +50,24 @@ export default function NotificationPrincipalApprovalPage() {
     closeViewModal,
     openNotificationDetail,
   } = useNotificationDetailViewer(token, 'pending-principal')
+
+  const loadStats = useCallback(async () => {
+    if (!token || user?.role !== ROLES.PRINCIPAL) {
+      setStatsBundle(null)
+      return
+    }
+    setStatsLoading(true)
+    const res = await fetchNotificationStats(token)
+    setStatsLoading(false)
+    if (res.ok) setStatsBundle(res.stats)
+    else setStatsBundle(null)
+  }, [token, user?.role])
+
+  const queueStats = useMemo(() => {
+    const empty = { total: 0, approved: 0, rejected: 0 }
+    if (!statsBundle) return empty
+    return statsBundle.principal ?? statsBundle.overall ?? empty
+  }, [statsBundle])
 
   const loadPending = useCallback(async () => {
     if (!token || user?.role !== ROLES.PRINCIPAL) {
@@ -112,10 +132,8 @@ export default function NotificationPrincipalApprovalPage() {
       toast.error(res.error || 'Unable to approve.')
       return
     }
-    toast.success('Approved successfully.')
+    toast.success('Notification approved.')
     const d = res.data
-    const title = typeof d?.title === 'string' ? d.title : serverPending.find((n) => n.id === id)?.title || ''
-    setDelivery({ open: true, title })
     if (snapshot) {
       setSettledRows((prev) => [
         {
@@ -128,6 +146,7 @@ export default function NotificationPrincipalApprovalPage() {
     }
     requestParentMessagesRefresh()
     await loadPending()
+    void loadStats()
   }
 
   const closeRejectModal = () => {
@@ -153,6 +172,7 @@ export default function NotificationPrincipalApprovalPage() {
         }
         closeRejectModal()
         await loadPending()
+        void loadStats()
         return
       }
       toast.error(res.error || 'Unable to reject.')
@@ -179,20 +199,37 @@ export default function NotificationPrincipalApprovalPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader
-          title="Academic approvals"
+          title="Principal approvals"
           subtitle={
             serverListOk
               ? ''
-              : 'Review and action pending Academic notifications from teachers.'
+              : 'Review and action pending principal notifications from teachers.'
           }
           action={
             token && user?.role === ROLES.PRINCIPAL ? (
-              <Button type="button" variant="secondary" size="sm" disabled={listLoading} onClick={() => void loadPending()}>
-                {listLoading ? 'Refreshing…' : 'Refresh'}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={listLoading || statsLoading}
+                onClick={() => refreshAll()}
+              >
+                {listLoading || statsLoading ? 'Refreshing…' : 'Refresh'}
               </Button>
             ) : null
           }
         />
+        <div className="border-t border-slate-100 px-4 py-4 sm:px-6">
+          <div className="flex justify-end">
+            <NotificationApprovalStatsBoxes
+              loading={statsLoading}
+              total={queueStats.total}
+              approved={queueStats.approved}
+              rejected={queueStats.rejected}
+              align="end"
+            />
+          </div>
+        </div>
         {listError && !serverListOk ? (
           <p className="border-t border-slate-100 px-4 py-3 text-sm text-amber-800 sm:px-6">{listError} Showing local queue if any.</p>
         ) : null}
@@ -228,12 +265,6 @@ export default function NotificationPrincipalApprovalPage() {
           </div>
         )}
       </Card>
-
-      <DeliveryModal
-        open={delivery.open}
-        onClose={() => setDelivery((d) => ({ ...d, open: false }))}
-        title={delivery.title}
-      />
 
       <RejectReasonModal
         open={rejectModal.open}

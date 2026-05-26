@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PhoneInput } from '../../components/ui/PhoneInput'
+import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import { LeadStageStepper } from '../../components/phase6/LeadStageStepper'
 import {
   LEAD_STAGE_LABELS,
@@ -188,7 +190,7 @@ export default function LeadDetailPage() {
       setEditForm({
         studentName: lead.studentName || '',
         parentName: lead.parentName || '',
-        phone: lead.phone || '',
+        phone: sanitizePhoneDigits(lead.phone || ''),
         assignedTeacherId: lead.assignedTeacherUserId ? String(lead.assignedTeacherUserId) : '',
         classId: lead.classId ? String(lead.classId) : '',
       })
@@ -258,6 +260,10 @@ export default function LeadDetailPage() {
       toast.error('Student name, parent name, and phone are required.')
       return
     }
+    if (!isPhone10Digits(editForm.phone)) {
+      toast.error('Phone must be exactly 10 digits.')
+      return
+    }
     const body = {}
     if (editForm.studentName.trim() && editForm.studentName.trim() !== lead.studentName) {
       body.studentName = editForm.studentName.trim()
@@ -265,8 +271,9 @@ export default function LeadDetailPage() {
     if (editForm.parentName.trim() && editForm.parentName.trim() !== lead.parentName) {
       body.parentName = editForm.parentName.trim()
     }
-    if (editForm.phone.trim() && editForm.phone.trim() !== lead.phone) {
-      body.phone = editForm.phone.trim()
+    const phoneDigits = sanitizePhoneDigits(editForm.phone)
+    if (phoneDigits && phoneDigits !== sanitizePhoneDigits(lead.phone)) {
+      body.phone = phoneDigits
     }
 
     const curTeacher = lead.assignedTeacherUserId ? String(lead.assignedTeacherUserId) : ''
@@ -476,9 +483,8 @@ export default function LeadDetailPage() {
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
-                <Input
+                <PhoneInput
                   className="mt-1"
-                  type="tel"
                   value={editForm.phone}
                   onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
                   disabled={savingEdit}
@@ -543,7 +549,7 @@ export default function LeadDetailPage() {
                     setEditForm({
                       studentName: lead.studentName || '',
                       parentName: lead.parentName || '',
-                      phone: lead.phone || '',
+                      phone: sanitizePhoneDigits(lead.phone || ''),
                       assignedTeacherId: lead.assignedTeacherUserId
                         ? String(lead.assignedTeacherUserId)
                         : '',

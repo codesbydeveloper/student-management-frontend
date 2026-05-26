@@ -4,28 +4,13 @@ import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { PtmStatusBadge } from '../../components/phase6/PtmStatusBadge'
+import { PtmRequestDetailModal } from '../../components/ptm/PtmRequestDetailModal'
+import { PtmRequestsTable } from '../../components/ptm/PtmRequestsTable'
 import { fetchAdminAllPtmRequests } from '../../api/ptmApi'
+import { usePtmRequestViewer } from '../../hooks/usePtmRequestViewer'
 import { ROLES } from '../../utils/constants'
-import { PTM_STATUS } from '../../data/phase6Constants'
 
 const PAGE_LIMIT = 10
-
-function fmt(iso) {
-  if (!iso) return '—'
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(new Date(iso))
-  } catch {
-    return iso
-  }
-}
 
 /**
  * Admin / principal: full school PTM list (approved, rejected, in progress, etc.).
@@ -35,6 +20,7 @@ export default function StaffPtmHistoryPage() {
   const [apiRows, setApiRows] = useState(null)
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
+  const { viewRow, viewLoading, viewError, openView, closeView } = usePtmRequestViewer(token)
   const [meta, setMeta] = useState({
     total: 0,
     totalPages: 0,
@@ -107,83 +93,28 @@ export default function StaffPtmHistoryPage() {
         <CardHeader title="PTM history" />
 
         {apiRows === null ? (
-          <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-            Loading…
-          </p>
+          <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 sm:px-6">Loading…</p>
         ) : null}
 
         {error ? (
-          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+          <p className="border-t border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 sm:px-6">
             {error}
           </p>
         ) : null}
 
-        {sorted.length > 0 ? (
-          <ul className="space-y-3">
-            {sorted.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-2xl border border-slate-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-slate-100"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900">
-                      {r.studentName} · {r.teacherName}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Parent: {r.parentName} · Requested {fmt(r.createdAt)} · Updated {fmt(r.updatedAt)}
-                    </p>
-                  </div>
-                  <PtmStatusBadge status={r.status} />
-                </div>
-                <p className="mt-3 text-sm text-slate-700">
-                  <span className="font-semibold text-slate-600">Reason: </span>
-                  {r.reason}
-                </p>
-                {r.status === PTM_STATUS.APPROVED || r.status === PTM_STATUS.COMPLETED ? (
-                  <p className="mt-2 text-sm text-slate-600">
-                    <span className="font-semibold">Meeting: </span>
-                    {fmt(r.meetingAt)}
-                  </p>
-                ) : null}
-                {r.meetingNote ? (
-                  <p className="mt-1 text-sm text-slate-600">
-                    <span className="font-semibold">Meeting note: </span>
-                    {r.meetingNote}
-                  </p>
-                ) : null}
-                {r.staffReviewNote ? (
-                  <p className="mt-1 text-sm text-slate-600">
-                    <span className="font-semibold">School note: </span>
-                    {r.staffReviewNote}
-                  </p>
-                ) : null}
-                {r.status === PTM_STATUS.PRINCIPAL_REJECTED &&
-                (r.principalRejectionNote || r.rejectionNote) ? (
-                  <p className="mt-1 text-sm text-orange-900/90">
-                    <span className="font-semibold">Principal: </span>
-                    {r.principalRejectionNote || r.rejectionNote}
-                  </p>
-                ) : null}
-                {r.status === PTM_STATUS.REJECTED && r.rejectionNote ? (
-                  <p className="mt-1 text-sm text-red-800/90">
-                    <span className="font-semibold">Rejection note: </span>
-                    {r.rejectionNote}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {apiRows !== null && sorted.length === 0 && !error ? (
-          <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-            No PTM requests yet.
-          </p>
+        {apiRows !== null ? (
+          <div className="border-t border-slate-100 px-4 py-4 sm:px-6">
+            <PtmRequestsTable
+              rows={sorted}
+              emptyMessage="No PTM requests yet."
+              showApprovedBy
+              onView={(row) => void openView(row)}
+            />
+          </div>
         ) : null}
 
         {apiRows !== null && meta.totalPages > 1 ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 text-xs text-slate-500 sm:px-6">
             <span>
               Page {page} of {Math.max(1, meta.totalPages)} · {meta.total} total
             </span>
@@ -210,6 +141,19 @@ export default function StaffPtmHistoryPage() {
           </div>
         ) : null}
       </Card>
+
+      <PtmRequestDetailModal
+        open={Boolean(viewRow)}
+        row={viewRow}
+        loading={viewLoading}
+        error={viewError}
+        onClose={closeView}
+        footer={
+          <Button type="button" variant="secondary" onClick={closeView}>
+            Close
+          </Button>
+        }
+      />
     </div>
   )
 }

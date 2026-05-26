@@ -6,7 +6,6 @@ import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/notifications/StatusBadge'
 import { NotificationDecisionBadge } from '../components/notifications/NotificationDecisionBadge'
-import { DeliveryModal } from '../components/notifications/DeliveryModal'
 import { RejectReasonModal } from '../components/notifications/RejectReasonModal'
 import { NotificationReadReportModal } from '../components/notifications/NotificationReadReportModal'
 import { ReadReportActionButton } from '../components/notifications/ReadReportActionButton'
@@ -119,7 +118,7 @@ function isPrincipalAdministrativeApiMessage(msg) {
 
 function emptyNoticeMessage(categoryFilter, isPrincipal) {
   if (isPrincipalAdministrativeTab(isPrincipal, categoryFilter)) {
-    return 'No administrative notices. These are managed by the school admin.'
+    return 'No admin notices. These are managed by the school admin.'
   }
   return `No ${categoryLabel(categoryFilter).toLowerCase()} notices on this page.`
 }
@@ -135,7 +134,6 @@ export default function NoticeHistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [approvingId, setApprovingId] = useState(null)
-  const [delivery, setDelivery] = useState({ open: false, title: '' })
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)
@@ -252,19 +250,11 @@ export default function NoticeHistoryPage() {
 
   const onApprove = async (id) => {
     if (!token) return
-    const sid = String(id)
-    const snapshot = rows.find((n) => String(n.id) === sid)
     setApprovingId(id)
     try {
       const res = await patchNotificationApprove(token, id)
       if (res.ok) {
-        toast.success('Approved successfully.')
-        const d = res.data
-        const title =
-          typeof d?.title === 'string' && d.title.trim()
-            ? d.title.trim()
-            : snapshot?.title || ''
-        setDelivery({ open: true, title })
+        toast.success('Notice approved.')
         requestParentMessagesRefresh()
         await load()
         return
@@ -414,7 +404,7 @@ export default function NoticeHistoryPage() {
                   }`}
                   onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)}
                 >
-                  Administrative
+                  {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
                 </button>
                 <button
                   type="button"
@@ -425,7 +415,7 @@ export default function NoticeHistoryPage() {
                   }`}
                   onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)}
                 >
-                  Academic
+                  {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
                 </button>
               </div>
             </>
@@ -640,12 +630,6 @@ export default function NoticeHistoryPage() {
           ) : null}
         </div>
       </Card>
-
-      <DeliveryModal
-        open={delivery.open}
-        onClose={() => setDelivery((d) => ({ ...d, open: false }))}
-        title={delivery.title}
-      />
 
       <RejectReasonModal
         open={rejectModal.open}

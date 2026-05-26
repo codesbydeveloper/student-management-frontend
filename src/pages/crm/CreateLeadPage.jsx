@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PhoneInput } from '../../components/ui/PhoneInput'
+import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import { createLead, fetchMyLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
 import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
@@ -122,12 +124,16 @@ export default function CreateLeadPage() {
       toast.error('Student name, parent name, and phone are required.')
       return
     }
+    if (!isPhone10Digits(phone)) {
+      toast.error('Phone must be exactly 10 digits.')
+      return
+    }
     setSubmitting(true)
     try {
       const res = await createLead(token, {
         studentName: studentName.trim(),
         parentName: parentName.trim(),
-        phone: phone.trim(),
+        phone: sanitizePhoneDigits(phone),
         classId: classId || null,
       })
       if (!res.ok) {
@@ -203,9 +209,8 @@ export default function CreateLeadPage() {
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
-            <Input
+            <PhoneInput
               className="mt-1"
-              type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required

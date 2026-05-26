@@ -1,4 +1,5 @@
-import { API_BASE_URL } from '../utils/constants'
+import { API_BASE_URL, ROLE_LABELS, ROLES } from '../utils/constants'
+import { PTM_STATUS } from '../data/phase6Constants'
 
 function formatMutationError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -88,6 +89,103 @@ function pickIso(...candidates) {
   return null
 }
 
+function pickNestedObject(raw, keys) {
+  if (!raw || typeof raw !== 'object') return null
+  for (const k of keys) {
+    const v = raw[k]
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v
+  }
+  return null
+}
+
+function normalizePtmApproverRoleLabel(roleRaw) {
+  const r = String(roleRaw ?? '')
+    .trim()
+    .toLowerCase()
+  if (!r) return ''
+  if (ROLE_LABELS[r]) return ROLE_LABELS[r]
+  if (r === 'administrator' || r === 'school_admin' || r === 'schooladmin') return ROLE_LABELS[ROLES.ADMIN]
+  if (r === 'school_principal') return ROLE_LABELS[ROLES.PRINCIPAL]
+  return r.charAt(0).toUpperCase() + r.slice(1)
+}
+
+function extractPtmApproverFields(raw) {
+  const block = pickNestedObject(raw, [
+    'approvedBy',
+    'approved_by',
+    'approvedByUser',
+    'approvedByStaff',
+    'staffApprover',
+    'staffApprovedBy',
+    'approver',
+    'approverUser',
+    'reviewedBy',
+    'reviewedByUser',
+    'approvedByAdmin',
+    'approvedByPrincipal',
+  ])
+
+  let roleRaw = String(
+    raw.approvedByRole ??
+      raw.approved_by_role ??
+      raw.approverRole ??
+      raw.approver_role ??
+      raw.staffApproverRole ??
+      raw.reviewerRole ??
+      raw.approvedByType ??
+      raw.approverType ??
+      block?.role ??
+      block?.userRole ??
+      block?.type ??
+      '',
+  ).trim()
+
+  if (!roleRaw && raw.principalApproved === true) roleRaw = ROLES.PRINCIPAL
+  if (!roleRaw && raw.adminApproved === true) roleRaw = ROLES.ADMIN
+  if (!roleRaw && raw.teacherApproved === true) roleRaw = ROLES.TEACHER
+
+  const principalBlock = pickNestedObject(raw, ['approvedByPrincipal', 'principalApprover'])
+  const adminBlock = pickNestedObject(raw, ['approvedByAdmin', 'adminApprover'])
+  if (!roleRaw && principalBlock) roleRaw = ROLES.PRINCIPAL
+  if (!roleRaw && adminBlock) roleRaw = ROLES.ADMIN
+
+  const name = String(
+    raw.approvedByName ??
+      raw.approved_by_name ??
+      raw.approverName ??
+      raw.approver_name ??
+      block?.fullName ??
+      block?.name ??
+      block?.displayName ??
+      principalBlock?.fullName ??
+      principalBlock?.name ??
+      adminBlock?.fullName ??
+      adminBlock?.name ??
+      '',
+  ).trim()
+
+  const roleKey = roleRaw.toLowerCase()
+  const roleLabel = normalizePtmApproverRoleLabel(roleKey)
+
+  return {
+    approvedByName: name || null,
+    approvedByRole: roleKey || null,
+    approvedByRoleLabel: roleLabel || null,
+  }
+}
+
+/** One line for UI: "Name (Admin)" or "Principal" when only role is known. */
+export function formatPtmApprovalAttribution(row) {
+  if (!row) return null
+  const status = String(row.status ?? '').toLowerCase()
+  if (status !== PTM_STATUS.APPROVED && status !== PTM_STATUS.COMPLETED) return null
+  const name = row.approvedByName ? String(row.approvedByName).trim() : ''
+  const role = row.approvedByRoleLabel ? String(row.approvedByRoleLabel).trim() : ''
+  if (!name && !role) return null
+  if (name && role) return `${name} (${role})`
+  return name || role
+}
+
 /**
  * Map one row from GET /api/ptm-requests/mine into the shape `ParentPtmHistoryPage`
  * already renders (matches the Phase 6 local-store fields).
@@ -147,6 +245,8 @@ export function mapApiPtmRequestRow(raw) {
     raw.principalRejectionNote ?? raw.principal_rejection_note ?? raw.principalNote ?? '',
   ).trim()
 
+  const approver = extractPtmApproverFields(raw)
+
   return {
     id: String(id),
     parentUserId: parentUserId != null ? String(parentUserId) : '',
@@ -175,6 +275,9 @@ export function mapApiPtmRequestRow(raw) {
     staffReviewNote: staffReviewNote || null,
     principalRejectionNote: principalRejectionNote || null,
     meetingNote: String(raw.meetingNote ?? raw.meeting_note ?? '').trim() || null,
+    approvedByName: approver.approvedByName,
+    approvedByRole: approver.approvedByRole,
+    approvedByRoleLabel: approver.approvedByRoleLabel,
     createdAt:
       pickIso(raw.createdAt, raw.created_at, raw.createdat, raw.requestedAt, raw.requestedat) ||
       new Date().toISOString(),
@@ -528,6 +631,44 @@ export async function fetchAdminAllPtmRequests(token, { page = 1, limit = 10 } =
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, requests: [], total: 0, page: p, limit: lim }
+  }
+}
+
+/**
+ * GET /api/ptm-requests/:id — single request (parent, teacher, admin, principal Bearer).
+ * @param {string} token
+ * @param {string | number} id
+ */
+export async function fetchPtmRequestById(token, id) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', request: null }
+  }
+  const numericId = toApiId(id)
+  if (numericId == null) {
+    return { ok: false, error: 'Missing PTM request id.', request: null }
+  }
+  const idSeg = encodeURIComponent(String(numericId))
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/ptm-requests/${idSeg}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatListError(data, res.status), request: null }
+    }
+    const request = extractSinglePtmRow(data)
+    if (!request) {
+      return { ok: false, error: 'Invalid response from server.', request: null }
+    }
+    return { ok: true, request, data: data && typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, request: null }
   }
 }
 

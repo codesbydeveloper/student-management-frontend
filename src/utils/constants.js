@@ -23,8 +23,8 @@ export const LOGIN_ROLE_OPTIONS = [
   ROLES.PRINCIPAL,
 ]
 
-/** Live backend; override for local dev with `VITE_API_URL` in `.env` / `.env.local` (no trailing slash). */
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://aliceblue-frog-823531.hostingersite.com').replace(/\/$/, '')
+// export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://aliceblue-frog-823531.hostingersite.com').replace(/\/$/, '')
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export const STORAGE_KEYS = {
   TOKEN: 'token',
@@ -32,9 +32,9 @@ export const STORAGE_KEYS = {
   APP_DATA: 'app_data',
   CUSTOM_USERS: 'custom_users',
   NOTIFICATIONS: 'notifications_v1',
-  /** User completed install on this device. */
+
   PWA_MOBILE_INSTALL_DONE: 'pwa_mobile_install_done',
-  /** Local date (YYYY-MM-DD) when user last tapped “Not yet” on install prompt. */
+ 
   PWA_INSTALL_DISMISSED_DATE: 'pwa_install_dismissed_date',
   /** @deprecated Legacy session dismiss key */
   PWA_INSTALL_SESSION_DISMISSED: 'pwa_install_session_dismissed',

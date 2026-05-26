@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { Modal } from '../components/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { PasswordInput } from '../components/ui/PasswordInput'
 import { Label } from '../components/ui/Label'
 import {
   requestForgotPassword,
@@ -212,9 +213,8 @@ export default function LoginPage() {
         </div>
         <div>
           <Label htmlFor="password">Password</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
@@ -347,9 +347,8 @@ export default function LoginPage() {
               </div>
               <div>
                 <Label htmlFor="forgot-new-password">New password</Label>
-                <Input
+                <PasswordInput
                   id="forgot-new-password"
-                  type="password"
                   autoComplete="new-password"
                   className="mt-1.5"
                   value={forgotNewPassword}
@@ -362,9 +361,8 @@ export default function LoginPage() {
               </div>
               <div>
                 <Label htmlFor="forgot-confirm-password">Confirm new password</Label>
-                <Input
+                <PasswordInput
                   id="forgot-confirm-password"
-                  type="password"
                   autoComplete="new-password"
                   className="mt-1.5"
                   value={forgotConfirmPassword}

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { UniversalLoader } from '../components/ui/UniversalLoader'
 import { ROLES } from '../utils/constants'
 import { AuthLayout } from '../layouts/AuthLayout'
 import { DashboardLayout } from '../layouts/DashboardLayout'
@@ -25,9 +26,13 @@ const CreateNoticePage = lazy(() => import('../pages/CreateNoticePage.jsx'))
 const ParentDashboardPage = lazy(() => import('../pages/ParentDashboardPage.jsx'))
 const ParentNotificationsPage = lazy(() => import('../pages/ParentNotificationsPage.jsx'))
 const ParentBusTrackingPage = lazy(() => import('../pages/ParentBusTrackingPage.jsx'))
+const ParentMyTransportPage = lazy(() => import('../pages/ParentMyTransportPage.jsx'))
 const DriverTransportPage = lazy(() => import('../pages/DriverTransportPage.jsx'))
+const DriverMyRoutesPage = lazy(() => import('../pages/DriverMyRoutesPage.jsx'))
 const TransportAssignmentsPage = lazy(() => import('../pages/TransportAssignmentsPage.jsx'))
 const CreateBusesPage = lazy(() => import('../pages/CreateBusesPage.jsx'))
+const PickUpPointsPage = lazy(() => import('../pages/PickUpPointsPage.jsx'))
+const TransportRoutesPage = lazy(() => import('../pages/TransportRoutesPage.jsx'))
 const AssignBusPage = lazy(() => import('../pages/AssignBusPage.jsx'))
 const TeacherBusOverviewPage = lazy(() => import('../pages/TeacherBusOverviewPage.jsx'))
 const ParentPtmRequestPage = lazy(() => import('../pages/ptm/ParentPtmRequestPage.jsx'))
@@ -47,11 +52,7 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage.jsx'))
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'))
 
 function SuspenseFallback() {
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">
-      Loading…
-    </div>
-  )
+  return <UniversalLoader variant="page" label="Loading page…" />
 }
 
 export function AppRouter() {
@@ -242,6 +243,14 @@ export function AppRouter() {
             }
           />
           <Route
+            path="parent/routes"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
+                <ParentMyTransportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="parent/ptm/request"
             element={
               <ProtectedRoute allowedRoles={[ROLES.PARENT]}>
@@ -330,6 +339,14 @@ export function AppRouter() {
             }
           />
           <Route
+            path="driver/routes"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.DRIVER]}>
+                <DriverMyRoutesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="transport-assignments"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
@@ -350,6 +367,22 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <AssignBusPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport/pick-up-points"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <PickUpPointsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport/routes"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <TransportRoutesPage />
               </ProtectedRoute>
             }
           />

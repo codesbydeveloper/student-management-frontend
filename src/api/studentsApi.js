@@ -439,9 +439,10 @@ export async function createStudent(token, body) {
   }
   const payload = {
     fullName: body.fullName,
-    email: body.email,
     isActive: Boolean(body.active),
   }
+  const emailVal = String(body.email ?? '').trim().toLowerCase()
+  if (emailVal) payload.email = emailVal
   const classId = idForApi(body.classId)
   if (classId != null) payload.classId = classId
   const parentId = idForApi(body.parentId)
@@ -481,10 +482,11 @@ export async function updateStudent(token, studentId, body) {
   const id = encodeURIComponent(String(studentId))
   const payload = {
     fullName: body.fullName,
-    email: body.email,
     isActive: Boolean(body.active),
     parentIds: parentIdsForApi(body.parentId != null && body.parentId !== '' ? [body.parentId] : []),
   }
+  const emailVal = String(body.email ?? '').trim().toLowerCase()
+  if (emailVal) payload.email = emailVal
   const classId = idForApi(body.classId)
   if (classId != null) payload.classId = classId
   try {
@@ -559,10 +561,13 @@ export async function importStudentsCsv(token, file) {
     })
     const data = await res.json().catch(() => null)
     if (!res.ok) {
-      const useClient = [404, 405, 501].includes(res.status)
+      const errMsg = formatMutationError(data, res.status)
+      const useClient =
+        [404, 405, 501, 400, 422].includes(res.status) ||
+        /invalid.*csv|email|column|required/i.test(String(errMsg))
       return {
         ok: false,
-        error: formatMutationError(data, res.status),
+        error: errMsg,
         useClient,
       }
     }

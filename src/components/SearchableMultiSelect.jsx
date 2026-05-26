@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 
@@ -15,11 +15,25 @@ export function SearchableMultiSelect({
   searchPlaceholder = 'Search…',
   emptyText = 'No matches.',
   collapsedHint = 'Search and select…',
+  /** When false, list is driven by `options` from server (`onSearchQueryChange`). */
+  filterLocally = true,
+  optionsLoading = false,
+  onSearchQueryChange,
+  onOpenChange,
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
+  useEffect(() => {
+    onOpenChange?.(open)
+    if (open && onSearchQueryChange) {
+      onSearchQueryChange('')
+      setQuery('')
+    }
+  }, [open, onOpenChange, onSearchQueryChange])
+
   const filtered = useMemo(() => {
+    if (!filterLocally) return options
     const q = query.trim().toLowerCase()
     if (!q) return options
     return options.filter(
@@ -28,7 +42,7 @@ export function SearchableMultiSelect({
         String(o.value).toLowerCase().includes(q) ||
         (o.subtext && o.subtext.toLowerCase().includes(q)),
     )
-  }, [options, query])
+  }, [options, query, filterLocally])
 
   const selectedLabels = useMemo(() => {
     return value
@@ -92,7 +106,11 @@ export function SearchableMultiSelect({
             <Input
               id={id ? `${id}-search` : undefined}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                setQuery(next)
+                onSearchQueryChange?.(next)
+              }}
               placeholder={searchPlaceholder}
               autoComplete="off"
               aria-label={searchPlaceholder}
@@ -104,7 +122,9 @@ export function SearchableMultiSelect({
             className="min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden overscroll-contain p-2 [scrollbar-color:rgb(129_140_248/0.75)_rgb(241_245_249/0.9)] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-indigo-300/90 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100"
             onWheel={(e) => e.stopPropagation()}
           >
-            {filtered.length === 0 ? (
+            {optionsLoading ? (
+              <p className="py-8 text-center text-sm font-medium text-slate-500">Searching…</p>
+            ) : filtered.length === 0 ? (
               <p className="py-8 text-center text-sm font-medium text-slate-500">{emptyText}</p>
             ) : (
               <ul className="space-y-0.5">

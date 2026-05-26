@@ -5,7 +5,13 @@ import { canAccessRoute } from './permissions'
 export const ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students', 'parents', 'admins', 'principals']
 
 /** Admin / principal: grouped under "Transport" in the sidebar. */
-export const TRANSPORT_NAV_KEYS = ['drivers', 'admin_assign_bus', 'admin_create_buses']
+export const TRANSPORT_NAV_KEYS = [
+  'drivers',
+  'admin_assign_bus',
+  'admin_create_buses',
+  'admin_pick_up_points',
+  'admin_transport_routes',
+]
 
 /** Admin / principal: grouped under "Notices" in the sidebar. */
 export const NOTICES_NAV_KEYS = ['create_category', 'create_notice', 'notice_history']
@@ -69,9 +75,11 @@ const items = [
   { key: 'parent_dashboard', to: '/parent-dashboard', label: 'Family dashboard' },
   { key: 'parent_notifications', to: '/parent-notifications', label: 'School messages' },
   { key: 'parent_bus', to: '/parent-bus', label: 'Bus tracking' },
+  { key: 'parent_my_transport', to: '/parent/routes', label: 'Routes' },
   { key: 'parent_ptm_request', to: '/parent/ptm/request', label: 'PTM request' },
   { key: 'parent_ptm_history', to: '/parent/ptm/history', label: 'PTM history' },
   { key: 'driver_transport', to: '/driver-transport', label: 'My trip' },
+  { key: 'driver_my_routes', to: '/driver/routes', label: 'Routes' },
   { key: 'classes', to: '/classes', label: 'Classes' },
   { key: 'teachers', to: '/teachers', label: 'Teachers' },
   { key: 'drivers', to: '/drivers', label: 'Bus drivers' },
@@ -81,6 +89,8 @@ const items = [
   { key: 'principals', to: '/principals', label: 'Principals' },
   { key: 'admin_assign_bus', to: '/transport/assign-bus', label: 'Assign bus' },
   { key: 'admin_create_buses', to: '/transport/buses', label: 'Create buses' },
+  { key: 'admin_pick_up_points', to: '/transport/pick-up-points', label: 'Pick up points' },
+  { key: 'admin_transport_routes', to: '/transport/routes', label: 'Routes' },
   { key: 'create_category', to: '/create-category', label: 'Create Category' },
   { key: 'create_notice', to: '/create-notice', label: 'Create Notice' },
   { key: 'notifications', to: '/notifications', label: 'Notifications' },

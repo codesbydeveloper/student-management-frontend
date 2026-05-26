@@ -19,6 +19,8 @@ import { Modal } from '../../components/Modal'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PasswordInput } from '../../components/ui/PasswordInput'
+import { PhoneInput } from '../../components/ui/PhoneInput'
 import { Label } from '../../components/ui/Label'
 import { Badge } from '../../components/ui/Badge'
 import { canManageTeachers } from '../../utils/permissions'
@@ -27,7 +29,7 @@ import { filterTeachersForUser } from '../../utils/roleFilters'
 import { parseCsv } from '../../utils/csvParse'
 import { filterRowsByTableSearch } from '../../utils/tableQuery'
 import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
-import { email, minLength, required } from '../../utils/validators'
+import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
 import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 
 const TEACHER_PAGE_LIMIT = 10
@@ -50,7 +52,7 @@ function parseCsvActive(value) {
 function csvRowToTeacherDraft(row) {
   const fullName = pickCsvField(row, ['name', 'full_name', 'fullname'])
   const emailVal = pickCsvField(row, ['email']).toLowerCase()
-  const phone = pickCsvField(row, ['phone', 'number', 'mobile'])
+  const phone = sanitizePhoneDigits(pickCsvField(row, ['phone', 'number', 'mobile']))
   const password = pickCsvField(row, ['password'])
   const subject = pickCsvField(row, ['subject', 'subjectfocus', 'subject_focus'])
   const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
@@ -275,7 +277,7 @@ export function TeachersModule() {
     setForm({
       fullName: row.fullName,
       email: row.email,
-      phone: row.phone,
+      phone: sanitizePhoneDigits(row.phone),
       password: '',
       subject: row.subject,
       active: row.active,
@@ -314,9 +316,10 @@ export function TeachersModule() {
       editing &&
       form.password.trim() &&
       minLength(form.password, 6, 'Password')
+    const ePhone = phone10Digits(form.phone, 'Phone', { required: false })
     const ePassword = ePass || ePassEdit
-    setFormErrors({ fullName: e1, email: e2, password: ePassword })
-    if (e1 || e2 || ePassword) return
+    setFormErrors({ fullName: e1, email: e2, phone: ePhone, password: ePassword })
+    if (e1 || e2 || ePhone || ePassword) return
 
     if (editing) {
       const id = editing.id
@@ -329,7 +332,7 @@ export function TeachersModule() {
                   ...t,
                   fullName: form.fullName.trim(),
                   email: form.email.trim().toLowerCase(),
-                  phone: form.phone.trim(),
+                  phone: sanitizePhoneDigits(form.phone),
                   subject: form.subject.trim(),
                   active: form.active,
                   classIds: [...form.classIds],
@@ -349,7 +352,7 @@ export function TeachersModule() {
         const patchBody = {
           fullName: form.fullName.trim(),
           email: form.email.trim().toLowerCase(),
-          phone: form.phone.trim(),
+          phone: sanitizePhoneDigits(form.phone),
           subjectFocus: form.subject.trim(),
           isActive: form.active,
           classIds: form.classIds,
@@ -382,7 +385,7 @@ export function TeachersModule() {
       const apiRes = await createTeacher(token, {
         fullName: form.fullName.trim(),
         email: form.email.trim().toLowerCase(),
-        phone: form.phone.trim(),
+        phone: sanitizePhoneDigits(form.phone),
         password: pwd,
         subjectFocus: form.subject.trim(),
         isActive: form.active,
@@ -1249,19 +1252,20 @@ export function TeachersModule() {
             </div>
             <div>
               <Label htmlFor="t-phone">Phone</Label>
-              <Input
+              <PhoneInput
                 id="t-phone"
                 value={form.phone}
                 disabled={!manage}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                error={formErrors.phone}
               />
+              {formErrors.phone ? <p className="mt-1 text-xs text-red-600">{formErrors.phone}</p> : null}
             </div>
             {manage ? (
               <div className="sm:col-span-2">
                 <Label htmlFor="t-password">{editing ? 'New password' : 'Password'}</Label>
-                <Input
+                <PasswordInput
                   id="t-password"
-                  type="password"
                   autoComplete={editing ? 'new-password' : 'new-password'}
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
@@ -1271,11 +1275,6 @@ export function TeachersModule() {
                 {formErrors.password ? (
                   <p className="mt-1 text-xs text-red-600">{formErrors.password}</p>
                 ) : null}
-                <p className="mt-1.5 text-xs text-slate-500">
-                  {editing
-                    ? 'Leave blank to keep the existing password. Teachers use this with their email to sign in.'
-                    : 'Used with their email to sign in (mock app — stored in this browser).'}
-                </p>
               </div>
             ) : null}
             <div className="sm:col-span-2">

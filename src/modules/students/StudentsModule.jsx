@@ -6,7 +6,7 @@ import {
   fetchClassesSummary,
   mapApiClassToRow,
 } from '../../api/classesApi'
-import { fetchParentMyStudents, fetchParentsPicker } from '../../api/parentsApi'
+import { fetchParentMyStudents, fetchParentsPicker, parentPickerSubtext } from '../../api/parentsApi'
 import {
   createStudent,
   deleteStudent,
@@ -34,7 +34,7 @@ import { Badge } from '../../components/ui/Badge'
 import { ROLES } from '../../utils/constants'
 import { canManageStudents, canDeleteStudent } from '../../utils/permissions'
 import { filterStudentsForUser } from '../../utils/roleFilters'
-import { email, required } from '../../utils/validators'
+import { required } from '../../utils/validators'
 import { parseCsv } from '../../utils/csvParse'
 
 const STUDENT_PAGE_LIMIT = 10
@@ -60,11 +60,71 @@ function parseCsvActive(value) {
 
 function csvRowToStudentDraft(row) {
   const fullName = pickCsvField(row, ['name', 'full_name', 'fullname', 'student'])
-  const emailVal = pickCsvField(row, ['email']).toLowerCase()
+  const emailVal = pickCsvField(row, ['email', 'e_mail', 'mail']).toLowerCase()
   const classId = pickCsvField(row, ['classid', 'class_id', 'class'])
   const parentId = pickCsvField(row, ['parentid', 'parent_id', 'parent'])
   const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
   return { fullName, email: emailVal, classId, parentId, active }
+}
+
+/** Row-by-row import when server CSV import is unavailable or rejects the file (email optional). */
+async function importStudentsFromCsvFileClient(token, file) {
+  let text
+  try {
+    text = await file.text()
+  } catch {
+    return { ok: false, error: 'Could not read that file.' }
+  }
+  const { rows: csvRows } = parseCsv(text)
+  if (!csvRows.length) {
+    return { ok: false, error: 'No data rows found in the CSV.' }
+  }
+  const seenNames = new Set()
+  let skipped = 0
+  const drafts = []
+  for (const row of csvRows) {
+    const d = csvRowToStudentDraft(row)
+    const nameErr = required(d.fullName, 'Full name')
+    if (nameErr) {
+      skipped++
+      continue
+    }
+    const nameKey = d.fullName.trim().toLowerCase()
+    if (seenNames.has(nameKey)) {
+      skipped++
+      continue
+    }
+    seenNames.add(nameKey)
+    drafts.push(d)
+  }
+  if (!drafts.length) {
+    return {
+      ok: false,
+      error: skipped ? 'No valid rows (check names and duplicates).' : 'Nothing to import.',
+    }
+  }
+  let created = 0
+  let stopped = false
+  let lastError = ''
+  for (const d of drafts) {
+    const res = await createStudent(token, {
+      fullName: d.fullName,
+      ...(d.email ? { email: d.email } : {}),
+      classId: d.classId || undefined,
+      parentId: d.parentId || undefined,
+      active: d.active,
+    })
+    if (!res.ok) {
+      lastError = res.error
+      stopped = true
+      break
+    }
+    created++
+  }
+  if (!created) {
+    return { ok: false, error: lastError || 'No students were imported.', stopped }
+  }
+  return { ok: true, created, skipped, stopped }
 }
 
 function sortGradeLevels(a, b) {
@@ -201,7 +261,6 @@ export function StudentsModule() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({
     fullName: '',
-    email: '',
     classId: '',
     parentId: '',
     active: true,
@@ -312,7 +371,7 @@ export function StudentsModule() {
       parents.map((p) => ({
         value: p.id,
         label: p.fullName,
-        subtext: p.email || undefined,
+        subtext: parentPickerSubtext(p.email, p.phone),
       })),
     [parents],
   )
@@ -347,7 +406,11 @@ export function StudentsModule() {
     if (pid && !byValue.has(pid)) {
       const p = parents.find((x) => String(x.id) === pid)
       if (p) {
-        byValue.set(pid, { value: p.id, label: p.fullName, subtext: p.email || undefined })
+        byValue.set(pid, {
+          value: p.id,
+          label: p.fullName,
+          subtext: parentPickerSubtext(p.email, p.phone),
+        })
       } else {
         byValue.set(pid, {
           value: form.parentId,
@@ -467,9 +530,9 @@ export function StudentsModule() {
   }
 
   const downloadStudentsCsv = (list, filename) => {
-    const header = ['fullName', 'email', 'classId', 'parentId', 'active']
+    const header = ['fullName', 'classId', 'parentId', 'active']
     const lines = list.map((s) =>
-      [s.fullName, s.email, s.classId || '', s.parentId || '', s.active !== false ? 'yes' : 'no']
+      [s.fullName, s.classId || '', s.parentId || '', s.active !== false ? 'yes' : 'no']
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
         .join(','),
     )
@@ -731,6 +794,18 @@ export function StudentsModule() {
     setImportFileLabel(file.name)
   }
 
+  const finishImportSuccess = async (detail) => {
+    toast.success(detail)
+    setImportModalOpen(false)
+    setImportFileLabel('')
+    setPendingImportFile(null)
+    setCsvInputKey((k) => k + 1)
+    if (remoteStudents !== undefined) {
+      setStudentPage(1)
+      await loadStudentsPage(1)
+    }
+  }
+
   const confirmImportStudents = async () => {
     if (!pendingImportFile || importingCsv) return
     if (!token) {
@@ -748,90 +823,22 @@ export function StudentsModule() {
             : typeof d?.imported === 'number'
               ? `Imported ${d.imported} student(s).`
               : 'Students imported from file.'
-        toast.success(detail)
-        setImportModalOpen(false)
-        setImportFileLabel('')
-        setPendingImportFile(null)
-        setCsvInputKey((k) => k + 1)
-        if (remoteStudents !== undefined) {
-          setStudentPage(1)
-          await loadStudentsPage(1)
-        }
+        await finishImportSuccess(detail)
         return
       }
-      if (!apiRes.useClient) {
-        toast.error(apiRes.error)
-        return
-      }
-      toast.info('Server import unavailable — importing from this device instead.')
 
-      let text
-      try {
-        text = await pendingImportFile.text()
-      } catch {
-        toast.error('Could not read that file.')
-        return
-      }
-      const { rows: csvRows } = parseCsv(text)
-      if (!csvRows.length) {
-        toast.error('No data rows found in the CSV.')
-        return
-      }
-      const seenEmails = new Set()
-      let skipped = 0
-      const drafts = []
-      for (const row of csvRows) {
-        const d = csvRowToStudentDraft(row)
-        const e1 = required(d.fullName, 'Full name')
-        const e2 = required(d.email, 'Email') || email(d.email)
-        if (e1 || e2) {
-          skipped++
-          continue
+      const clientRes = await importStudentsFromCsvFileClient(token, pendingImportFile)
+      if (clientRes.ok) {
+        if (!apiRes.useClient) {
+          toast.info('Imported from your file (email is optional).')
         }
-        const em = d.email.toLowerCase()
-        if (seenEmails.has(em)) {
-          skipped++
-          continue
-        }
-        seenEmails.add(em)
-        drafts.push(d)
-      }
-      if (!drafts.length) {
-        toast.error(skipped ? 'No valid rows (check names, emails, duplicates).' : 'Nothing to import.')
-        return
-      }
-      let created = 0
-      let stopped = false
-      for (const d of drafts) {
-        const res = await createStudent(token, {
-          fullName: d.fullName,
-          email: d.email,
-          classId: d.classId || undefined,
-          parentId: d.parentId || undefined,
-          active: d.active,
-        })
-        if (!res.ok) {
-          toast.error(res.error)
-          stopped = true
-          break
-        }
-        created++
-      }
-      if (created) {
-        toast.success(
-          `Imported ${created} student(s).${skipped ? ` ${skipped} row(s) skipped.` : ''}${stopped ? ' Import stopped after an error.' : ''}`,
+        await finishImportSuccess(
+          `Imported ${clientRes.created} student(s).${clientRes.skipped ? ` ${clientRes.skipped} row(s) skipped.` : ''}${clientRes.stopped ? ' Import stopped after an error.' : ''}`,
         )
-        setImportModalOpen(false)
-        setImportFileLabel('')
-        setPendingImportFile(null)
-        setCsvInputKey((k) => k + 1)
-        if (remoteStudents !== undefined) {
-          setStudentPage(1)
-          await loadStudentsPage(1)
-        }
-      } else if (stopped) {
-        toast.error('No students were imported.')
+        return
       }
+
+      toast.error(clientRes.error || apiRes.error || 'Could not import students.')
     } finally {
       setImportingCsv(false)
     }
@@ -839,7 +846,7 @@ export function StudentsModule() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ fullName: '', email: '', classId: '', parentId: '', active: true })
+    setForm({ fullName: '', classId: '', parentId: '', active: true })
     setErrors({})
     setModalOpen(true)
   }
@@ -848,7 +855,6 @@ export function StudentsModule() {
     setEditing(row)
     setForm({
       fullName: row.fullName,
-      email: row.email,
       classId: row.classId || '',
       parentId: row.parentId || '',
       active: row.active !== false,
@@ -859,9 +865,8 @@ export function StudentsModule() {
 
   const save = async () => {
     const e1 = required(form.fullName, 'Full name')
-    const e2 = required(form.email, 'Email') || email(form.email)
-    setErrors({ fullName: e1, email: e2, classId: '', parentId: '' })
-    if (e1 || e2) return
+    setErrors({ fullName: e1, classId: '', parentId: '' })
+    if (e1) return
 
     if (editing) {
       const id = editing.id
@@ -871,7 +876,6 @@ export function StudentsModule() {
         try {
           const res = await updateStudent(token, id, {
             fullName: form.fullName.trim(),
-            email: form.email.trim().toLowerCase(),
             classId: form.classId,
             parentId: form.parentId,
             active: form.active,
@@ -890,7 +894,6 @@ export function StudentsModule() {
             ? {
                 ...s,
                 fullName: form.fullName.trim(),
-                email: form.email.trim().toLowerCase(),
                 classId: form.classId || '',
                 parentId: form.parentId || '',
                 active: form.active,
@@ -912,7 +915,6 @@ export function StudentsModule() {
       try {
         const res = await createStudent(token, {
           fullName: form.fullName.trim(),
-          email: form.email.trim().toLowerCase(),
           classId: form.classId,
           parentId: form.parentId,
           active: form.active,
@@ -929,7 +931,6 @@ export function StudentsModule() {
         const row = {
           ...mapped,
           fullName: mapped.fullName || form.fullName.trim(),
-          email: mapped.email || form.email.trim().toLowerCase(),
           classId: mapped.classId || (form.classId ? String(form.classId) : ''),
           parentId: mapped.parentId || (form.parentId ? String(form.parentId) : ''),
           active: typeof mapped.active === 'boolean' ? mapped.active : form.active,
@@ -955,7 +956,6 @@ export function StudentsModule() {
       {
         id,
         fullName: form.fullName.trim(),
-        email: form.email.trim().toLowerCase(),
         classId: form.classId || '',
         parentId: form.parentId || '',
         active: form.active,
@@ -1045,7 +1045,6 @@ export function StudentsModule() {
 
   const columns = [
     { key: 'fullName', header: 'Student' },
-    { key: 'email', header: 'Email' },
     {
       key: 'classId',
       header: 'Class',
@@ -1193,7 +1192,7 @@ export function StudentsModule() {
         <DataTable
           columns={columns}
           rows={visible}
-          searchKeys={remoteStudents !== undefined ? [] : ['fullName', 'email']}
+          searchKeys={remoteStudents !== undefined ? [] : ['fullName']}
           searchPlaceholder="Search students…"
           pageSize={remoteStudents !== undefined ? STUDENT_PAGE_LIMIT : LOCAL_STUDENT_PAGE_SIZE}
           showSearch={remoteStudents === undefined}
@@ -1233,21 +1232,6 @@ export function StudentsModule() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-600">
-            <p className="font-medium text-slate-800">Column guide</p>
-            <p className="mt-1.5">
-              When signed in, the file is sent to{' '}
-              <span className="font-medium text-slate-900">POST /api/students/import/csv</span> first. If that
-              endpoint is unavailable, rows are created one-by-one from this browser.
-            </p>
-            <p className="mt-2">
-              <span className="font-medium text-slate-900">fullName</span> (or name),{' '}
-              <span className="font-medium text-slate-900">email</span>, optional{' '}
-              <span className="font-medium text-slate-900">classId</span>,{' '}
-              <span className="font-medium text-slate-900">parentId</span>,{' '}
-              <span className="font-medium text-slate-900">active</span> (yes/no).
-            </p>
-          </div>
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
             <input
               key={csvInputKey}
@@ -1560,18 +1544,6 @@ export function StudentsModule() {
             />
             {errors.fullName ? <p className="mt-1 text-xs text-red-600">{errors.fullName}</p> : null}
           </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="st-email">Email</Label>
-            <Input
-              id="st-email"
-              type="email"
-              value={form.email}
-              disabled={readOnly}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              error={errors.email}
-            />
-            {errors.email ? <p className="mt-1 text-xs text-red-600">{errors.email}</p> : null}
-          </div>
           <div>
             <SearchableSingleSelect
               key={`${editing?.id ?? 'new'}-class`}
@@ -1597,7 +1569,7 @@ export function StudentsModule() {
               onChange={(parentId) => setForm((f) => ({ ...f, parentId }))}
               disabled={readOnly}
               placeholder="Select a parent or guardian…"
-              searchPlaceholder="Search parents by name or email…"
+              searchPlaceholder="Search parents by name, email, or phone…"
               emptyText="No parents match your search."
               error={errors.parentId}
             />

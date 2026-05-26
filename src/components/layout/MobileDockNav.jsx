@@ -1,9 +1,6 @@
 import { NavLink } from 'react-router-dom'
+import { NavIconTile } from '../icons/NavIcon'
 import { getNavItemsForRole } from '../../utils/navigation'
-
-function initial(label) {
-  return label.trim().charAt(0).toUpperCase()
-}
 
 /**
  * Bottom dock for small screens — app-style primary navigation (PWA / mobile).
@@ -36,9 +33,11 @@ export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
               item.to === '/create-category' ||
               item.to === '/create-notice' ||
               item.to === '/parent-bus' ||
+              item.to === '/parent/routes' ||
               item.to === '/parent/ptm/request' ||
               item.to === '/parent/ptm/history' ||
               item.to === '/driver-transport' ||
+              item.to === '/driver/routes' ||
               item.to === '/transport/buses' ||
               item.to === '/transport/assign-bus' ||
               item.to === '/transport/bus-rosters' ||
@@ -65,17 +64,12 @@ export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
           >
             {({ isActive }) => (
               <>
+                <NavIconTile navKey={item.key} isActive={isActive} size="lg" />
                 <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-extrabold tracking-tight transition ${
-                    isActive
-                      ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-900/40 ring-1 ring-white/15'
-                      : 'bg-slate-800/90 text-slate-200 ring-1 ring-slate-700/80'
+                  className={`max-w-[4.75rem] truncate px-0.5 text-center text-[9px] font-bold uppercase leading-tight tracking-wide ${
+                    isActive ? 'text-white' : 'text-slate-400'
                   }`}
-                  aria-hidden
                 >
-                  {initial(item.label)}
-                </span>
-                <span className="max-w-[4.75rem] truncate px-0.5 text-center text-[9px] font-bold uppercase leading-tight tracking-wide">
                   {item.label}
                 </span>
               </>

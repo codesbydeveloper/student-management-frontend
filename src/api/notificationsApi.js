@@ -17,6 +17,85 @@ function formatListError(data, status) {
   return `Could not load notifications (${status})`
 }
 
+function formatStatsError(data, status) {
+  if (data == null) return `Could not load notification stats (${status})`
+  if (typeof data === 'string' && data) return data
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  return `Could not load notification stats (${status})`
+}
+
+function statCount(value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+function pickStatsSlice(obj) {
+  if (!obj || typeof obj !== 'object') {
+    return { total: 0, approved: 0, rejected: 0 }
+  }
+  const pending = statCount(
+    obj.pending ?? obj.pendingCount ?? obj.pendingTotal ?? obj.totalPending,
+  )
+  const approved = statCount(
+    obj.approved ?? obj.approvedCount ?? obj.approvedTotal ?? obj.totalApproved,
+  )
+  const rejected = statCount(
+    obj.rejected ?? obj.rejectedCount ?? obj.rejectedTotal ?? obj.totalRejected,
+  )
+  const total = statCount(
+    obj.total ?? obj.totalCount ?? obj.count ?? obj.all ?? pending + approved + rejected,
+  )
+  return { total, approved, rejected }
+}
+
+/** GET /api/notifications/stats — admin + principal slices when present. */
+export function normalizeNotificationStats(data) {
+  const empty = { total: 0, approved: 0, rejected: 0 }
+  if (!data || typeof data !== 'object') {
+    return { overall: { ...empty }, admin: { ...empty }, principal: { ...empty } }
+  }
+  const root = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data
+  const adminSrc =
+    root.admin ?? root.administrative ?? root.adminStats ?? root.stats?.admin ?? root.byCategory?.admin
+  const principalSrc =
+    root.principal ?? root.academic ?? root.principalStats ?? root.stats?.principal ?? root.byCategory?.principal
+  return {
+    overall: pickStatsSlice(root),
+    admin: pickStatsSlice(adminSrc ?? root),
+    principal: pickStatsSlice(principalSrc ?? root),
+  }
+}
+
+/**
+ * GET /api/notifications/stats — Bearer (admin or principal token).
+ */
+export async function fetchNotificationStats(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', stats: null }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/stats`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatStatsError(data, res.status), stats: null }
+    }
+    return { ok: true, stats: normalizeNotificationStats(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, stats: null }
+  }
+}
+
 function formatMutationError(data, status) {
   if (data == null) return `Request failed (${status})`
   if (typeof data === 'string' && data) return data

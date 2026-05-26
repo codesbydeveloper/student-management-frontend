@@ -511,6 +511,161 @@ export async function fetchDriverMyRoute(token, { page = 1, limit = 10 } = {}) {
   }
 }
 
+const DRIVER_ROUTE_TYPE_LABELS = {
+  pick_up: 'Pick up',
+  drop: 'Drop',
+}
+
+function formatDriverRouteTime(value) {
+  if (value == null || value === '') return ''
+  const s = String(value).trim()
+  const m = s.match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return s
+  const hour = Number(m[1])
+  if (Number.isNaN(hour)) return s
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const h12 = hour % 12 || 12
+  return `${h12}:${m[2]} ${ampm}`
+}
+
+function extractDriverMyTransportRoutesList(data) {
+  if (!data) return []
+  if (Array.isArray(data)) return data
+  if (typeof data !== 'object') return []
+  if (Array.isArray(data.routes)) return data.routes
+  if (Array.isArray(data.items)) return data.items
+  if (Array.isArray(data.results)) return data.results
+  if (Array.isArray(data.data)) return data.data
+  if (
+    data.data &&
+    typeof data.data === 'object' &&
+    !Array.isArray(data.data) &&
+    Array.isArray(data.data.routes)
+  ) {
+    return data.data.routes
+  }
+  return []
+}
+
+function mapDriverTransportStopRow(raw, routeType) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id ?? raw.stopId ?? raw.pickupPointId
+  const student =
+    raw.student && typeof raw.student === 'object'
+      ? raw.student
+      : raw.child && typeof raw.child === 'object'
+        ? raw.child
+        : null
+
+  const location = String(
+    raw.location ?? raw.locationName ?? raw.name ?? raw.stopName ?? raw.address ?? '',
+  ).trim()
+  const studentName = String(
+    raw.studentName ??
+      raw.student_name ??
+      student?.fullName ??
+      student?.name ??
+      '',
+  ).trim()
+  const label = String(raw.label ?? '').trim()
+  const pickupTime = formatDriverRouteTime(raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime)
+  const dropTime = formatDriverRouteTime(raw.dropTime ?? raw.drop_time ?? raw.dropTime)
+
+  const type = String(routeType ?? raw.routeType ?? raw.route_type ?? '').trim()
+  const timeForType =
+    type === 'drop' ? dropTime || pickupTime : pickupTime || dropTime
+
+  return {
+    id: id != null ? String(id) : `${location}-${studentName}`,
+    location: location || label || '—',
+    studentName: studentName || '—',
+    label: label || undefined,
+    pickupTime: pickupTime || '—',
+    dropTime: dropTime || '—',
+    timeForType: timeForType || '—',
+    order: Number(raw.order ?? raw.sequence ?? raw.stopOrder ?? raw.sortOrder) || 0,
+  }
+}
+
+/**
+ * One assigned transport route for the signed-in driver (stops + students).
+ * @param {object} raw
+ */
+export function mapDriverMyTransportRouteRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id ?? raw._id ?? raw.routeId
+  const routeName = String(raw.routeName ?? raw.route_name ?? raw.name ?? '').trim() || 'Route'
+  const routeType = String(raw.routeType ?? raw.route_type ?? '').trim()
+  const routeTypeLabel =
+    DRIVER_ROUTE_TYPE_LABELS[routeType] ||
+    (routeType ? routeType.replace(/_/g, ' ') : '—')
+
+  const bus = raw.bus && typeof raw.bus === 'object' ? raw.bus : null
+  const vehicleLabel =
+    String(
+      raw.busPlate ??
+        raw.bus_plate ??
+        raw.vehicleNumber ??
+        bus?.plate ??
+        bus?.number ??
+        bus?.name ??
+        '',
+    ).trim() || undefined
+
+  let stopsRaw = raw.stops ?? raw.pickupPoints ?? raw.points ?? raw.stopList ?? []
+  if (!Array.isArray(stopsRaw)) stopsRaw = []
+  const stops = stopsRaw
+    .map((s) => mapDriverTransportStopRow(s, routeType))
+    .filter(Boolean)
+    .sort((a, b) => (a.order && b.order ? a.order - b.order : 0))
+
+  return {
+    id: id != null ? String(id) : routeName,
+    routeName,
+    routeType,
+    routeTypeLabel,
+    vehicleLabel,
+    stops,
+  }
+}
+
+/**
+ * GET /api/drivers/my-transport-routes — routes, stops, students (Bearer driver JWT).
+ * @param {string} token
+ */
+export async function fetchDriverMyTransportRoutes(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', routes: [] }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-transport-routes`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: true, routes: [] }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatMyRouteError(data, res.status),
+        routes: [],
+      }
+    }
+    const rawList = extractDriverMyTransportRoutesList(data)
+    const routes = rawList.map(mapDriverMyTransportRouteRow).filter(Boolean)
+    return { ok: true, routes }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, routes: [] }
+  }
+}
+
 /** Pull list from GET /api/drivers/assignments response (flexible envelopes). */
 export function extractDriverAssignmentsList(data) {
   if (!data || typeof data !== 'object') return []

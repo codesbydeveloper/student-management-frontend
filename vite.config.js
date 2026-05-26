@@ -76,9 +76,10 @@ export default defineConfig({
           },
         ],
       },
-      // PWA + install prompt on `npm run dev` (localhost is a secure context for SW/manifest).
+      // Keep SW off during `npm run dev` — dev SW + HMR causes reload loops for many users
+      // (vite-plugin-pwa #142 / Chrome “Update on reload” + precache churn).
       devOptions: {
-        enabled: true,
+        enabled: false,
         navigateFallback: 'index.html',
       },
     }),

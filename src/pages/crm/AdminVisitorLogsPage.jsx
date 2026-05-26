@@ -6,6 +6,8 @@ import { useConfirm } from '../../context/ConfirmContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PhoneInput } from '../../components/ui/PhoneInput'
+import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import {
   createVisitor,
   deleteVisitor as apiDeleteVisitor,
@@ -122,11 +124,15 @@ export default function AdminVisitorLogsPage() {
       toast.error('Name, phone, purpose, and visit date/time are required.')
       return
     }
+    if (!isPhone10Digits(phone)) {
+      toast.error('Phone must be exactly 10 digits.')
+      return
+    }
     setSubmitting(true)
     try {
       const res = await createVisitor(token, {
         name: name.trim(),
-        phone: phone.trim(),
+        phone: sanitizePhoneDigits(phone),
         purpose: purpose.trim(),
         visitAt,
       })
@@ -222,9 +228,8 @@ export default function AdminVisitorLogsPage() {
           </div>
           <div>
             <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
-            <Input
+            <PhoneInput
               className="mt-1"
-              type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required

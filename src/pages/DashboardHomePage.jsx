@@ -38,7 +38,9 @@ export default function DashboardHomePage() {
   const quickLinks = [
     { to: '/parent-notifications', label: 'School messages', key: 'parent_notifications' },
     { to: '/parent-bus', label: 'Bus tracking', key: 'parent_bus' },
+    { to: '/parent/routes', label: 'Routes', key: 'parent_my_transport' },
     { to: '/driver-transport', label: 'My trip', key: 'driver_transport' },
+    { to: '/driver/routes', label: 'Routes', key: 'driver_my_routes' },
     { to: '/teachers', label: 'Teachers', key: 'teachers' },
     { to: '/drivers', label: 'Bus drivers', key: 'drivers' },
     { to: '/students', label: 'Students', key: 'students' },
@@ -77,10 +79,15 @@ export default function DashboardHomePage() {
           <p className="mt-2 text-sm text-slate-600">
             Start and end your route trip. Parents on your bus can see live location while a trip is active.
           </p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Link to="/driver-transport">
               <span className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
                 Open my trip
+              </span>
+            </Link>
+            <Link to="/driver/routes">
+              <span className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+                View routes
               </span>
             </Link>
           </div>

@@ -4,31 +4,17 @@ import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { PtmStatusBadge } from '../../components/phase6/PtmStatusBadge'
+import { PtmRequestDetailModal } from '../../components/ptm/PtmRequestDetailModal'
+import { PtmRequestsTable } from '../../components/ptm/PtmRequestsTable'
 import { PTM_STATUS } from '../../data/phase6Constants'
 import {
   fetchStaffPendingPtmRequests,
   staffApprovePtmRequest,
   staffRejectPtmRequest,
 } from '../../api/ptmApi'
+import { usePtmRequestViewer } from '../../hooks/usePtmRequestViewer'
 
 const PAGE_LIMIT = 10
-
-function fmt(iso) {
-  if (!iso) return '—'
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(new Date(iso))
-  } catch {
-    return iso
-  }
-}
 
 function toIso(localDatetime) {
   if (!localDatetime) return null
@@ -36,14 +22,19 @@ function toIso(localDatetime) {
   return Number.isFinite(d.getTime()) ? d.toISOString() : null
 }
 
+function canStaffActOnRow(row) {
+  return row?.status === PTM_STATUS.REQUESTED || row?.status === PTM_STATUS.PENDING_PRINCIPAL
+}
+
 /**
- * Admin / principal: pending list + staff approve (scheduledAt + optional meetingNote) / reject.
+ * Admin / principal: pending list + staff approve / reject (in View modal).
  */
 export default function StaffPtmRequestsPage() {
   const { token } = useAuth()
   const [page, setPage] = useState(1)
   const [apiRows, setApiRows] = useState(null)
   const [error, setError] = useState('')
+  const { viewRow, viewLoading, viewError, openView, closeView } = usePtmRequestViewer(token)
   const [meta, setMeta] = useState({
     total: 0,
     totalPages: 0,
@@ -53,7 +44,6 @@ export default function StaffPtmRequestsPage() {
   const [meetingLocal, setMeetingLocal] = useState({})
   const [meetingNote, setMeetingNote] = useState({})
   const [rejectNote, setRejectNote] = useState({})
-  /** keyed by row id: 'approving' | 'rejecting' */
   const [busy, setBusy] = useState({})
 
   const load = useCallback(async () => {
@@ -127,6 +117,7 @@ export default function StaffPtmRequestsPage() {
         delete n[row.id]
         return n
       })
+      closeView()
       await load()
     } finally {
       clearBusyRow(row.id)
@@ -149,11 +140,18 @@ export default function StaffPtmRequestsPage() {
         delete n[row.id]
         return n
       })
+      closeView()
       await load()
     } finally {
       clearBusyRow(row.id)
     }
   }
+
+  const viewId = viewRow?.id
+  const isBusy = viewId ? Boolean(busy[viewId]) : false
+  const isApproving = viewId && busy[viewId] === 'approving'
+  const isRejecting = viewId && busy[viewId] === 'rejecting'
+  const showActions = viewRow && canStaffActOnRow(viewRow)
 
   return (
     <div className="space-y-6">
@@ -185,124 +183,28 @@ export default function StaffPtmRequestsPage() {
         <CardHeader title="PTM requests" />
 
         {apiRows === null ? (
-          <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-            Loading…
-          </p>
+          <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 sm:px-6">Loading…</p>
         ) : null}
 
         {error ? (
-          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+          <p className="border-t border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 sm:px-6">
             {error}
           </p>
         ) : null}
 
-        {sorted.length > 0 ? (
-          <ul className="mt-3 space-y-4">
-            {sorted.map((r) => {
-              const canAct =
-                r.status === PTM_STATUS.REQUESTED || r.status === PTM_STATUS.PENDING_PRINCIPAL
-              const isBusy = Boolean(busy[r.id])
-              const isApproving = busy[r.id] === 'approving'
-              const isRejecting = busy[r.id] === 'rejecting'
-              return (
-                <li
-                  key={r.id}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50/60 px-4 py-3 ring-1 ring-slate-100/80"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900">{r.studentName}</p>
-                      <p className="text-xs text-slate-600">
-                        Teacher: {r.teacherName} · Parent: {r.parentName} · Requested {fmt(r.createdAt)}
-                      </p>
-                    </div>
-                    <PtmStatusBadge status={r.status} />
-                  </div>
-                  <p className="mt-2 text-sm text-slate-800">
-                    <span className="font-semibold text-slate-600">Reason: </span>
-                    {r.reason}
-                  </p>
-                  {r.meetingAt ? (
-                    <p className="mt-1 text-xs text-slate-500">Meeting: {fmt(r.meetingAt)}</p>
-                  ) : null}
-                  {r.rejectionNote ? (
-                    <p className="mt-1 text-xs text-rose-700">Note: {r.rejectionNote}</p>
-                  ) : null}
-
-                  {canAct ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-200/80 bg-white/80 p-3">
-                        <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                          Meeting time (required to approve)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={meetingLocal[r.id] || ''}
-                          onChange={(e) =>
-                            setMeetingLocal((m) => ({ ...m, [r.id]: e.target.value }))
-                          }
-                          disabled={isBusy}
-                          className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
-                        />
-                        <label className="mt-3 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                          Optional meeting note
-                        </label>
-                        <input
-                          type="text"
-                          value={meetingNote[r.id] || ''}
-                          onChange={(e) =>
-                            setMeetingNote((m) => ({ ...m, [r.id]: e.target.value }))
-                          }
-                          disabled={isBusy}
-                          className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
-                          placeholder="e.g. Room 204"
-                        />
-                        <div className="mt-3">
-                          <Button type="button" size="sm" onClick={() => void onStaffApprove(r)} disabled={isBusy}>
-                            {isApproving ? 'Approving…' : 'Approve'}
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-slate-200/80 bg-white/80 p-3">
-                        <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                          Optional rejection note
-                        </label>
-                        <input
-                          type="text"
-                          value={rejectNote[r.id] || ''}
-                          onChange={(e) => setRejectNote((m) => ({ ...m, [r.id]: e.target.value }))}
-                          disabled={isBusy}
-                          className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
-                          placeholder="Reason for rejection"
-                        />
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            onClick={() => void onStaffReject(r)}
-                            disabled={isBusy}
-                          >
-                            {isRejecting ? 'Rejecting…' : 'Reject'}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </li>
-              )
-            })}
-          </ul>
-        ) : null}
-
-        {apiRows !== null && sorted.length === 0 && !error ? (
-          <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-            No pending requests right now.
-          </p>
+        {apiRows !== null ? (
+          <div className="border-t border-slate-100 px-4 py-4 sm:px-6">
+            <PtmRequestsTable
+              rows={sorted}
+              showMeeting={false}
+              emptyMessage="No pending requests right now."
+              onView={(row) => void openView(row)}
+            />
+          </div>
         ) : null}
 
         {apiRows !== null && meta.totalPages > 1 ? (
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 text-sm text-slate-600 sm:px-6">
             <span>
               Page {page} of {meta.totalPages}
               {meta.total ? ` · ${meta.total} total` : null}
@@ -330,6 +232,81 @@ export default function StaffPtmRequestsPage() {
           </div>
         ) : null}
       </Card>
+
+      <PtmRequestDetailModal
+        open={Boolean(viewRow)}
+        row={viewRow}
+        loading={viewLoading}
+        error={viewError}
+        onClose={closeView}
+        footer={
+          <Button type="button" variant="secondary" onClick={closeView}>
+            Close
+          </Button>
+        }
+      >
+        {showActions && viewRow ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Meeting time (required to approve)
+              </label>
+              <input
+                type="datetime-local"
+                value={meetingLocal[viewRow.id] || ''}
+                onChange={(e) => setMeetingLocal((m) => ({ ...m, [viewRow.id]: e.target.value }))}
+                disabled={isBusy}
+                className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
+              />
+              <label className="mt-3 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Optional meeting note
+              </label>
+              <input
+                type="text"
+                value={meetingNote[viewRow.id] || ''}
+                onChange={(e) => setMeetingNote((m) => ({ ...m, [viewRow.id]: e.target.value }))}
+                disabled={isBusy}
+                className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
+                placeholder="e.g. Room 204"
+              />
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void onStaffApprove(viewRow)}
+                  disabled={isBusy}
+                >
+                  {isApproving ? 'Approving…' : 'Approve'}
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Optional rejection note
+              </label>
+              <input
+                type="text"
+                value={rejectNote[viewRow.id] || ''}
+                onChange={(e) => setRejectNote((m) => ({ ...m, [viewRow.id]: e.target.value }))}
+                disabled={isBusy}
+                className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
+                placeholder="Reason for rejection"
+              />
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="danger"
+                  onClick={() => void onStaffReject(viewRow)}
+                  disabled={isBusy}
+                >
+                  {isRejecting ? 'Rejecting…' : 'Reject'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </PtmRequestDetailModal>
     </div>
   )
 }

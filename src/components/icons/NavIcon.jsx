@@ -1,0 +1,213 @@
+/**
+ * Navigation icons — react-icons (Tabler + Material).
+ *
+ * Canva-style tiles = colored rounded square (CSS) + white icon (react-icons).
+ * For a 100% match to custom Canva art, export SVG/PNG from Canva into /public/icons/.
+ */
+import {
+  MdAddRoad,
+  MdApproval,
+  MdAssignment,
+  MdBusiness,
+  MdCampaign,
+  MdCategory,
+  MdClass,
+  MdContactPage,
+  MdDashboard,
+  MdEvent,
+  MdEventNote,
+  MdForum,
+  MdGroups,
+  MdHistory,
+  MdHowToReg,
+  MdLink,
+  MdNotificationAdd,
+  MdNotifications,
+  MdPeople,
+  MdPerson,
+  MdPersonAdd,
+  MdPlace,
+  MdPlayCircle,
+  MdRoute,
+  MdTimeline,
+  MdVerifiedUser,
+  MdRadioButtonUnchecked,
+} from 'react-icons/md'
+import {
+  TbBus,
+  TbCalendarEvent,
+  TbDashboard,
+  TbHistory,
+  TbMap,
+  TbMapPin,
+  TbMessageCircle,
+  TbRoute,
+  TbSchool,
+  TbSteeringWheel,
+  TbUsers,
+  TbUser,
+  TbBell,
+  TbCategory,
+  TbClipboardList,
+  TbClipboardCheck,
+  TbCrown,
+  TbUserCog,
+  TbBuildingCommunity,
+} from 'react-icons/tb'
+
+/** Child-friendly tile background (Tailwind) — like Canva green / pink / teal / purple */
+export const NAV_TILE_COLOR_BY_KEY = {
+  dashboard: 'bg-violet-500',
+  parent_dashboard: 'bg-violet-500',
+  parent_notifications: 'bg-cyan-500',
+  parent_bus: 'bg-emerald-500',
+  parent_my_transport: 'bg-teal-500',
+  parent_ptm_request: 'bg-amber-500',
+  parent_ptm_history: 'bg-amber-600',
+  driver_transport: 'bg-emerald-500',
+  driver_my_routes: 'bg-teal-500',
+  classes: 'bg-indigo-500',
+  teachers: 'bg-sky-500',
+  drivers: 'bg-rose-500',
+  students: 'bg-purple-500',
+  parents: 'bg-fuchsia-500',
+  admins: 'bg-indigo-600',
+  principals: 'bg-amber-500',
+  admin_assign_bus: 'bg-emerald-600',
+  admin_create_buses: 'bg-emerald-500',
+  admin_pick_up_points: 'bg-lime-600',
+  admin_transport_routes: 'bg-teal-600',
+  create_category: 'bg-pink-500',
+  create_notice: 'bg-orange-500',
+  notifications: 'bg-cyan-500',
+  notifications_create: 'bg-cyan-600',
+  notifications_admin: 'bg-blue-500',
+  notifications_principal: 'bg-blue-600',
+  notice_history: 'bg-slate-500',
+  teacher_ptm_requests: 'bg-amber-500',
+  teacher_assigned_leads: 'bg-orange-500',
+  teacher_bus_overview: 'bg-emerald-500',
+  create_lead: 'bg-orange-600',
+  admin_visitor_logs: 'bg-stone-500',
+  admin_leads: 'bg-orange-500',
+  staff_ptm_requests: 'bg-amber-500',
+  staff_ptm_history: 'bg-amber-600',
+}
+
+export const NAV_GROUP_TILE_COLOR = {
+  academics: 'bg-indigo-500',
+  transport: 'bg-emerald-500',
+  notices: 'bg-orange-500',
+  operations: 'bg-sky-600',
+  ptm: 'bg-amber-500',
+  communications: 'bg-cyan-500',
+  crm: 'bg-rose-500',
+}
+
+const NAV_ICON_BY_KEY = {
+  dashboard: TbDashboard,
+  parent_dashboard: TbUsers,
+  parent_notifications: TbMessageCircle,
+  parent_bus: TbBus,
+  parent_my_transport: TbRoute,
+  parent_ptm_request: TbCalendarEvent,
+  parent_ptm_history: TbHistory,
+  driver_transport: TbBus,
+  driver_my_routes: TbMap,
+  classes: TbSchool,
+  teachers: TbUser,
+  drivers: TbSteeringWheel,
+  students: TbSchool,
+  parents: TbUsers,
+  admins: TbUserCog,
+  principals: TbCrown,
+  admin_assign_bus: TbBus,
+  admin_create_buses: TbBus,
+  admin_pick_up_points: TbMapPin,
+  admin_transport_routes: TbRoute,
+  create_category: TbCategory,
+  create_notice: TbBell,
+  notifications: TbBell,
+  notifications_create: MdNotificationAdd,
+  notifications_admin: MdApproval,
+  notifications_principal: TbCrown,
+  notice_history: TbHistory,
+  teacher_ptm_requests: TbCalendarEvent,
+  teacher_assigned_leads: MdAssignment,
+  teacher_bus_overview: TbBus,
+  create_lead: MdPersonAdd,
+  admin_visitor_logs: TbClipboardList,
+  admin_leads: MdContactPage,
+  staff_ptm_requests: TbCalendarEvent,
+  staff_ptm_history: TbHistory,
+}
+
+const NAV_GROUP_ICON_BY_KEY = {
+  academics: TbSchool,
+  transport: TbBus,
+  notices: TbBell,
+  operations: TbClipboardCheck,
+  ptm: TbUsers,
+  communications: TbMessageCircle,
+  crm: TbBuildingCommunity,
+}
+
+export function getNavTileColor(navKey, groupKey) {
+  if (groupKey && NAV_GROUP_TILE_COLOR[groupKey]) return NAV_GROUP_TILE_COLOR[groupKey]
+  if (navKey && NAV_TILE_COLOR_BY_KEY[navKey]) return NAV_TILE_COLOR_BY_KEY[navKey]
+  return 'bg-indigo-500'
+}
+
+/**
+ * Rounded color tile + white icon (mobile dock / child-centric UI).
+ */
+export function NavIconTile({ navKey, groupKey, isActive = false, size = 'md' }) {
+  const Icon =
+    (groupKey && NAV_GROUP_ICON_BY_KEY[groupKey]) ||
+    (navKey && NAV_ICON_BY_KEY[navKey]) ||
+    MdRadioButtonUnchecked
+  const color = getNavTileColor(navKey, groupKey)
+  const box =
+    size === 'lg'
+      ? 'h-12 w-12 rounded-2xl'
+      : size === 'sm'
+        ? 'h-8 w-8 rounded-xl'
+        : 'h-10 w-10 rounded-2xl'
+  const iconSize = size === 'lg' ? 'h-6 w-6' : size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
+
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center text-white shadow-md transition ${box} ${color} ${
+        isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950 scale-105' : 'opacity-95'
+      }`}
+      aria-hidden
+    >
+      <Icon className={iconSize} strokeWidth={1.75} />
+    </span>
+  )
+}
+
+/**
+ * Sidebar: small color tile or plain icon when `tile` is false.
+ */
+export function NavIcon({ navKey, groupKey, className = 'h-5 w-5 shrink-0', isActive = false, tile = false }) {
+  if (tile) {
+    return <NavIconTile navKey={navKey} groupKey={groupKey} isActive={isActive} size="sm" />
+  }
+
+  const Icon =
+    (groupKey && NAV_GROUP_ICON_BY_KEY[groupKey]) ||
+    (navKey && NAV_ICON_BY_KEY[navKey]) ||
+    MdRadioButtonUnchecked
+
+  return (
+    <Icon
+      className={`${className} ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-300'}`}
+      aria-hidden
+    />
+  )
+}
+
+export function getNavIconComponent(navKey) {
+  return NAV_ICON_BY_KEY[navKey] || MdRadioButtonUnchecked
+}

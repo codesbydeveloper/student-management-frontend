@@ -13,6 +13,8 @@ import { Modal } from '../../components/Modal'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { PasswordInput } from '../../components/ui/PasswordInput'
+import { PhoneInput } from '../../components/ui/PhoneInput'
 import { Label } from '../../components/ui/Label'
 import { Badge } from '../../components/ui/Badge'
 import {
@@ -21,7 +23,7 @@ import {
   canManageStaffRoles,
 } from '../../utils/permissions'
 import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
-import { email, minLength, required } from '../../utils/validators'
+import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
 
 const PAGE_LIMIT = 10
 
@@ -123,7 +125,7 @@ export function StaffRoleModule({ roleKey }) {
     setForm({
       fullName: row.fullName || '',
       email: row.email || '',
-      phone: row.phone || '',
+      phone: sanitizePhoneDigits(row.phone || ''),
       password: '',
       active: row.active !== false,
     })
@@ -148,12 +150,13 @@ export function StaffRoleModule({ roleKey }) {
     } else if (form.password.trim()) {
       ePwd = minLength(form.password, 6, 'Password')
     }
-    const next = { fullName: e1, email: e2, password: ePwd }
+    const ePhone = phone10Digits(form.phone, 'Phone', { required: false })
+    const next = { fullName: e1, email: e2, phone: ePhone, password: ePwd }
     setFormErrors(next)
-    if (e1 || e2 || ePwd) return
+    if (e1 || e2 || ePhone || ePwd) return
 
     const emailNorm = form.email.trim().toLowerCase()
-    const phoneVal = form.phone.trim()
+    const phoneVal = sanitizePhoneDigits(form.phone)
 
     setSaving(true)
     try {
@@ -164,6 +167,7 @@ export function StaffRoleModule({ roleKey }) {
         }
         const body = {
           fullName: form.fullName.trim(),
+          email: emailNorm,
           isActive: form.active,
         }
         if (phoneVal) body.phone = phoneVal
@@ -413,28 +417,29 @@ export function StaffRoleModule({ roleKey }) {
               id={`${roleKey}-email`}
               type="email"
               value={form.email}
-              disabled={Boolean(editing)}
+              disabled={!manage && editing}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               error={formErrors.email}
             />
           </div>
           <div>
             <Label htmlFor={`${roleKey}-phone`}>Phone </Label>
-            <Input
+            <PhoneInput
               id={`${roleKey}-phone`}
               value={form.phone}
               disabled={!manage && editing}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              error={formErrors.phone}
             />
+            {formErrors.phone ? <p className="mt-1 text-xs text-red-600">{formErrors.phone}</p> : null}
           </div>
           {(!editing && canCreate) || (editing && manage) ? (
             <div className="sm:col-span-2">
               <Label htmlFor={`${roleKey}-password`}>
                 {editing ? 'New password (leave blank to keep)' : 'Password'}
               </Label>
-              <Input
+              <PasswordInput
                 id={`${roleKey}-password`}
-                type="password"
                 autoComplete="new-password"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}

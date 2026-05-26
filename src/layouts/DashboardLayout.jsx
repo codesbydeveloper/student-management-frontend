@@ -12,6 +12,7 @@ import { InstitutionBrandMark } from '../components/layout/InstitutionBrandMark'
 import { useLoginBranding } from '../hooks/useLoginBranding'
 import { useProfilePrefs } from '../hooks/useProfilePrefs'
 import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
+import { NavIcon } from '../components/icons/NavIcon'
 import { PencilIcon } from '../components/icons/PencilIcon'
 import { useTransportTripMaintenance } from '../modules/transport/useTransportTripMaintenance'
 
@@ -47,11 +48,15 @@ function navLinkUsesEnd(to) {
     to === '/create-category' ||
     to === '/create-notice' ||
     to === '/parent-bus' ||
+    to === '/parent/routes' ||
     to === '/parent/ptm/request' ||
     to === '/parent/ptm/history' ||
     to === '/driver-transport' ||
+    to === '/driver/routes' ||
     to === '/transport/buses' ||
     to === '/transport/assign-bus' ||
+    to === '/transport/pick-up-points' ||
+    to === '/transport/routes' ||
     to === '/drivers' ||
     to === '/visitor-logs' ||
     to === '/leads' ||
@@ -109,7 +114,13 @@ export function DashboardLayout() {
     transport: pathIn(
       user.role === ROLES.TEACHER
         ? ['/transport/bus-rosters']
-        : ['/drivers', '/transport/assign-bus', '/transport/buses'],
+        : [
+            '/drivers',
+            '/transport/assign-bus',
+            '/transport/buses',
+            '/transport/pick-up-points',
+            '/transport/routes',
+          ],
     ),
     notices: pathIn(['/create-category', '/create-notice', '/notifications/history']),
     operations: pathIn([
@@ -194,11 +205,7 @@ export function DashboardLayout() {
               >
                 {({ isActive }) => (
                   <>
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
-                        isActive ? 'bg-white shadow-sm shadow-white/50' : 'bg-slate-600 group-hover:bg-indigo-400'
-                      }`}
-                    />
+                    <NavIcon navKey={entry.key} isActive={isActive} tile />
                     <span className="truncate">{entry.label}</span>
                   </>
                 )}
@@ -220,6 +227,11 @@ export function DashboardLayout() {
                     }))
                   }
                 >
+                  <NavIcon
+                    groupKey={entry.key}
+                    isActive={navGroupPathActive(entry.key, navGroupActive)}
+                    tile
+                  />
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center text-slate-500 transition-transform ${
                       navGroupOpen[entry.key] ? 'rotate-90 text-indigo-300' : ''
@@ -247,11 +259,7 @@ export function DashboardLayout() {
                       >
                         {({ isActive }) => (
                           <>
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-                                isActive ? 'bg-indigo-300 shadow-sm' : 'bg-slate-600 group-hover:bg-slate-400'
-                              }`}
-                            />
+                            <NavIcon navKey={item.key} isActive={isActive} tile />
                             <span className="truncate">{item.label}</span>
                           </>
                         )}

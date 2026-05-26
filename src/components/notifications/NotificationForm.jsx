@@ -13,6 +13,7 @@ import { Select } from '../ui/Select'
 import { TargetSelector } from './TargetSelector'
 import {
   NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_TARGET_TYPES,
 } from '../../utils/notificationConstants'
 
@@ -160,11 +161,15 @@ export function NotificationForm() {
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
-            <option value={NOTIFICATION_CATEGORIES.ADMINISTRATIVE}>Administrative</option>
-            <option value={NOTIFICATION_CATEGORIES.ACADEMIC}>Academic</option>
+            <option value={NOTIFICATION_CATEGORIES.ADMINISTRATIVE}>
+              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
+            </option>
+            <option value={NOTIFICATION_CATEGORIES.ACADEMIC}>
+              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
+            </option>
           </Select>
           <p className="mt-1.5 text-xs text-slate-500">
-            Administrative → admin approval. Academic → principal approval.
+            Admin → admin approval. Principal → principal approval.
           </p>
         </div>
         <div>

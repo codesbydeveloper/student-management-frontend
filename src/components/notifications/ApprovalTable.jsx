@@ -4,7 +4,7 @@ import { NotificationDecisionBadge } from './NotificationDecisionBadge'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import {
-  NOTIFICATION_CATEGORY_LABELS,
+  getNotificationCategoryLabel,
   NOTIFICATION_STATUSES,
 } from '../../utils/notificationConstants'
 import { formatTargetSummary, formatTargetTypeLabel } from '../../utils/notificationFormat'
@@ -47,7 +47,7 @@ export function ApprovalTable({
         n.title,
         n.message,
         n.createdByName,
-        NOTIFICATION_CATEGORY_LABELS[n.category],
+        getNotificationCategoryLabel(n.category),
         formatTargetSummary(n, classes, students),
       ]
         .join(' ')
@@ -114,7 +114,7 @@ export function ApprovalTable({
                       <p className="mt-1 line-clamp-2 text-xs text-slate-500">{n.message}</p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 align-top text-slate-600">
-                      {NOTIFICATION_CATEGORY_LABELS[n.category]}
+                      {getNotificationCategoryLabel(n.category)}
                     </td>
                     <td className="max-w-xs min-w-[10rem] px-4 py-3.5 align-top">
                       <div className="flex flex-col gap-1.5">

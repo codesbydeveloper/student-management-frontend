@@ -11,6 +11,7 @@ import {
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { PasswordInput } from '../components/ui/PasswordInput'
 import { Label } from '../components/ui/Label'
 import { RoleBadge } from '../components/ui/Badge'
 import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
@@ -258,9 +259,8 @@ export default function ProfilePage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <Label htmlFor="profile-current-password">Current password</Label>
-              <Input
+              <PasswordInput
                 id="profile-current-password"
-                type="password"
                 className="mt-1.5"
                 autoComplete="current-password"
                 value={currentPassword}
@@ -272,9 +272,8 @@ export default function ProfilePage() {
             </div>
             <div>
               <Label htmlFor="profile-new-password">New password</Label>
-              <Input
+              <PasswordInput
                 id="profile-new-password"
-                type="password"
                 className="mt-1.5"
                 autoComplete="new-password"
                 value={newPassword}
@@ -286,9 +285,8 @@ export default function ProfilePage() {
             </div>
             <div>
               <Label htmlFor="profile-confirm-password">Confirm password</Label>
-              <Input
+              <PasswordInput
                 id="profile-confirm-password"
-                type="password"
                 className="mt-1.5"
                 autoComplete="new-password"
                 value={confirmPassword}

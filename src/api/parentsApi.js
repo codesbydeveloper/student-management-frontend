@@ -195,6 +195,16 @@ function extractPickerParentsList(data) {
   return list.length ? list : []
 }
 
+/** Small secondary line for parent pickers: email and phone when available. */
+export function parentPickerSubtext(email, phone) {
+  const em = String(email ?? '').trim()
+  const ph = String(phone ?? '').trim()
+  const parts = []
+  if (em) parts.push(em)
+  if (ph) parts.push(ph)
+  return parts.length ? parts.join(' · ') : undefined
+}
+
 /** Option shape for SearchableSingleSelect (student form parent picker). */
 export function mapPickerParentToOption(raw) {
   const row = mapApiParentToRow(raw)
@@ -202,7 +212,7 @@ export function mapPickerParentToOption(raw) {
   return {
     value: row.id,
     label: row.fullName,
-    subtext: row.email || undefined,
+    subtext: parentPickerSubtext(row.email, row.phone),
   }
 }
 
@@ -1091,6 +1101,273 @@ export async function fetchParentMyDriver(token) {
     }
     const blocks = extractParentMyDriverBlocks(data)
     const rows = blocks.map(mapParentMyDriverRow).filter(Boolean)
+    return { ok: true, rows }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, rows: [] }
+  }
+}
+
+function formatMyTransportError(data, status) {
+  if (data == null) return `Could not load transport (${status})`
+  if (typeof data === 'string' && data) return data
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  return `Could not load transport (${status})`
+}
+
+const PARENT_ROUTE_TYPE_LABELS = {
+  pick_up: 'Pick up',
+  drop: 'Drop',
+}
+
+function formatParentScheduledTime(value) {
+  if (value == null || value === '') return ''
+  const s = String(value).trim()
+  if (/am|pm/i.test(s)) return s
+  const m = s.match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return s
+  const hour = Number(m[1])
+  if (Number.isNaN(hour)) return s
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const h12 = hour % 12 || 12
+  return `${h12}:${m[2]} ${ampm}`
+}
+
+function extractParentMyTransportStudents(data) {
+  if (!data) return []
+  if (Array.isArray(data)) return data
+  if (typeof data !== 'object') return []
+  if (Array.isArray(data.students)) return data.students
+  if (Array.isArray(data.children)) return data.children
+  if (Array.isArray(data.items)) return data.items
+  if (Array.isArray(data.rows)) return data.rows
+  if (Array.isArray(data.transport)) return data.transport
+  if (Array.isArray(data.data)) return data.data
+  if (
+    data.data &&
+    typeof data.data === 'object' &&
+    !Array.isArray(data.data) &&
+    Array.isArray(data.data.students)
+  ) {
+    return data.data.students
+  }
+  if (
+    data.data &&
+    typeof data.data === 'object' &&
+    !Array.isArray(data.data) &&
+    Array.isArray(data.data.children)
+  ) {
+    return data.data.children
+  }
+  return []
+}
+
+function locationFromPickupPoints(studentBlock) {
+  if (!studentBlock || typeof studentBlock !== 'object') return ''
+  const pts = studentBlock.pickuppoints ?? studentBlock.pickupPoints ?? studentBlock.pickUpPoints
+  if (!Array.isArray(pts) || !pts.length) return ''
+  const first = pts[0]
+  if (!first || typeof first !== 'object') return ''
+  return String(
+    first.location ?? first.name ?? first.label ?? first.locationName ?? '',
+  ).trim()
+}
+
+/**
+ * One child + route row from GET /api/parents/my-transport.
+ * @param {object} raw — route object or flat student block
+ * @param {{ student?: object, envelope?: object }} [ctx]
+ */
+export function mapParentMyTransportRow(raw, ctx = {}) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const studentBlock = ctx.student && typeof ctx.student === 'object' ? ctx.student : null
+  const envelope = ctx.envelope && typeof ctx.envelope === 'object' ? ctx.envelope : {}
+
+  const nestedStudent =
+    raw.student && typeof raw.student === 'object'
+      ? raw.student
+      : studentBlock?.student && typeof studentBlock.student === 'object'
+        ? studentBlock.student
+        : null
+
+  const driver =
+    raw.driver && typeof raw.driver === 'object'
+      ? raw.driver
+      : studentBlock?.driver && typeof studentBlock.driver === 'object'
+        ? studentBlock.driver
+        : envelope.driver && typeof envelope.driver === 'object'
+          ? envelope.driver
+          : null
+
+  const bus = raw.bus && typeof raw.bus === 'object' ? raw.bus : envelope.bus
+
+  const studentName = String(
+    studentBlock?.studentName ??
+      studentBlock?.student_name ??
+      raw.studentName ??
+      raw.student_name ??
+      nestedStudent?.fullName ??
+      nestedStudent?.name ??
+      '',
+  ).trim()
+
+  const studentId = String(
+    studentBlock?.studentId ??
+      studentBlock?.student_id ??
+      raw.studentId ??
+      raw.student_id ??
+      nestedStudent?.id ??
+      nestedStudent?.studentId ??
+      '',
+  ).trim()
+
+  const driverName = String(
+    raw.driverName ??
+      raw.driver_name ??
+      driver?.fullname ??
+      driver?.fullName ??
+      driver?.name ??
+      driver?.driverName ??
+      '',
+  ).trim()
+
+  const busNumberPlate = String(
+    raw.busplate ??
+      raw.busPlate ??
+      raw.busNumberPlate ??
+      raw.bus_number_plate ??
+      studentBlock?.busNumberPlate ??
+      studentBlock?.busPlate ??
+      envelope.busNumberPlate ??
+      envelope.busPlate ??
+      envelope.busplate ??
+      raw.plate ??
+      bus?.plate ??
+      bus?.number ??
+      '',
+  ).trim()
+
+  const routeName = String(
+    raw.routeName ??
+      raw.route_name ??
+      envelope.busName ??
+      envelope.routeName ??
+      '',
+  ).trim()
+
+  const routeType = String(raw.routeType ?? raw.route_type ?? '').trim()
+  const routeTypeLabel =
+    PARENT_ROUTE_TYPE_LABELS[routeType] ||
+    (routeType ? routeType.replace(/_/g, ' ') : '')
+
+  const location = String(
+    raw.location ??
+      raw.locationName ??
+      raw.pickupLocation ??
+      locationFromPickupPoints(studentBlock) ??
+      locationFromPickupPoints(raw) ??
+      '',
+  ).trim()
+
+  const scheduledTime = formatParentScheduledTime(
+    raw.scheduledTime ??
+      raw.scheduled_time ??
+      raw.time ??
+      raw.pickupTime ??
+      raw.pick_up_time ??
+      raw.dropTime ??
+      raw.drop_time,
+  )
+
+  const routeId = raw.id ?? raw.routeId ?? raw.route_id
+
+  if (
+    !studentName &&
+    !studentId &&
+    !driverName &&
+    !busNumberPlate &&
+    !routeName &&
+    !location &&
+    !scheduledTime
+  ) {
+    return null
+  }
+
+  const sid = studentId || studentName || 'child'
+  const rid = routeId != null ? String(routeId) : '0'
+
+  return {
+    rowKey: `${sid}-${rid}`,
+    studentId: sid,
+    studentName: studentName || '—',
+    driverName: driverName || '—',
+    busNumberPlate: busNumberPlate || '—',
+    routeName: routeName || '—',
+    routeType,
+    routeTypeLabel: routeTypeLabel || '—',
+    location: location || '—',
+    scheduledTime: scheduledTime || '—',
+  }
+}
+
+/** Expand envelope + nested `students[].routes[]` into flat display rows. */
+function flattenParentMyTransportResponse(data) {
+  if (!data || typeof data !== 'object') return []
+  const envelope = Array.isArray(data) ? {} : data
+  const students = extractParentMyTransportStudents(data)
+  const rows = []
+
+  for (const st of students) {
+    if (!st || typeof st !== 'object') continue
+    const routes = st.routes ?? st.Routes ?? []
+    if (Array.isArray(routes) && routes.length > 0) {
+      for (const route of routes) {
+        const row = mapParentMyTransportRow(route, { student: st, envelope })
+        if (row) rows.push(row)
+      }
+    } else {
+      const row = mapParentMyTransportRow(st, { envelope })
+      if (row) rows.push(row)
+    }
+  }
+
+  if (rows.length === 0 && !Array.isArray(data)) {
+    const row = mapParentMyTransportRow(data, { envelope: data })
+    if (row) rows.push(row)
+  }
+
+  return rows
+}
+
+/**
+ * GET /api/parents/my-transport — per child: driver, bus plate, route, location, time (Bearer parent JWT).
+ * @returns {Promise<{ ok: true, rows: object[] } | { ok: false, error: string, rows: [] }>}
+ */
+export async function fetchParentMyTransport(token) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', rows: [] }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/parents/my-transport`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: true, rows: [] }
+    }
+    if (!res.ok) {
+      return { ok: false, error: formatMyTransportError(data, res.status), rows: [] }
+    }
+    const rows = flattenParentMyTransportResponse(data)
     return { ok: true, rows }
   } catch (e) {
     const msg =
