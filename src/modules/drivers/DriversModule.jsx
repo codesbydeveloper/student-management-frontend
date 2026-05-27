@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
+import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
 import { useConfirm } from '../../context/ConfirmContext'
@@ -720,7 +721,7 @@ export function DriversModule() {
         open={importModalOpen}
         onClose={closeImportDriverModal}
         title="Import drivers (Excel / CSV)"
-        size="sm"
+        size="lg"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <Button
@@ -744,28 +745,12 @@ export function DriversModule() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-600">
-            <p className="font-medium text-slate-800">Column guide</p>
-            <p className="mt-1.5">
-              Use <span className="font-medium text-slate-900">fullName</span>,{' '}
-              <span className="font-medium text-slate-900">email</span>,{' '}
-              <span className="font-medium text-slate-900">phone</span>,{' '}
-              <span className="font-medium text-slate-900">licenseNumber</span>,{' '}
-              <span className="font-medium text-slate-900">password</span> (min 8 characters), optional{' '}
-              <span className="font-medium text-slate-900">assignedBus</span> (bus plate or id), and{' '}
-              <span className="font-medium text-slate-900">active</span> (yes/no).
-            </p>
-            <p className="mt-2">
-              <a
-                href="/drivers-import-sample.csv"
-                download
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
-              >
-                Download sample file
-              </a>
-              <span className="text-slate-500"> — In Excel, use Save As → CSV, then import.</span>
-            </p>
-          </div>
+          <CsvImportGuideTable
+            headers={['fullName', 'email', 'phone', 'licenseNumber', 'assignedBus', 'active']}
+            requiredHeaders={['fullName', 'email', 'phone', 'licenseNumber']}
+            exampleRow={['Driver One', 'driver1@school.test', '5550401', 'DL-1001', 'GJ-02-QM-8256', 'yes']}
+            sampleHref="/drivers-import-sample.csv"
+          />
 
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
             <input

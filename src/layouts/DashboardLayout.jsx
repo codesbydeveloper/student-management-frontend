@@ -53,6 +53,7 @@ function navLinkUsesEnd(to) {
     to === '/parent/ptm/request' ||
     to === '/parent/ptm/history' ||
     to === '/driver-transport' ||
+    to === '/driver/map' ||
     to === '/driver/routes' ||
     to === '/transport/buses' ||
     to === '/transport/assign-bus' ||

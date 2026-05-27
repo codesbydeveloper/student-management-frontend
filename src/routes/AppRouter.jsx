@@ -28,6 +28,7 @@ const ParentNotificationsPage = lazy(() => import('../pages/ParentNotificationsP
 const ParentBusTrackingPage = lazy(() => import('../pages/ParentBusTrackingPage.jsx'))
 const ParentMyTransportPage = lazy(() => import('../pages/ParentMyTransportPage.jsx'))
 const DriverTransportPage = lazy(() => import('../pages/DriverTransportPage.jsx'))
+const DriverMapPage = lazy(() => import('../pages/DriverMapPage.jsx'))
 const DriverMyRoutesPage = lazy(() => import('../pages/DriverMyRoutesPage.jsx'))
 const TransportAssignmentsPage = lazy(() => import('../pages/TransportAssignmentsPage.jsx'))
 const CreateBusesPage = lazy(() => import('../pages/CreateBusesPage.jsx'))
@@ -335,6 +336,14 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.DRIVER]}>
                 <DriverTransportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="driver/map"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.DRIVER]}>
+                <DriverMapPage />
               </ProtectedRoute>
             }
           />

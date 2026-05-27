@@ -25,6 +25,7 @@ import { canManageClasses } from '../../utils/permissions'
 import { ROLES } from '../../utils/constants'
 import { required } from '../../utils/validators'
 import { parseCsv } from '../../utils/csvParse'
+import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 
 const CLASS_PAGE_LIMIT = 10
 const LOCAL_CLASS_PAGE_SIZE = 5
@@ -715,7 +716,7 @@ export function ClassesModule() {
         open={importModalOpen}
         onClose={closeImportClassCsvModal}
         title="Import classes (CSV)"
-        size="sm"
+        size="md"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <Button
@@ -739,21 +740,12 @@ export function ClassesModule() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-600">
-            <p className="font-medium text-slate-800">Column guide</p>
-            <p className="mt-1.5">
-              When signed in, the file is sent to <span className="font-medium text-slate-900">POST /api/classes/import/csv</span>{' '}
-              first. If that endpoint is unavailable, rows are created one-by-one from this browser.
-            </p>
-            <p className="mt-2">
-              Columns: <span className="font-medium text-slate-900">name</span> (or displayName),{' '}
-              <span className="font-medium text-slate-900">gradeLevel</span>, optional{' '}
-              <span className="font-medium text-slate-900">section</span> and{' '}
-              <span className="font-medium text-slate-900">room</span>, and optional{' '}
-              <span className="font-medium text-slate-900">teacherIds</span> (semicolon-separated ids — or leave
-              blank and link teachers on Teachers).
-            </p>
-          </div>
+          <CsvImportGuideTable
+            headers={['name', 'gradeLevel', 'section', 'room', 'teacherIds']}
+            requiredHeaders={['name', 'gradeLevel']}
+            exampleRow={['Grade 10 A', '10', 'A', '201', '1;2']}
+            sampleHref="/classes-import-sample.csv"
+          />
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
             <input
               key={csvInputKey}

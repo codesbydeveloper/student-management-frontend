@@ -27,6 +27,8 @@ import { canManageTeachers } from '../../utils/permissions'
 import { syncTeacherToClasses } from '../../utils/dataSync'
 import { filterTeachersForUser } from '../../utils/roleFilters'
 import { parseCsv } from '../../utils/csvParse'
+import { AssignedClassPill } from '../../components/ui/AssignedClassPill'
+import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 import { filterRowsByTableSearch } from '../../utils/tableQuery'
 import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
 import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
@@ -35,6 +37,19 @@ import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 const TEACHER_PAGE_LIMIT = 10
 const LOCAL_TEACHER_PAGE_SIZE = 5
 const TEACHER_SEARCH_KEYS = ['fullName', 'email', 'subject']
+
+/** Must match server CSV import — shown in UI and sample file (parseCsv → snake_case keys). */
+const TEACHER_IMPORT_CSV_HEADERS = [
+  'Full Name',
+  'Email',
+  'Password',
+  'phone',
+  'subject',
+  'room',
+  'active',
+]
+
+const TEACHER_IMPORT_CSV_REQUIRED = ['Full Name', 'Email', 'Password']
 
 function pickCsvField(row, keys) {
   for (const k of keys) {
@@ -45,24 +60,63 @@ function pickCsvField(row, keys) {
 }
 
 function parseCsvActive(value) {
-  const s = String(value ?? 'yes').trim().toLowerCase()
-  return s === 'yes' || s === 'true' || s === '1' || s === 'y'
+  const s = String(value ?? 'true').trim().toLowerCase()
+  if (!s) return true
+  if (s === 'no' || s === 'false' || s === '0' || s === 'n') return false
+  return true
+}
+
+/** One cell may be `201` or legacy `5 (201)` — we keep the room number only. */
+function parseRoomNumbersFromCsv(raw) {
+  if (!raw) return []
+  return String(raw)
+    .split(/[;,]/)
+    .map((part) => {
+      const t = String(part).trim()
+      const inParens = t.match(/\(([^)]+)\)\s*$/)
+      if (inParens) return inParens[1].trim()
+      return t
+    })
+    .filter(Boolean)
+}
+
+/** Match classes by `room` field (not class id). */
+function resolveClassIdsFromRoomNumbers(roomNumbers, classes) {
+  const ids = []
+  const seen = new Set()
+  for (const room of roomNumbers) {
+    const r = String(room).trim()
+    if (!r) continue
+    const match = classes.find((c) => String(c.room ?? '').trim() === r)
+    if (!match) continue
+    const sid = String(match.id)
+    if (seen.has(sid)) continue
+    seen.add(sid)
+    ids.push(sid)
+  }
+  return ids
 }
 
 function csvRowToTeacherDraft(row) {
-  const fullName = pickCsvField(row, ['name', 'full_name', 'fullname'])
-  const emailVal = pickCsvField(row, ['email']).toLowerCase()
-  const phone = sanitizePhoneDigits(pickCsvField(row, ['phone', 'number', 'mobile']))
+  const fullName = pickCsvField(row, ['full_name', 'fullname', 'name', 'display_name'])
+  const emailVal = pickCsvField(row, ['email', 'e_mail']).toLowerCase()
   const password = pickCsvField(row, ['password'])
-  const subject = pickCsvField(row, ['subject', 'subjectfocus', 'subject_focus'])
-  const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
-  const classesRaw =
-    pickCsvField(row, ['assigned_classes', 'assignedclasses', 'class_ids', 'classes']) || ''
-  const classIds = classesRaw
-    .split(/[;,]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  return { fullName, email: emailVal, phone, password, subject, active, classIds }
+  const phone = sanitizePhoneDigits(pickCsvField(row, ['phone', 'number', 'mobile']))
+  const subject = pickCsvField(row, ['subject', 'subject_focus', 'subjectfocus'])
+  const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']))
+  const roomsRaw =
+    pickCsvField(row, [
+      'room',
+      'rooms',
+      'class_room',
+      'class_rooms',
+      'assigned_classes',
+      'assignedclasses',
+      'class_ids',
+      'classes',
+    ]) || ''
+  const roomNumbers = parseRoomNumbersFromCsv(roomsRaw)
+  return { fullName, email: emailVal, phone, password, subject, active, roomNumbers }
 }
 
 export function TeachersModule() {
@@ -222,6 +276,32 @@ export function TeachersModule() {
     }
     return m
   }, [classes, pickerClassOptions])
+
+  const classRoomById = useMemo(() => {
+    const m = new Map()
+    classes.forEach((c) => {
+      const room = String(c.room ?? '').trim()
+      m.set(c.id, room)
+      m.set(String(c.id), room)
+    })
+    return m
+  }, [classes])
+
+  const roomNumberForClassId = useCallback(
+    (classId) => {
+      const sid = String(classId)
+      return classRoomById.get(classId) ?? classRoomById.get(sid) ?? ''
+    },
+    [classRoomById],
+  )
+
+  const classNameForClassId = useCallback(
+    (classId) => {
+      const sid = String(classId)
+      return classNameById.get(classId) ?? classNameById.get(sid) ?? sid
+    },
+    [classNameById],
+  )
 
   const contextClassOptions = useMemo(
     () =>
@@ -492,15 +572,19 @@ export function TeachersModule() {
   }
 
   const downloadTeachersCsv = (rows, filename) => {
-    const header = ['fullName', 'email', 'phone', 'subject', 'active', 'classes']
+    const header = [...TEACHER_IMPORT_CSV_HEADERS]
     const lines = rows.map((t) =>
       [
         t.fullName,
         t.email,
+        t.password || '',
         t.phone,
         t.subject,
-        t.active ? 'yes' : 'no',
-        t.classIds.map((id) => classNameById.get(id) || id).join(';'),
+        t.classIds
+          .map((id) => roomNumberForClassId(id))
+          .filter(Boolean)
+          .join(';'),
+        t.active ? 'true' : 'false',
       ]
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
         .join(','),
@@ -703,7 +787,8 @@ export function TeachersModule() {
           continue
         }
         batchEmails.add(em)
-        drafts.push(d)
+        const classIds = resolveClassIdsFromRoomNumbers(d.roomNumbers, classes)
+        drafts.push({ ...d, classIds })
       }
 
       if (!drafts.length) {
@@ -711,7 +796,8 @@ export function TeachersModule() {
         return
       }
 
-      const validClassIdsFor = (ids) => ids.filter((cid) => classes.some((c) => c.id === cid))
+      const validClassIdsFor = (ids) =>
+        ids.filter((cid) => classes.some((c) => String(c.id) === String(cid)))
 
       if (token && remoteTeachers !== undefined) {
         let created = 0
@@ -806,10 +892,25 @@ export function TeachersModule() {
       key: 'classes',
       header: 'Classes',
       render: (row) => {
-        const n = Array.isArray(row.classIds) ? row.classIds.length : 0
+        const ids = Array.isArray(row.classIds) ? row.classIds : []
+        if (!ids.length) return <span className="text-slate-500">—</span>
         return (
-          <span className="text-slate-600" title={n ? row.classIds.map((id) => classNameById.get(id) ?? id).join(', ') : ''}>
-            {n > 0 ? n : '—'}
+          <span className="flex max-w-[14rem] flex-wrap gap-1">
+            {ids.map((id) => {
+              const room = roomNumberForClassId(id)
+              const title = room
+                ? `Room ${room} — ${classNameForClassId(id)}`
+                : classNameForClassId(id)
+              return (
+                <AssignedClassPill
+                  key={String(id)}
+                  label={room || classNameForClassId(id)}
+                  room=""
+                  compact
+                  title={title}
+                />
+              )
+            })}
           </span>
         )
       },
@@ -963,7 +1064,7 @@ export function TeachersModule() {
         open={importModalOpen}
         onClose={closeImportTeacherCsvModal}
         title="Import teachers (CSV)"
-        size="sm"
+        size="xl"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <Button
@@ -987,18 +1088,21 @@ export function TeachersModule() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-600">
-            <p className="font-medium text-slate-800">Column guide</p>
-            <p className="mt-1.5">
-              Use <span className="font-medium text-slate-900">name</span>,{' '}
-              <span className="font-medium text-slate-900">email</span>,{' '}
-              <span className="font-medium text-slate-900">number</span> (phone),{' '}
-              <span className="font-medium text-slate-900">password</span>,{' '}
-              <span className="font-medium text-slate-900">subject</span>,{' '}
-              <span className="font-medium text-slate-900">active</span> (yes/no), and optional{' '}
-              <span className="font-medium text-slate-900">assigned_classes</span> (semicolon-separated class ids).
-            </p>
-          </div>
+          <CsvImportGuideTable
+            headers={TEACHER_IMPORT_CSV_HEADERS}
+            requiredHeaders={TEACHER_IMPORT_CSV_REQUIRED}
+            exampleRow={[
+              'John Smith',
+              'john@school.com',
+              'secret456',
+              '',
+              'Science',
+              '15;16',
+              'yes',
+            ]}
+            footnote=" one room → 101 · more rooms → 101;102 (semicolon between numbers). active: true or yes."
+            sampleHref="/teachers-import-sample.csv"
+          />
 
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
             <input
@@ -1378,18 +1482,18 @@ export function TeachersModule() {
                   (form.classIds ?? []).map((cid) => {
                     const sid = String(cid)
                     const fromApi = editing?.classesDetail?.find((c) => String(c.id) === sid)?.displayName
-                    const label =
+                    const room = roomNumberForClassId(cid)
+                    const className =
                       fromApi ||
                       teacherClassSelectOptions.find((o) => String(o.value) === sid)?.label ||
-                      classNameById.get(cid) ||
-                      classNameById.get(sid) ||
-                      `Class #${sid}`
+                      classNameForClassId(cid)
                     return (
-                      <li
-                        key={sid}
-                        className="inline-flex max-w-full items-center rounded-full border border-indigo-200/90 bg-indigo-50/80 px-3.5 py-1.5 text-sm font-semibold text-indigo-950 shadow-sm"
-                      >
-                        <span className="truncate">{label}</span>
+                      <li key={sid}>
+                        <AssignedClassPill
+                          label={room || className}
+                          room=""
+                          title={room ? `Room ${room} — ${className}` : className}
+                        />
                       </li>
                     )
                   })

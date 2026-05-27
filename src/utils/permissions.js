@@ -26,6 +26,8 @@ export const ROUTE_ACCESS = {
   parent_ptm_request: [ROLES.PARENT],
   parent_ptm_history: [ROLES.PARENT],
   driver_transport: [ROLES.DRIVER],
+  /** Live GPS map (driver only). */
+  driver_map: [ROLES.DRIVER],
   /** GET /api/drivers/my-transport-routes — driver route roster. */
   driver_my_routes: [ROLES.DRIVER],
   /** Admin / principal — assign students to a bus (UI shell). */

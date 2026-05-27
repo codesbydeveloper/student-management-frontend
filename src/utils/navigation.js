@@ -79,6 +79,7 @@ const items = [
   { key: 'parent_ptm_request', to: '/parent/ptm/request', label: 'PTM request' },
   { key: 'parent_ptm_history', to: '/parent/ptm/history', label: 'PTM history' },
   { key: 'driver_transport', to: '/driver-transport', label: 'My trip' },
+  { key: 'driver_map', to: '/driver/map', label: 'Map' },
   { key: 'driver_my_routes', to: '/driver/routes', label: 'Routes' },
   { key: 'classes', to: '/classes', label: 'Classes' },
   { key: 'teachers', to: '/teachers', label: 'Teachers' },

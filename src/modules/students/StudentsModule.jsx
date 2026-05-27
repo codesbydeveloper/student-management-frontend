@@ -36,6 +36,7 @@ import { canManageStudents, canDeleteStudent } from '../../utils/permissions'
 import { filterStudentsForUser } from '../../utils/roleFilters'
 import { required } from '../../utils/validators'
 import { parseCsv } from '../../utils/csvParse'
+import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 
 const STUDENT_PAGE_LIMIT = 10
 const LOCAL_STUDENT_PAGE_SIZE = 5
@@ -1208,7 +1209,7 @@ export function StudentsModule() {
         open={importModalOpen}
         onClose={closeImportStudentCsvModal}
         title="Import students (CSV)"
-        size="sm"
+        size="md"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <Button
@@ -1232,6 +1233,12 @@ export function StudentsModule() {
         }
       >
         <div className="space-y-4">
+          <CsvImportGuideTable
+            headers={['fullName', 'classId', 'parentId', 'active']}
+            requiredHeaders={['fullName']}
+            exampleRow={['Jordan Lee', '5', '', 'yes']}
+            sampleHref="/students-import-sample.csv"
+          />
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
             <input
               key={csvInputKey}

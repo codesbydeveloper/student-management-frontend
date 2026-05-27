@@ -195,6 +195,11 @@ export default function DriverMyRoutesPage() {
             My trip
           </Button>
         </Link>
+        <Link to="/driver/map">
+          <Button type="button" size="sm" variant="secondary">
+            Map
+          </Button>
+        </Link>
       </div>
 
       <Card>

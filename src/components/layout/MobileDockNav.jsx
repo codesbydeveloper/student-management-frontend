@@ -37,6 +37,7 @@ export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
               item.to === '/parent/ptm/request' ||
               item.to === '/parent/ptm/history' ||
               item.to === '/driver-transport' ||
+              item.to === '/driver/map' ||
               item.to === '/driver/routes' ||
               item.to === '/transport/buses' ||
               item.to === '/transport/assign-bus' ||

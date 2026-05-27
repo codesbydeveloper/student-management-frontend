@@ -27,6 +27,7 @@ import { canManageParents } from '../../utils/permissions'
 import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
 import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 import { parseCsv } from '../../utils/csvParse'
+import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
 
 const PARENT_PAGE_LIMIT = 10
@@ -942,7 +943,7 @@ export function ParentsModule() {
         open={importModalOpen}
         onClose={closeImportParentCsvModal}
         title="Import parents (CSV)"
-        size="sm"
+        size="lg"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <Button
@@ -966,22 +967,12 @@ export function ParentsModule() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-600">
-            <p className="font-medium text-slate-800">Column guide</p>
-            <p className="mt-1.5">
-              When signed in, the file is sent to{' '}
-              <span className="font-medium text-slate-900">POST /api/parents/import/csv</span> first. If that
-              endpoint is unavailable, rows are created one-by-one from this browser.
-            </p>
-            <p className="mt-2">
-              <span className="font-medium text-slate-900">fullName</span>,{' '}
-              <span className="font-medium text-slate-900">email</span>,{' '}
-              <span className="font-medium text-slate-900">phone</span>,{' '}
-              <span className="font-medium text-slate-900">password</span> (min 6 chars), optional{' '}
-              <span className="font-medium text-slate-900">studentIds</span> (semicolon-separated),{' '}
-              <span className="font-medium text-slate-900">active</span> (yes/no).
-            </p>
-          </div>
+          <CsvImportGuideTable
+            headers={['fullName', 'email', 'phone', 'password', 'studentIds', 'active']}
+            requiredHeaders={['fullName', 'email', 'password']}
+            exampleRow={['Riley Morgan', 'riley@school.test', '5550301', 'Secret01', '', 'yes']}
+            sampleHref="/parents-import-sample.csv"
+          />
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">
             <input
               key={csvInputKey}
