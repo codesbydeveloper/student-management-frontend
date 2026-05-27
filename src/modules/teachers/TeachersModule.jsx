@@ -905,7 +905,7 @@ export function TeachersModule() {
           title="Teachers"
           subtitle={
             manage
-              ? 'Directory of teaching staff. Assign each teacher to one or more classes here — class records no longer include a teacher picker.'
+              ? ''
               : 'School staff directory — browse all teachers; editing is limited to admin or principal.'
           }
           action={

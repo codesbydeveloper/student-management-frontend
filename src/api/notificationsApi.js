@@ -5,7 +5,8 @@ import {
   NOTIFICATION_STATUSES,
   NOTIFICATION_TARGET_TYPES,
 } from '../utils/notificationConstants'
-import { pickApprovedAtMs } from '../utils/notificationTimestamps'
+import { parseNotificationTimestamp, pickApprovedAtMs } from '../utils/notificationTimestamps'
+import { appendDateRangeToSearchParams } from '../utils/listDateRange'
 
 function formatListError(data, status) {
   if (data == null) return `Could not load notifications (${status})`
@@ -34,7 +35,7 @@ function statCount(value) {
 
 function pickStatsSlice(obj) {
   if (!obj || typeof obj !== 'object') {
-    return { total: 0, approved: 0, rejected: 0 }
+    return { total: 0, pending: 0, approved: 0, rejected: 0 }
   }
   const pending = statCount(
     obj.pending ?? obj.pendingCount ?? obj.pendingTotal ?? obj.totalPending,
@@ -48,12 +49,12 @@ function pickStatsSlice(obj) {
   const total = statCount(
     obj.total ?? obj.totalCount ?? obj.count ?? obj.all ?? pending + approved + rejected,
   )
-  return { total, approved, rejected }
+  return { total, pending, approved, rejected }
 }
 
 /** GET /api/notifications/stats — admin + principal slices when present. */
 export function normalizeNotificationStats(data) {
-  const empty = { total: 0, approved: 0, rejected: 0 }
+  const empty = { total: 0, pending: 0, approved: 0, rejected: 0 }
   if (!data || typeof data !== 'object') {
     return { overall: { ...empty }, admin: { ...empty }, principal: { ...empty } }
   }
@@ -760,13 +761,12 @@ export function mapPendingAdminNotificationFromApi(raw) {
   let createdByName = extractNotificationSubmitterName(raw)
   if (!createdByName && subEm) createdByName = subEm
 
-  let createdAt = Date.now()
-  const ts = raw.createdAt ?? raw.submittedAt ?? raw.created_at ?? raw.updatedAt
-  if (typeof ts === 'number' && Number.isFinite(ts)) {
-    createdAt = ts < 1e12 ? ts * 1000 : ts
-  } else if (typeof ts === 'string' && ts) {
-    const parsed = Date.parse(ts)
-    if (!Number.isNaN(parsed)) createdAt = parsed
+  const submittedRaw = raw.submittedAt ?? raw.createdAt ?? raw.created_at ?? raw.updatedAt
+  let createdAt = null
+  if (typeof submittedRaw === 'number' && Number.isFinite(submittedRaw)) {
+    createdAt = submittedRaw < 1e12 ? submittedRaw * 1000 : submittedRaw
+  } else if (submittedRaw != null && submittedRaw !== '') {
+    createdAt = parseNotificationTimestamp(submittedRaw)
   }
 
   const row = {
@@ -777,15 +777,26 @@ export function mapPendingAdminNotificationFromApi(raw) {
     targetType,
     targetIds,
     createdByName: createdByName || '—',
-    createdAt,
     _fromServer: true,
+  }
+  if (createdAt != null) row.createdAt = createdAt
+  if (typeof submittedRaw === 'string' && submittedRaw.trim()) {
+    row.submittedAtDisplay = submittedRaw.trim()
   }
   if (targetSummary) row.targetSummary = targetSummary
   if (raw.status != null && String(raw.status).trim()) {
     row.status = normalizeApiNotificationStatus(String(raw.status).trim(), category)
   }
+  const approvedRaw = raw.approvedAt ?? raw.approved_at
+  if (typeof approvedRaw === 'string' && approvedRaw.trim()) {
+    row.approvedAtDisplay = approvedRaw.trim()
+  }
   const approvedAt = pickApprovedAtMs(raw)
   if (approvedAt != null) row.approvedAt = approvedAt
+  const rejectedRaw = raw.rejectedAt ?? raw.rejected_at
+  if (typeof rejectedRaw === 'string' && rejectedRaw.trim()) {
+    row.rejectedAtDisplay = rejectedRaw.trim()
+  }
   return row
 }
 
@@ -810,7 +821,7 @@ export function mapAdminNotificationFromApi(raw) {
  */
 export async function fetchAdminNotifications(
   token,
-  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT, category, status } = {},
+  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT, category, status, dateRange } = {},
 ) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
@@ -826,6 +837,7 @@ export async function fetchAdminNotifications(
   if (st === 'pending' || st === 'approved' || st === 'rejected') {
     params.set('status', st)
   }
+  appendDateRangeToSearchParams(params, dateRange)
   try {
     const res = await fetch(`${API_BASE_URL}/api/admin/notifications?${params}`, {
       method: 'GET',
@@ -1272,7 +1284,7 @@ export function fetchTeacherNotificationById(token, notificationId) {
  */
 export async function fetchNotificationApprovalQueue(
   token,
-  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT, categoryKind } = {},
+  { page = 1, limit = APPROVAL_QUEUE_DEFAULT_LIMIT, categoryKind, dateRange } = {},
 ) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
@@ -1288,6 +1300,7 @@ export async function fetchNotificationApprovalQueue(
     params.set('categoryKind', kind)
     params.set('category', kind)
   }
+  appendDateRangeToSearchParams(params, dateRange)
   try {
     const res = await fetch(`${API_BASE_URL}/api/notifications/approval-queue?${params}`, {
       method: 'GET',
@@ -1532,7 +1545,6 @@ export async function patchNotificationPreference(token, enabled) {
 /**
  * Map one GET /api/notifications/bell row for the header popover.
  * @param {object} raw
- * @returns {{ id: string, title: string, message: string, timeAgo: string, unread?: boolean } | null}
  */
 export function mapBellNotificationFromApi(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -1556,12 +1568,35 @@ export function mapBellNotificationFromApi(raw) {
   if (raw.unread === true || raw.isUnread === true) unread = true
   else if (raw.isRead === false || raw.read === false) unread = true
 
+  const meta = raw.meta && typeof raw.meta === 'object' && !Array.isArray(raw.meta) ? raw.meta : null
+  const kind = String(raw.kind ?? raw.type ?? raw.notificationType ?? '').trim().toLowerCase()
+  const category = String(raw.category ?? '').trim().toLowerCase()
+  const entityType = String(raw.entityType ?? raw.resourceType ?? raw.entity_type ?? '').trim()
+  const entityIdRaw = raw.entityId ?? raw.entity_id ?? raw.relatedId ?? raw.related_id
+  const ptmRequestIdRaw =
+    raw.ptmRequestId ??
+    raw.ptm_request_id ??
+    raw.requestId ??
+    meta?.ptmRequestId ??
+    meta?.requestId
+  const leadIdRaw = raw.leadId ?? raw.lead_id ?? meta?.leadId
+
   return {
     id,
     title,
     message: message || title,
     timeAgo,
     unread,
+    kind,
+    type: kind || category,
+    category,
+    notificationType: String(raw.notificationType ?? '').trim().toLowerCase(),
+    entityType,
+    entityId: entityIdRaw != null ? String(entityIdRaw) : '',
+    ptmRequestId: ptmRequestIdRaw != null ? String(ptmRequestIdRaw) : '',
+    leadId: leadIdRaw != null ? String(leadIdRaw) : '',
+    link: String(raw.link ?? raw.path ?? raw.route ?? raw.url ?? raw.targetUrl ?? raw.href ?? '').trim(),
+    meta,
   }
 }
 
@@ -1581,19 +1616,24 @@ function extractBellUnreadCount(data, mappedList) {
   return mappedList.filter((n) => n.unread).length
 }
 
+export const BELL_PANEL_DEFAULT_LIMIT = 10
+
 /**
- * GET /api/notifications/bell — up to 3 recent messages for the signed-in user (Bearer).
+ * GET /api/notifications/bell — recent messages for the header popover (Bearer).
+ * @param {string} token
+ * @param {{ limit?: number }} [opts]
  * @returns {Promise<
  *   | { ok: true, notifications: ReturnType<typeof mapBellNotificationFromApi>[], unreadCount: number }
  *   | { ok: false, error: string, notifications: [], unreadCount: 0 }
  * >}
  */
-export async function fetchNotificationBell(token) {
+export async function fetchNotificationBell(token, { limit = BELL_PANEL_DEFAULT_LIMIT } = {}) {
   if (!token) {
     return { ok: false, error: 'Not signed in', notifications: [], unreadCount: 0 }
   }
+  const lim = Math.min(20, Math.max(1, Number(limit) || BELL_PANEL_DEFAULT_LIMIT))
   try {
-    const res = await fetch(`${API_BASE_URL}/api/notifications/bell`, {
+    const res = await fetch(`${API_BASE_URL}/api/notifications/bell?limit=${lim}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -1611,7 +1651,7 @@ export async function fetchNotificationBell(token) {
       }
     }
     const list = extractNotificationList(data)
-    const notifications = list.map(mapBellNotificationFromApi).filter(Boolean).slice(0, 3)
+    const notifications = list.map(mapBellNotificationFromApi).filter(Boolean).slice(0, lim)
     const unreadCount = extractBellUnreadCount(data, notifications)
     return { ok: true, notifications, unreadCount }
   } catch (e) {

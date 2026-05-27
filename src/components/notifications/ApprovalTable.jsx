@@ -8,16 +8,8 @@ import {
   NOTIFICATION_STATUSES,
 } from '../../utils/notificationConstants'
 import { formatTargetSummary, formatTargetTypeLabel } from '../../utils/notificationFormat'
+import { notificationDisplayTime } from '../../utils/notificationTimestamps'
 import { ReadReportActionButton } from './ReadReportActionButton'
-
-function formatDate(ts) {
-  if (!ts) return '—'
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(ts)
-  } catch {
-    return '—'
-  }
-}
 
 function canShowReadReport(_row, showReadReportColumn) {
   return showReadReportColumn
@@ -130,7 +122,7 @@ export function ApprovalTable({
                       {n.createdByName || '—'}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 align-top text-slate-600">
-                      {formatDate(n.createdAt)}
+                      {notificationDisplayTime(n.submittedAtDisplay, n.createdAt)}
                     </td>
                     {showViewColumn ? (
                       <td className="min-w-[5.5rem] whitespace-nowrap px-4 py-3 text-center align-middle">
@@ -149,7 +141,12 @@ export function ApprovalTable({
                     ) : null}
                     <td className="min-w-[9.5rem] whitespace-nowrap px-4 py-3 align-top text-center">
                       {locked ? (
-                        <NotificationDecisionBadge status={n.status} approvedAt={n.approvedAt} />
+                        <NotificationDecisionBadge
+                          status={n.status}
+                          approvedAt={n.approvedAt}
+                          approvedAtDisplay={n.approvedAtDisplay}
+                          rejectedAtDisplay={n.rejectedAtDisplay}
+                        />
                       ) : (
                         <div className="flex flex-col items-center justify-center gap-2 pt-0.5 sm:flex-row sm:flex-wrap">
                           <Button type="button" size="sm" variant="secondary" onClick={() => onReject(n.id)}>

@@ -13,6 +13,7 @@ import {
   fetchTeacherPtmRequests,
   rejectPtmRequest,
 } from '../../api/ptmApi'
+import { useOpenPtmRequestFromBell } from '../../hooks/useOpenPtmRequestFromBell'
 import { usePtmRequestViewer } from '../../hooks/usePtmRequestViewer'
 import { ROLES } from '../../utils/constants'
 
@@ -29,11 +30,13 @@ export default function TeacherPtmRequestsPage() {
   const [apiRows, setApiRows] = useState(null)
   const [meetingLocal, setMeetingLocal] = useState({})
   const [meetingNote, setMeetingNote] = useState({})
+  const [completeNote, setCompleteNote] = useState({})
   const [rejectText, setRejectText] = useState({})
   const [busyAction, setBusyAction] = useState({})
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const { viewRow, viewLoading, viewError, openView, closeView, setViewRow } = usePtmRequestViewer(token)
+  useOpenPtmRequestFromBell(openView)
   const [meta, setMeta] = useState({
     total: 0,
     totalPages: 0,
@@ -109,12 +112,16 @@ export default function TeacherPtmRequestsPage() {
       toast.error('Pick a meeting date and time before approving.')
       return
     }
+    const note = (meetingNote[row.id] || '').trim()
+    if (!note) {
+      toast.error('Add a meeting note before approving.')
+      return
+    }
     setBusy(row.id, 'approving')
     try {
-      const note = (meetingNote[row.id] || '').trim()
       const res = await approvePtmRequest(token, row.id, {
         scheduledAt: iso,
-        meetingNote: note || undefined,
+        meetingNote: note,
       })
       if (!res.ok) {
         toast.error(res.error)
@@ -171,9 +178,14 @@ export default function TeacherPtmRequestsPage() {
 
   const onComplete = async (row) => {
     if (busyAction[row.id]) return
+    const note = String(completeNote[row.id] ?? '').trim()
+    if (!note) {
+      toast.error('Add a completion note before marking complete.')
+      return
+    }
     setBusy(row.id, 'completing')
     try {
-      const res = await completePtmRequest(token, row.id)
+      const res = await completePtmRequest(token, row.id, { completionNote: note })
       if (!res.ok) {
         toast.error(res.error)
         return
@@ -181,6 +193,11 @@ export default function TeacherPtmRequestsPage() {
       applyRowUpdate(row.id, res.request, {
         status: PTM_STATUS.COMPLETED,
         updatedAt: new Date().toISOString(),
+      })
+      setCompleteNote((m) => {
+        const n = { ...m }
+        delete n[row.id]
+        return n
       })
       toast.success('Marked completed.')
     } finally {
@@ -239,19 +256,6 @@ export default function TeacherPtmRequestsPage() {
               showApprovedBy
               emptyMessage="Nothing assigned to you yet."
               onView={(row) => void openView(row)}
-              renderExtraActions={(r) =>
-                r.status === PTM_STATUS.APPROVED ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={busyAction[r.id] === 'completing'}
-                    onClick={() => void onComplete(r)}
-                  >
-                    {busyAction[r.id] === 'completing' ? '…' : 'Complete'}
-                  </Button>
-                ) : null
-              }
             />
           </div>
         ) : null}
@@ -301,7 +305,7 @@ export default function TeacherPtmRequestsPage() {
                 onClick={() => void onComplete(viewRow)}
                 disabled={isCompleting}
               >
-                {isCompleting ? 'Marking…' : 'Mark completed'}
+                {isCompleting ? 'Marking…' : 'Mark complete'}
               </Button>
             ) : null}
             <Button type="button" variant="secondary" onClick={closeView}>
@@ -324,7 +328,7 @@ export default function TeacherPtmRequestsPage() {
                 className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
               />
               <label className="mt-3 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                Optional meeting note
+                Meeting note (required)
               </label>
               <input
                 type="text"
@@ -364,6 +368,21 @@ export default function TeacherPtmRequestsPage() {
                 </Button>
               </div>
             </div>
+          </div>
+        ) : null}
+        {viewRow?.status === PTM_STATUS.APPROVED ? (
+          <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/40 p-3">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
+              Completion note (required)
+            </label>
+            <input
+              type="text"
+              value={completeNote[viewRow.id] || ''}
+              onChange={(e) => setCompleteNote((m) => ({ ...m, [viewRow.id]: e.target.value }))}
+              disabled={isBusy}
+              className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm disabled:opacity-60"
+              placeholder="Add what happened in this PTM"
+            />
           </div>
         ) : null}
       </PtmRequestDetailModal>

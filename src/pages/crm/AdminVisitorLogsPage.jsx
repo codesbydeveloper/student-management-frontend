@@ -14,6 +14,7 @@ import {
   fetchVisitorAudit,
   fetchVisitors,
 } from '../../api/visitorsApi'
+import { notificationDisplayTime } from '../../utils/notificationTimestamps'
 
 const PAGE_LIMIT = 10
 
@@ -302,7 +303,9 @@ export default function AdminVisitorLogsPage() {
                       <td className="px-3 py-2 font-medium text-slate-900">{v.name}</td>
                       <td className="px-3 py-2 text-slate-700">{v.phone}</td>
                       <td className="px-3 py-2 text-slate-600">{v.purpose}</td>
-                      <td className="px-3 py-2 text-slate-600">{fmt(v.visitAt)}</td>
+                      <td className="px-3 py-2 text-slate-600">
+                        {notificationDisplayTime(v.visitAtDisplay, v.visitAt)}
+                      </td>
                       <td className="px-3 py-2 text-xs text-slate-500">{v.createdByName}</td>
                       <td className="px-3 py-2">
                         <div className="flex min-w-[16rem] flex-col gap-1.5">

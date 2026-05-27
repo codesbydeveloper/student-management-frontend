@@ -294,12 +294,7 @@ export function DashboardLayout() {
                 <p className="truncate text-sm font-semibold text-slate-900">{institutionTitle}</p>
               </div>
               <div className="flex min-w-0 items-center gap-1.5 sm:hidden">
-                <p className="truncate text-sm font-semibold text-slate-900">
-                  {profileDisplayName}
-                  {user.id ? (
-                    <span className="ml-1.5 font-mono text-[11px] font-semibold text-slate-500">· #{user.id}</span>
-                  ) : null}
-                </p>
+                <p className="truncate text-sm font-semibold text-slate-900">{profileDisplayName}</p>
                 <NavLink
                   to="/profile"
                   title="Edit profile"
@@ -352,11 +347,6 @@ export function DashboardLayout() {
                   </NavLink>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-                  {user.id ? (
-                    <span className="rounded-full bg-slate-100/90 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200/80">
-                      #{user.id}
-                    </span>
-                  ) : null}
                   <RoleBadge role={user.role} />
                 </div>
               </div>

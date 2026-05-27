@@ -772,9 +772,17 @@ export async function rejectPtmRequest(token, id, body) {
  *
  * @param {string} token
  * @param {string | number} id
+ * @param {{ completionNote?: string, meetingNote?: string, note?: string }} [body]
  */
-export async function completePtmRequest(token, id) {
-  return patchPtmRequest(token, id, 'complete', null)
+export async function completePtmRequest(token, id, body) {
+  const note = String(body?.completionNote ?? body?.meetingNote ?? body?.note ?? '').trim()
+  const payload = {}
+  if (note) {
+    payload.completionNote = note
+    payload.meetingNote = note
+    payload.note = note
+  }
+  return patchPtmRequest(token, id, 'complete', Object.keys(payload).length ? payload : null)
 }
 
 /**

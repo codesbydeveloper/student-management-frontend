@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/Input'
 import { PhoneInput } from '../../components/ui/PhoneInput'
 import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import { LeadStageStepper } from '../../components/phase6/LeadStageStepper'
+import { formatApiTimestampShort12h } from '../../utils/notificationTimestamps'
 import {
   LEAD_STAGE_LABELS,
   LEAD_STAGE_UPDATE_OPTIONS,
@@ -33,6 +34,12 @@ function fmt(iso) {
   } catch {
     return '—'
   }
+}
+
+function fmtActivityAt(activity) {
+  const raw = String(activity?.atDisplay ?? '').trim()
+  if (raw) return formatApiTimestampShort12h(raw)
+  return fmt(activity?.at)
 }
 
 /** Format an ISO string for an `<input type="datetime-local">`. */
@@ -677,7 +684,7 @@ export default function LeadDetailPage() {
                 className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2"
               >
                 <p className="text-xs text-slate-500">
-                  {a.actorName || 'Someone'} · {fmt(a.at)}
+                  {a.actorName || 'Someone'} · {fmtActivityAt(a)}
                 </p>
                 <p className="mt-1 text-slate-800">{describeActivity(a)}</p>
               </li>

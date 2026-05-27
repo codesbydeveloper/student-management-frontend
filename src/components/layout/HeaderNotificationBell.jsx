@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchNotificationBell } from '../../api/notificationsApi'
+import { BELL_PANEL_DEFAULT_LIMIT, fetchNotificationBell } from '../../api/notificationsApi'
 import { useAuth } from '../../context/AuthContext'
 import { BellIcon } from '../icons/BellIcon'
 import {
   getHeaderNotificationItemLink,
   getHeaderNotificationsViewAllPath,
 } from './headerNotificationPreview'
-
-const PANEL_MAX = 3
 
 /**
  * Header bell + inbox popover — loads GET /api/notifications/bell (Bearer).
@@ -32,7 +30,7 @@ export function HeaderNotificationBell() {
       return
     }
     setLoading(true)
-    const res = await fetchNotificationBell(token)
+    const res = await fetchNotificationBell(token, { limit: BELL_PANEL_DEFAULT_LIMIT })
     setLoading(false)
     if (res.ok) {
       setItems(res.notifications)
@@ -73,7 +71,6 @@ export function HeaderNotificationBell() {
     return () => document.removeEventListener('pointerdown', onPointer)
   }, [open, close])
 
-  const displayItems = items.slice(0, PANEL_MAX)
   const badgeCount = unreadCount > 0 ? unreadCount : items.filter((i) => i.unread).length
 
   return (
@@ -105,7 +102,7 @@ export function HeaderNotificationBell() {
               <p className="text-center text-sm text-slate-500">Here are some notifications you missed:</p>
             </div>
 
-            <ul className="max-h-[min(24rem,60vh)] space-y-2 overflow-y-auto p-3">
+            <ul className="bell-panel-scroll max-h-[min(22rem,55vh)] space-y-2 overflow-y-auto overscroll-contain p-3 pr-2">
               {loading ? (
                 <li className="py-6 text-center text-sm text-slate-500">Loading…</li>
               ) : null}
@@ -114,12 +111,12 @@ export function HeaderNotificationBell() {
                   {error}
                 </li>
               ) : null}
-              {!loading && !error && displayItems.length === 0 ? (
+              {!loading && !error && items.length === 0 ? (
                 <li className="py-6 text-center text-sm text-slate-500">No messages yet.</li>
               ) : null}
               {!loading && !error
-                ? displayItems.map((item) => {
-                    const to = getHeaderNotificationItemLink(user?.role, item.id)
+                ? items.map((item) => {
+                    const to = getHeaderNotificationItemLink(user?.role, item)
                     return (
                       <li key={item.id}>
                         <Link

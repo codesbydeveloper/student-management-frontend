@@ -88,11 +88,11 @@ export default function NotificationsPage() {
                   {loading ? 'Refreshing…' : 'Refresh'}
                 </Button>
               ) : null}
-              <Link to="/notifications/create">
+              {/* <Link to="/notifications/create">
                 <Button type="button" size="sm">
                   New notification
                 </Button>
-              </Link>
+              </Link> */}
             </div>
           }
         />

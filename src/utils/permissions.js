@@ -13,9 +13,9 @@ export const ROUTE_ACCESS = {
   admins: [ROLES.ADMIN],
   principals: [ROLES.ADMIN],
   notifications: [ROLES.TEACHER],
-  notifications_create: [ROLES.TEACHER],
-  notifications_admin: [ROLES.ADMIN],
-  notifications_principal: [ROLES.PRINCIPAL],
+  // notifications_create: [ROLES.TEACHER],
+  // notifications_admin: [ROLES.ADMIN],
+  // notifications_principal: [ROLES.PRINCIPAL],
   /** GET /api/notifications/approval-queue — paginated notice history (admin / principal). */
   notice_history: [ROLES.ADMIN, ROLES.PRINCIPAL],
   parent_dashboard: [ROLES.PARENT],

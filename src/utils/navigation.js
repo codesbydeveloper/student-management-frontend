@@ -21,8 +21,8 @@ export const NOTICES_NAV_KEYS = ['create_category', 'create_notice', 'notice_his
  * (Admin sees Admin approvals; principal sees Principal approvals.)
  */
 export const OPERATIONS_NAV_KEYS = [
-  'notifications_admin',
-  'notifications_principal',
+  // 'notifications_admin',
+  // 'notifications_principal',
   'admin_visitor_logs',
   'admin_leads',
 ]
@@ -33,8 +33,8 @@ export const PTM_NAV_KEYS = ['staff_ptm_requests', 'staff_ptm_history']
 /** Teacher: grouped sidebar — Academics. */
 export const TEACHER_ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students']
 
-/** Teacher: Create Notice, Notifications, Create notification. */
-export const TEACHER_COMMUNICATIONS_NAV_KEYS = ['create_notice', 'notifications', 'notifications_create']
+/** Teacher: Create Notice, Notifications. */
+export const TEACHER_COMMUNICATIONS_NAV_KEYS = ['create_notice', 'notifications']
 
 /** Teacher: bus student overview. */
 export const TEACHER_TRANSPORT_NAV_KEYS = ['teacher_bus_overview']
@@ -94,9 +94,9 @@ const items = [
   { key: 'create_category', to: '/create-category', label: 'Create Category' },
   { key: 'create_notice', to: '/create-notice', label: 'Create Notice' },
   { key: 'notifications', to: '/notifications', label: 'Notifications' },
-  { key: 'notifications_create', to: '/notifications/create', label: 'Create notification' },
-  { key: 'notifications_admin', to: '/notifications/admin-approval', label: 'Notification approvals' },
-  { key: 'notifications_principal', to: '/notifications/principal-approval', label: 'Principal approvals' },
+  // { key: 'notifications_create', to: '/notifications/create', label: 'Create notification' },
+  // { key: 'notifications_admin', to: '/notifications/admin-approval', label: 'Notification approvals' },
+  // { key: 'notifications_principal', to: '/notifications/principal-approval', label: 'Principal approvals' },
   { key: 'notice_history', to: '/notifications/history', label: 'Notice approvals' },
   { key: 'teacher_ptm_requests', to: '/ptm-requests', label: 'PTM requests' },
   { key: 'teacher_assigned_leads', to: '/assigned-leads', label: 'Assigned leads' },

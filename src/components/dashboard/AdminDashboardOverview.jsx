@@ -92,9 +92,7 @@ function SectionTitle({ children, id }) {
 export function AdminDashboardOverview() {
   const { token, user } = useAuth()
   const isPrincipal = user?.role === ROLES.PRINCIPAL
-  const noticeApprovalsPath = isPrincipal
-    ? '/notifications/principal-approval'
-    : '/notifications/admin-approval'
+  const noticeApprovalsPath = '/notifications/history'
   const [apiDashboard, setApiDashboard] = useState(null)
   const [apiLoading, setApiLoading] = useState(false)
   const [apiError, setApiError] = useState('')

@@ -205,11 +205,6 @@ export default function ProfilePage() {
                 <p className="mt-1 truncate text-sm text-slate-600">{email}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <RoleBadge role={user.role} />
-                  {user.id ? (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200/80">
-                      #{user.id}
-                    </span>
-                  ) : null}
                   <span className="text-xs font-medium text-slate-500">{roleLabel}</span>
                 </div>
               </div>

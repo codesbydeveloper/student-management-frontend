@@ -13,9 +13,11 @@ import {
   fetchAdminNotificationById,
   fetchAdminNotifications,
   fetchNotificationApprovalQueue,
+  fetchNotificationStats,
   patchNotificationApprove,
   patchNotificationReject,
 } from '../api/notificationsApi'
+import { NotificationApprovalStatsBoxes } from '../components/notifications/NotificationApprovalStatsBoxes'
 import { ParentMessageDetailModal } from '../components/parent/ParentMessageDetailModal'
 import { ROLES } from '../utils/constants'
 import {
@@ -25,18 +27,16 @@ import {
   NOTIFICATION_TARGET_LABELS,
 } from '../utils/notificationConstants'
 import { requestParentMessagesRefresh } from '../utils/parentMessagesRefreshBus'
+import { notificationDisplayTime } from '../utils/notificationTimestamps'
+import { DateRangeSelect } from '../components/ui/DateRangeSelect'
+import { Select } from '../components/ui/Select'
+import {
+  NOTICE_HISTORY_PAGE_SIZE,
+  NOTICE_HISTORY_PAGE_SIZE_OPTIONS,
+} from '../utils/listDateRange'
+import { buildPageNumberList } from '../utils/listPagination'
 
-const PAGE_LIMIT = 10
 const TABLE_COL_COUNT = 9
-
-function fmtCreatedAt(ms) {
-  if (ms == null || !Number.isFinite(ms)) return '—'
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms))
-  } catch {
-    return '—'
-  }
-}
 
 function truncate(s, max = 96) {
   const t = String(s || '').trim()
@@ -123,6 +123,89 @@ function emptyNoticeMessage(categoryFilter, isPrincipal) {
   return `No ${categoryLabel(categoryFilter).toLowerCase()} notices on this page.`
 }
 
+function NoticeHistoryPagination({
+  page,
+  total,
+  pageSize,
+  hasNext,
+  loading,
+  onPageChange,
+  onPageSizeChange,
+}) {
+  const lim = Math.max(1, Number(pageSize) || NOTICE_HISTORY_PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil((total || 0) / lim))
+  const canPrev = page > 1
+  const canNext = hasNext || page < totalPages
+  const rangeStart = total === 0 ? 0 : (page - 1) * lim + 1
+  const rangeEnd = total === 0 ? 0 : Math.min(page * lim, total)
+  const pageNumbers = buildPageNumberList(page, totalPages)
+
+  const goToPage = (nextPage) => {
+    onPageChange(Math.min(Math.max(1, nextPage), totalPages))
+  }
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600">
+      <div className="flex flex-wrap items-center gap-3">
+        <span>
+          {total > 0 ? (
+            <>
+              Showing {rangeStart}–{rangeEnd} of {total}
+            </>
+          ) : (
+            <>No notices on this page</>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          <label htmlFor="notice-history-page-size" className="text-xs font-semibold text-slate-500">
+            Show
+          </label>
+          <Select
+            id="notice-history-page-size"
+            value={String(lim)}
+            disabled={loading}
+            className="w-auto min-w-[4.5rem] py-1.5 text-xs"
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          >
+            {NOTICE_HISTORY_PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <Button type="button" variant="secondary" size="sm" disabled={!canPrev || loading} onClick={() => goToPage(page - 1)}>
+          Previous
+        </Button>
+        {pageNumbers.map((n, idx) =>
+          n === '…' ? (
+            <span key={`ellipsis-${idx}`} className="px-1 text-xs text-slate-400">
+              …
+            </span>
+          ) : (
+            <Button
+              key={n}
+              type="button"
+              variant={n === page ? 'primary' : 'secondary'}
+              size="sm"
+              className="min-w-9 px-2"
+              disabled={loading || n === page}
+              onClick={() => goToPage(n)}
+            >
+              {n}
+            </Button>
+          ),
+        )}
+        <Button type="button" variant="secondary" size="sm" disabled={!canNext || loading} onClick={() => goToPage(page + 1)}>
+          Next
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /** Admin / principal: notice history (approval queue). */
 export default function NoticeHistoryPage() {
   const { user, token } = useAuth()
@@ -137,17 +220,48 @@ export default function NoticeHistoryPage() {
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', title: '' })
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)
+  const [dateRange, setDateRange] = useState('all')
+  const [pageSize, setPageSize] = useState(NOTICE_HISTORY_PAGE_SIZE)
   const [readReport, setReadReport] = useState({ open: false, id: null, title: '' })
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [viewLoading, setViewLoading] = useState(false)
   const [viewLoadingId, setViewLoadingId] = useState(null)
   const [viewDetail, setViewDetail] = useState(null)
   const [viewError, setViewError] = useState(null)
+  const [statsBundle, setStatsBundle] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(false)
   const viewFetchSeq = useRef(0)
 
   const allowed = user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
   const isAdmin = user?.role === ROLES.ADMIN
   const isPrincipal = user?.role === ROLES.PRINCIPAL
+
+  const categoryStats = useMemo(() => {
+    const empty = { total: 0, pending: 0, approved: 0 }
+    if (!statsBundle) return empty
+    if (isPrincipal) {
+      const s = statsBundle.principal ?? statsBundle.overall ?? empty
+      return { total: s.total, pending: s.pending, approved: s.approved }
+    }
+    if (categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC) {
+      const s = statsBundle.principal ?? empty
+      return { total: s.total, pending: s.pending, approved: s.approved }
+    }
+    const s = statsBundle.admin ?? empty
+    return { total: s.total, pending: s.pending, approved: s.approved }
+  }, [statsBundle, isPrincipal, categoryFilter])
+
+  const loadStats = useCallback(async () => {
+    if (!token || !allowed) {
+      setStatsBundle(null)
+      return
+    }
+    setStatsLoading(true)
+    const res = await fetchNotificationStats(token)
+    setStatsLoading(false)
+    if (res.ok) setStatsBundle(res.stats)
+    else setStatsBundle(null)
+  }, [token, allowed])
 
   useEffect(() => {
     const cat = String(searchParams.get('category') ?? '').toLowerCase()
@@ -194,13 +308,15 @@ export default function NoticeHistoryPage() {
     const res = isAdmin
       ? await fetchAdminNotifications(token, {
           page,
-          limit: PAGE_LIMIT,
+          limit: pageSize,
           category: categoryFilter,
+          dateRange,
         })
       : await fetchNotificationApprovalQueue(token, {
           page,
-          limit: PAGE_LIMIT,
+          limit: pageSize,
           categoryKind: categoryFilter,
+          dateRange,
         })
     setLoading(false)
     if (!res.ok) {
@@ -227,10 +343,21 @@ export default function NoticeHistoryPage() {
     setRows(res.notifications)
     setTotal(res.total)
     setHasNext(Boolean(res.hasNext))
-  }, [token, allowed, isAdmin, isPrincipal, page, categoryFilter])
+  }, [token, allowed, isAdmin, isPrincipal, page, pageSize, categoryFilter, dateRange])
 
   const selectCategoryFilter = (kind) => {
     setCategoryFilter(kind)
+    setPage(1)
+  }
+
+  const selectDateRange = (key) => {
+    setDateRange(key)
+    setPage(1)
+  }
+
+  const selectPageSize = (size) => {
+    if (!NOTICE_HISTORY_PAGE_SIZE_OPTIONS.includes(size)) return
+    setPageSize(size)
     setPage(1)
   }
 
@@ -238,11 +365,9 @@ export default function NoticeHistoryPage() {
     void load()
   }, [load])
 
-  const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_LIMIT))
-  const canPrev = page > 1
-  const canNext = hasNext || page < totalPages
-  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_LIMIT + 1
-  const rangeEnd = total === 0 ? 0 : Math.min(page * PAGE_LIMIT, total)
+  useEffect(() => {
+    void loadStats()
+  }, [loadStats, categoryFilter])
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -257,6 +382,7 @@ export default function NoticeHistoryPage() {
         toast.success('Notice approved.')
         requestParentMessagesRefresh()
         await load()
+        void loadStats()
         return
       }
       toast.error(res.error || 'Could not approve.')
@@ -280,6 +406,7 @@ export default function NoticeHistoryPage() {
         toast.info('Rejected')
         closeRejectModal()
         await load()
+        void loadStats()
         return
       }
       toast.error(res.error || 'Could not reject.')
@@ -368,7 +495,7 @@ export default function NoticeHistoryPage() {
             Dashboard
           </Button>
         </Link>
-        {user?.role === ROLES.ADMIN ? (
+        {/* {user?.role === ROLES.ADMIN ? (
           <Link to="/notifications/admin-approval">
             <Button type="button" size="sm" variant="secondary">
               Notification approvals
@@ -381,49 +508,80 @@ export default function NoticeHistoryPage() {
               Principal approvals
             </Button>
           </Link>
-        ) : null}
-        <Button type="button" size="sm" variant="secondary" disabled={loading || !token} onClick={() => void load()}>
-          {loading ? 'Refreshing…' : 'Refresh'}
+        ) : null} */}
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={loading || statsLoading || !token}
+          onClick={() => {
+            void load()
+            void loadStats()
+          }}
+        >
+          {loading || statsLoading ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
 
       <Card>
         <CardHeader title="Notice history" />
 
-        <div className="border-t border-slate-100 px-4 pt-5 sm:px-6">
-          {isAdmin ? (
-            <>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Category</p>
-              <div className="flex max-w-md rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner">
-                <button
-                  type="button"
-                  className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                    categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
-                      ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)}
-                >
-                  {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
-                </button>
-                <button
-                  type="button"
-                  className={`min-h-11 flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                    categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC
-                      ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)}
-                >
-                  {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
-                </button>
+        <div className="border-t border-slate-100 px-4 py-5 sm:px-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="grid w-full gap-4 sm:grid-cols-2 lg:max-w-3xl lg:flex-1">
+              <div className="w-full min-w-0">
+                {isAdmin ? (
+                  <>
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      Category
+                    </p>
+                    <div className="flex w-full min-w-[16rem] rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner sm:min-w-[18rem]">
+                      <button
+                        type="button"
+                        className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                          categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+                            ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)}
+                      >
+                        {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
+                      </button>
+                      <button
+                        type="button"
+                        className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                          categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC
+                            ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)}
+                      >
+                        {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="min-h-11 text-sm font-medium leading-[2.75rem] text-slate-700">
+                    {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]} notices
+                  </p>
+                )}
               </div>
-            </>
-          ) : (
-            <p className="text-sm font-medium text-slate-700">
-              {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]} notices
-            </p>
-          )}
+              <DateRangeSelect
+                id="notice-history-date-range"
+                className="w-full min-w-0"
+                value={dateRange}
+                onChange={selectDateRange}
+                disabled={loading}
+              />
+            </div>
+            <NotificationApprovalStatsBoxes
+              align="end"
+              loading={statsLoading}
+              total={categoryStats.total}
+              pending={categoryStats.pending}
+              approved={categoryStats.approved}
+            />
+          </div>
         </div>
 
         <div className="border-t border-slate-100 px-4 py-6 sm:px-6">
@@ -522,7 +680,7 @@ export default function NoticeHistoryPage() {
                             {formatSubmittedBy(row.submitterName || row.createdByName)}
                           </td>
                           <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-xs tabular-nums text-slate-500">
-                            {fmtCreatedAt(row.createdAt)}
+                            {notificationDisplayTime(row.submittedAtDisplay, row.createdAt)}
                           </td>
                           <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-middle">
                             <Button
@@ -568,6 +726,8 @@ export default function NoticeHistoryPage() {
                               <NotificationDecisionBadge
                                 status={row.status}
                                 approvedAt={row.approvedAt}
+                                approvedAtDisplay={row.approvedAtDisplay}
+                                rejectedAtDisplay={row.rejectedAtDisplay}
                               />
                             ) : null}
                           </td>
@@ -593,40 +753,15 @@ export default function NoticeHistoryPage() {
           </div>
 
           {!loading ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600">
-              <span>
-                {total > 0 ? (
-                  <>
-                    Showing {rangeStart}–{rangeEnd} of {total}
-                  </>
-                ) : (
-                  <>Showing {sorted.length} on this page</>
-                )}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canPrev || loading}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <span className="flex items-center px-2 text-xs text-slate-500">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canNext || loading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <NoticeHistoryPagination
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              hasNext={hasNext}
+              loading={loading}
+              onPageChange={setPage}
+              onPageSizeChange={selectPageSize}
+            />
           ) : null}
         </div>
       </Card>

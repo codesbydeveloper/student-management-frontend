@@ -5,18 +5,7 @@ import { Input } from '../ui/Input'
 import { StatusBadge } from './StatusBadge'
 import { NOTIFICATION_CATEGORY_LABELS } from '../../utils/notificationConstants'
 import { formatTargetSummary, formatTargetTypeLabel } from '../../utils/notificationFormat'
-
-function formatDate(ts) {
-  if (!ts) return '—'
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(ts)
-  } catch {
-    return '—'
-  }
-}
+import { notificationDisplayTime } from '../../utils/notificationTimestamps'
 
 export function NotificationTable({
   notifications,
@@ -103,7 +92,9 @@ export function NotificationTable({
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={n.status} />
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(n.createdAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {notificationDisplayTime(n.submittedAtDisplay, n.createdAt)}
+                    </td>
                     {showViewColumn ? (
                       <td className="min-w-[5.5rem] whitespace-nowrap px-4 py-3 text-center align-middle">
                         <Button

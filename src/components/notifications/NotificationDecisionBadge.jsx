@@ -1,16 +1,27 @@
 import { Badge } from '../ui/Badge'
 import { NOTIFICATION_STATUSES } from '../../utils/notificationConstants'
-import { formatApprovalDateTime } from '../../utils/notificationTimestamps'
+import { notificationDisplayTime } from '../../utils/notificationTimestamps'
 
 /**
  * Locked approval row: Approved / Rejected with approval date-time under Approved.
  */
-export function NotificationDecisionBadge({ status, approvedAt }) {
+export function NotificationDecisionBadge({
+  status,
+  approvedAt,
+  approvedAtDisplay,
+  rejectedAtDisplay,
+}) {
   const isApproved = status === NOTIFICATION_STATUSES.APPROVED
   const isRejected = status === NOTIFICATION_STATUSES.REJECTED
   if (!isApproved && !isRejected) return null
 
-  const when = isApproved ? formatApprovalDateTime(approvedAt) : null
+  const when = isApproved
+    ? notificationDisplayTime(approvedAtDisplay, approvedAt)
+    : notificationDisplayTime(rejectedAtDisplay, null)
+  const dateTimeAttr =
+    typeof approvedAt === 'number' && Number.isFinite(approvedAt)
+      ? new Date(approvedAt).toISOString()
+      : undefined
 
   return (
     <div className="flex flex-col items-center gap-1 pt-0.5">
@@ -23,10 +34,10 @@ export function NotificationDecisionBadge({ status, approvedAt }) {
       >
         {isApproved ? 'Approved' : 'Rejected'}
       </Badge>
-      {when && approvedAt != null ? (
+      {when && when !== '—' ? (
         <time
-          dateTime={new Date(approvedAt).toISOString()}
-          className="max-w-[9rem] text-center text-[10px] font-medium leading-tight text-slate-500 tabular-nums"
+          dateTime={dateTimeAttr}
+          className="max-w-[11rem] text-center text-[10px] font-medium leading-tight text-slate-500"
         >
           {when}
         </time>

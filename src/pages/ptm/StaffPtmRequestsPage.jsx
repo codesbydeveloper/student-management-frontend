@@ -12,6 +12,7 @@ import {
   staffApprovePtmRequest,
   staffRejectPtmRequest,
 } from '../../api/ptmApi'
+import { useOpenPtmRequestFromBell } from '../../hooks/useOpenPtmRequestFromBell'
 import { usePtmRequestViewer } from '../../hooks/usePtmRequestViewer'
 
 const PAGE_LIMIT = 10
@@ -35,6 +36,7 @@ export default function StaffPtmRequestsPage() {
   const [apiRows, setApiRows] = useState(null)
   const [error, setError] = useState('')
   const { viewRow, viewLoading, viewError, openView, closeView } = usePtmRequestViewer(token)
+  useOpenPtmRequestFromBell(openView)
   const [meta, setMeta] = useState({
     total: 0,
     totalPages: 0,

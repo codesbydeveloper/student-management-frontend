@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
+import { parseNotificationTimestamp } from '../utils/notificationTimestamps'
 
 function formatMutationError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -66,19 +67,33 @@ export function mapApiVisitorRow(raw) {
     raw.createdByName ?? createdByBlock?.fullName ?? createdByBlock?.name ?? '',
   ).trim()
 
+  const visitRaw =
+    raw.visitAt ?? raw.visit_at ?? raw.visitTime ?? raw.visit_time ?? raw.scheduledAt
+  let visitAtDisplay = null
+  let visitAtMs = null
+  if (typeof visitRaw === 'string' && visitRaw.trim()) {
+    visitAtDisplay = visitRaw.trim()
+    visitAtMs = parseNotificationTimestamp(visitRaw)
+  } else if (visitRaw != null && visitRaw !== '') {
+    const iso = pickIso(visitRaw)
+    if (iso) {
+      visitAtMs = Date.parse(iso)
+      if (!Number.isFinite(visitAtMs)) visitAtMs = null
+    }
+  }
+
+  const createdIso = pickIso(raw.createdAt, raw.created_at)
+
   return {
     id: String(id),
     name: String(raw.name ?? '').trim(),
     phone: String(raw.phone ?? raw.contact ?? '').trim(),
     purpose: String(raw.purpose ?? raw.reason ?? '').trim(),
-    visitAt:
-      pickIso(raw.visitAt, raw.visit_at, raw.visitTime, raw.visit_time, raw.scheduledAt) ||
-      pickIso(raw.createdAt, raw.created_at) ||
-      new Date().toISOString(),
+    visitAtDisplay,
+    visitAt: visitAtMs,
     createdByUserId: createdByUserId != null ? String(createdByUserId) : '',
     createdByName: createdByName || 'Admin',
-    createdAt:
-      pickIso(raw.createdAt, raw.created_at) || new Date().toISOString(),
+    createdAt: createdIso || new Date().toISOString(),
   }
 }
 

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../utils/constants'
 import { LEAD_STAGES, encodeLeadStageFilterForQuery, normalizeLeadStage } from '../data/phase6Constants'
+import { parseNotificationTimestamp } from '../utils/notificationTimestamps'
 
 function formatMutationError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -377,12 +378,21 @@ export function mapApiActivityRow(raw) {
     (raw.actor && typeof raw.actor === 'object' && raw.actor) ||
     (raw.user && typeof raw.user === 'object' && raw.user) ||
     null
+  const atRaw = raw.at ?? raw.createdAt ?? raw.created_at ?? null
+  let at = null
+  if (typeof atRaw === 'string' && atRaw.trim()) {
+    const parsed = parseNotificationTimestamp(atRaw)
+    at = parsed != null ? new Date(parsed).toISOString() : null
+  } else {
+    at = pickIso(atRaw)
+  }
   return {
     id: String(id),
     type: String(raw.type ?? raw.kind ?? 'note').toLowerCase(),
     text: String(raw.text ?? raw.note ?? raw.message ?? '').trim(),
     meta: raw.meta && typeof raw.meta === 'object' ? raw.meta : null,
-    at: pickIso(raw.at, raw.createdAt, raw.created_at) || new Date().toISOString(),
+    at,
+    atDisplay: typeof atRaw === 'string' && atRaw.trim() ? atRaw.trim() : null,
     actorId:
       actor?.id != null ? String(actor.id) : raw.actorId != null ? String(raw.actorId) : '',
     actorName: String(actor?.fullName ?? actor?.name ?? raw.actorName ?? '').trim(),

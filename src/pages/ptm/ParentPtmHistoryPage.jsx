@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { PtmRequestDetailModal } from '../../components/ptm/PtmRequestDetailModal'
 import { PtmRequestsTable } from '../../components/ptm/PtmRequestsTable'
 import { fetchMyPtmRequests } from '../../api/ptmApi'
+import { useOpenPtmRequestFromBell } from '../../hooks/useOpenPtmRequestFromBell'
 import { usePtmRequestViewer } from '../../hooks/usePtmRequestViewer'
 import { ROLES } from '../../utils/constants'
 
@@ -19,6 +20,7 @@ export default function ParentPtmHistoryPage() {
   const [total, setTotal] = useState(0)
   const [error, setError] = useState('')
   const { viewRow, viewLoading, viewError, openView, closeView } = usePtmRequestViewer(token)
+  useOpenPtmRequestFromBell(openView)
 
   const load = useCallback(
     async (nextPage) => {
