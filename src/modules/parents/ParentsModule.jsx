@@ -102,9 +102,11 @@ export function ParentsModule() {
   const [parentsLoading, setParentsLoading] = useState(false)
   const [parentPage, setParentPage] = useState(1)
   const [parentTotal, setParentTotal] = useState(0)
+  const [serverSearchQuery, setServerSearchQuery] = useState('')
+  const [debouncedServerSearchQuery, setDebouncedServerSearchQuery] = useState('')
 
   const loadParentsPage = useCallback(
-    async (pageNum) => {
+    async (pageNum, searchQuery = '') => {
       if (!token) {
         setRemoteParents(undefined)
         setParentTotal(0)
@@ -112,7 +114,11 @@ export function ParentsModule() {
         return
       }
       setParentsLoading(true)
-      const res = await fetchParentsList(token, { page: pageNum, limit: PARENT_PAGE_LIMIT })
+      const res = await fetchParentsList(token, {
+        page: pageNum,
+        limit: PARENT_PAGE_LIMIT,
+        search: searchQuery,
+      })
       setParentsLoading(false)
       if (res.ok) {
         setRemoteParents(res.parents)
@@ -128,15 +134,22 @@ export function ParentsModule() {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      setDebouncedServerSearchQuery(String(serverSearchQuery ?? '').trim())
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [serverSearchQuery])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
       if (!token) {
         setRemoteParents(undefined)
         setParentTotal(0)
         return
       }
-      void loadParentsPage(parentPage)
+      void loadParentsPage(parentPage, debouncedServerSearchQuery)
     }, 0)
     return () => window.clearTimeout(t)
-  }, [token, parentPage, loadParentsPage])
+  }, [token, parentPage, loadParentsPage, debouncedServerSearchQuery])
 
   const baseParents = remoteParents !== undefined ? remoteParents : parents
 
@@ -930,12 +943,21 @@ export function ParentsModule() {
           searchKeys={remoteParents !== undefined ? [] : ['fullName', 'email', 'phone']}
           searchPlaceholder="Search parents…"
           pageSize={remoteParents !== undefined ? PARENT_PAGE_LIMIT : LOCAL_PARENT_PAGE_SIZE}
-          showSearch={remoteParents === undefined}
+          showSearch
           serverPagination={remoteParents !== undefined}
           serverTotal={parentTotal}
           serverPage={parentPage}
           onServerPageChange={setParentPage}
           onDisplayedRowsChange={onDisplayedRowsChange}
+          {...(remoteParents !== undefined
+            ? {
+                externalSearchQuery: serverSearchQuery,
+                onExternalSearchQueryChange: (v) => {
+                  setServerSearchQuery(v)
+                  setParentPage(1)
+                },
+              }
+            : {})}
         />
       </Card>
 
@@ -968,9 +990,9 @@ export function ParentsModule() {
       >
         <div className="space-y-4">
           <CsvImportGuideTable
-            headers={['fullName', 'email', 'phone', 'password', 'studentIds', 'active']}
+            headers={['fullName', 'email', 'phone', 'password', 'active']}
             requiredHeaders={['fullName', 'email', 'password']}
-            exampleRow={['Riley Morgan', 'riley@school.test', '5550301', 'Secret01', '', 'yes']}
+            exampleRow={['Riley Morgan', 'riley@school.test', '5550301', 'Secret01', 'yes']}
             sampleHref="/parents-import-sample.csv"
           />
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">

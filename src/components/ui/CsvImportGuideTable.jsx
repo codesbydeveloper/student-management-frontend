@@ -35,12 +35,12 @@ export function CsvImportGuideTable({
   const roomPills = new Set(roomPillHeaders)
 
   return (
-    <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 py-3.5 sm:px-4">
+    <div className="min-w-0 max-w-full rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 py-3.5 sm:px-4">
       <p className="text-sm font-semibold text-slate-900">Your CSV must use these exact column names</p>
       {footnote ? <p className="mt-1 text-xs leading-relaxed text-slate-600">{footnote}</p> : null}
 
-      <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/90 bg-white">
-        <table className="w-full min-w-[42rem] border-collapse text-xs">
+      <div className="mt-3 max-w-full overflow-x-auto rounded-xl border border-slate-200/90 bg-white">
+        <table className="w-max min-w-full border-collapse text-xs">
           <thead>
             <tr className="bg-indigo-50/90">
               {headers.map((h) => (

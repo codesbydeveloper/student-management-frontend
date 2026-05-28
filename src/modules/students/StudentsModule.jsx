@@ -41,6 +41,10 @@ import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 const STUDENT_PAGE_LIMIT = 10
 const LOCAL_STUDENT_PAGE_SIZE = 5
 
+/** Must match POST /api/students/import/csv column names. */
+const STUDENT_IMPORT_CSV_HEADERS = ['fullName', 'room', 'parentEmail', 'active']
+const STUDENT_IMPORT_CSV_REQUIRED = ['fullName']
+
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return `s-${crypto.randomUUID()}`
   return `s-${Date.now()}`
@@ -59,17 +63,32 @@ function parseCsvActive(value) {
   return s === 'yes' || s === 'true' || s === '1' || s === 'y'
 }
 
-function csvRowToStudentDraft(row) {
-  const fullName = pickCsvField(row, ['name', 'full_name', 'fullname', 'student'])
-  const emailVal = pickCsvField(row, ['email', 'e_mail', 'mail']).toLowerCase()
-  const classId = pickCsvField(row, ['classid', 'class_id', 'class'])
-  const parentId = pickCsvField(row, ['parentid', 'parent_id', 'parent'])
-  const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
-  return { fullName, email: emailVal, classId, parentId, active }
+function resolveClassIdFromRoom(roomRaw, classes) {
+  const r = String(roomRaw ?? '').trim()
+  if (!r) return ''
+  const match = classes.find((c) => String(c.room ?? '').trim() === r)
+  return match ? String(match.id) : ''
 }
 
-/** Row-by-row import when server CSV import is unavailable or rejects the file (email optional). */
-async function importStudentsFromCsvFileClient(token, file) {
+function resolveParentIdFromEmail(emailRaw, parents) {
+  const e = String(emailRaw ?? '').trim().toLowerCase()
+  if (!e || !e.includes('@')) return ''
+  const match = parents.find((p) => String(p.email ?? '').trim().toLowerCase() === e)
+  return match ? String(match.id) : ''
+}
+
+function csvRowToStudentDraft(row) {
+  const fullName = pickCsvField(row, ['fullname', 'full_name', 'name', 'student'])
+  const room = pickCsvField(row, ['room', 'class_room'])
+  const parentEmail = pickCsvField(row, ['parentemail', 'parent_email']).toLowerCase()
+  const classIdLegacy = pickCsvField(row, ['classid', 'class_id', 'class'])
+  const parentIdLegacy = pickCsvField(row, ['parentid', 'parent_id'])
+  const active = parseCsvActive(pickCsvField(row, ['active', 'is_active', 'isactive']) || 'yes')
+  return { fullName, room, parentEmail, classIdLegacy, parentIdLegacy, active }
+}
+
+/** Row-by-row import when server CSV import is unavailable or rejects the file. */
+async function importStudentsFromCsvFileClient(token, file, { classes = [], parents = [] } = {}) {
   let text
   try {
     text = await file.text()
@@ -108,11 +127,12 @@ async function importStudentsFromCsvFileClient(token, file) {
   let stopped = false
   let lastError = ''
   for (const d of drafts) {
+    const classId = d.classIdLegacy || resolveClassIdFromRoom(d.room, classes)
+    const parentId = d.parentIdLegacy || resolveParentIdFromEmail(d.parentEmail, parents)
     const res = await createStudent(token, {
       fullName: d.fullName,
-      ...(d.email ? { email: d.email } : {}),
-      classId: d.classId || undefined,
-      parentId: d.parentId || undefined,
+      classId: classId || undefined,
+      parentId: parentId || undefined,
       active: d.active,
     })
     if (!res.ok) {
@@ -174,11 +194,13 @@ export function StudentsModule() {
   const [studentsLoading, setStudentsLoading] = useState(false)
   const [studentPage, setStudentPage] = useState(1)
   const [studentTotal, setStudentTotal] = useState(0)
+  const [serverSearchQuery, setServerSearchQuery] = useState('')
+  const [debouncedServerSearchQuery, setDebouncedServerSearchQuery] = useState('')
   /** Full list from GET /api/parents/my-students (API is unpaginated; we slice per page in the UI). */
   const parentMyStudentsRef = useRef([])
 
   const loadStudentsPage = useCallback(
-    async (pageNum) => {
+    async (pageNum, searchQuery = '') => {
       if (!token) {
         parentMyStudentsRef.current = []
         setRemoteStudents(undefined)
@@ -192,6 +214,15 @@ export function StudentsModule() {
 
       setStudentsLoading(true)
       try {
+        const q = String(searchQuery ?? '').trim().toLowerCase()
+        const applyParentSearch = (list) =>
+          q
+            ? list.filter((s) =>
+                [s.fullName, s.email, s.classDisplayName]
+                  .map((v) => String(v ?? '').toLowerCase())
+                  .some((v) => v.includes(q)),
+              )
+            : list
         if (user.role === ROLES.PARENT) {
           let all = parentMyStudentsRef.current
           if (all.length === 0) {
@@ -206,16 +237,25 @@ export function StudentsModule() {
             parentMyStudentsRef.current = res.students
             all = res.students
           }
+          const filtered = applyParentSearch(all)
           const start = (pageNum - 1) * STUDENT_PAGE_LIMIT
-          setRemoteStudents(all.slice(start, start + STUDENT_PAGE_LIMIT))
-          setStudentTotal(all.length)
+          setRemoteStudents(filtered.slice(start, start + STUDENT_PAGE_LIMIT))
+          setStudentTotal(filtered.length)
           return
         }
 
         const useAssigned = user.role === ROLES.TEACHER
         const res = useAssigned
-          ? await fetchStudentsAssigned(token, { page: pageNum, limit: STUDENT_PAGE_LIMIT })
-          : await fetchStudentsList(token, { page: pageNum, limit: STUDENT_PAGE_LIMIT })
+          ? await fetchStudentsAssigned(token, {
+              page: pageNum,
+              limit: STUDENT_PAGE_LIMIT,
+              search: searchQuery,
+            })
+          : await fetchStudentsList(token, {
+              page: pageNum,
+              limit: STUDENT_PAGE_LIMIT,
+              search: searchQuery,
+            })
         if (res.ok) {
           setRemoteStudents(res.students)
           setStudentTotal(res.total)
@@ -233,15 +273,22 @@ export function StudentsModule() {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      setDebouncedServerSearchQuery(String(serverSearchQuery ?? '').trim())
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [serverSearchQuery])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
       if (!token) {
         setRemoteStudents(undefined)
         setStudentTotal(0)
         return
       }
-      void loadStudentsPage(studentPage)
+      void loadStudentsPage(studentPage, debouncedServerSearchQuery)
     }, 0)
     return () => window.clearTimeout(t)
-  }, [token, studentPage, loadStudentsPage])
+  }, [token, studentPage, loadStudentsPage, debouncedServerSearchQuery])
 
   const baseStudents = remoteStudents !== undefined ? remoteStudents : students
 
@@ -530,10 +577,35 @@ export function StudentsModule() {
     URL.revokeObjectURL(url)
   }
 
+  const roomForClassId = useCallback(
+    (classId) => {
+      const cid = String(classId ?? '').trim()
+      if (!cid) return ''
+      const c = classes.find((x) => String(x.id) === cid)
+      return c ? String(c.room ?? '').trim() : ''
+    },
+    [classes],
+  )
+
+  const parentEmailForId = useCallback(
+    (parentId) => {
+      const pid = String(parentId ?? '').trim()
+      if (!pid) return ''
+      const p = parents.find((x) => String(x.id) === pid)
+      return p ? String(p.email ?? '').trim() : ''
+    },
+    [parents],
+  )
+
   const downloadStudentsCsv = (list, filename) => {
-    const header = ['fullName', 'classId', 'parentId', 'active']
+    const header = STUDENT_IMPORT_CSV_HEADERS
     const lines = list.map((s) =>
-      [s.fullName, s.classId || '', s.parentId || '', s.active !== false ? 'yes' : 'no']
+      [
+        s.fullName,
+        roomForClassId(s.classId),
+        parentEmailForId(s.parentId),
+        s.active !== false ? 'yes' : 'no',
+      ]
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
         .join(','),
     )
@@ -828,10 +900,13 @@ export function StudentsModule() {
         return
       }
 
-      const clientRes = await importStudentsFromCsvFileClient(token, pendingImportFile)
+      const clientRes = await importStudentsFromCsvFileClient(token, pendingImportFile, {
+        classes,
+        parents,
+      })
       if (clientRes.ok) {
         if (!apiRes.useClient) {
-          toast.info('Imported from your file (email is optional).')
+          toast.info('Imported from your file (server import was unavailable).')
         }
         await finishImportSuccess(
           `Imported ${clientRes.created} student(s).${clientRes.skipped ? ` ${clientRes.skipped} row(s) skipped.` : ''}${clientRes.stopped ? ' Import stopped after an error.' : ''}`,
@@ -1193,15 +1268,28 @@ export function StudentsModule() {
         <DataTable
           columns={columns}
           rows={visible}
-          searchKeys={remoteStudents !== undefined ? [] : ['fullName']}
+          searchKeys={
+            remoteStudents !== undefined && user.role !== ROLES.PARENT
+              ? []
+              : ['fullName', 'email', 'phone']
+          }
           searchPlaceholder="Search students…"
           pageSize={remoteStudents !== undefined ? STUDENT_PAGE_LIMIT : LOCAL_STUDENT_PAGE_SIZE}
-          showSearch={remoteStudents === undefined}
+          showSearch
           serverPagination={remoteStudents !== undefined}
           serverTotal={studentTotal}
           serverPage={studentPage}
           onServerPageChange={setStudentPage}
           onDisplayedRowsChange={onDisplayedRowsChange}
+          {...(remoteStudents !== undefined && user.role !== ROLES.PARENT
+            ? {
+                externalSearchQuery: serverSearchQuery,
+                onExternalSearchQueryChange: (v) => {
+                  setServerSearchQuery(v)
+                  setStudentPage(1)
+                },
+              }
+            : {})}
         />
       </Card>
 
@@ -1234,9 +1322,10 @@ export function StudentsModule() {
       >
         <div className="space-y-4">
           <CsvImportGuideTable
-            headers={['fullName', 'classId', 'parentId', 'active']}
-            requiredHeaders={['fullName']}
-            exampleRow={['Jordan Lee', '5', '', 'yes']}
+            headers={STUDENT_IMPORT_CSV_HEADERS}
+            requiredHeaders={STUDENT_IMPORT_CSV_REQUIRED}
+            exampleRow={['Jordan Lee', '12', 'parent@school.com', 'yes']}
+            
             sampleHref="/students-import-sample.csv"
           />
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">

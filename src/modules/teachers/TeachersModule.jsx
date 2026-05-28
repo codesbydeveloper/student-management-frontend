@@ -128,9 +128,11 @@ export function TeachersModule() {
   const [teachersLoading, setTeachersLoading] = useState(false)
   const [teacherPage, setTeacherPage] = useState(1)
   const [teacherTotal, setTeacherTotal] = useState(0)
+  const [serverSearchQuery, setServerSearchQuery] = useState('')
+  const [debouncedServerSearchQuery, setDebouncedServerSearchQuery] = useState('')
 
   const loadTeachersPage = useCallback(
-    async (pageNum) => {
+    async (pageNum, searchQuery = '') => {
       if (!token) {
         setRemoteTeachers(undefined)
         setTeacherTotal(0)
@@ -138,7 +140,11 @@ export function TeachersModule() {
         return
       }
       setTeachersLoading(true)
-      const res = await fetchTeachersList(token, { page: pageNum, limit: TEACHER_PAGE_LIMIT })
+      const res = await fetchTeachersList(token, {
+        page: pageNum,
+        limit: TEACHER_PAGE_LIMIT,
+        search: searchQuery,
+      })
       setTeachersLoading(false)
       if (res.ok) {
         setRemoteTeachers(res.teachers)
@@ -154,15 +160,22 @@ export function TeachersModule() {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      setDebouncedServerSearchQuery(String(serverSearchQuery ?? '').trim())
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [serverSearchQuery])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
       if (!token) {
         setRemoteTeachers(undefined)
         setTeacherTotal(0)
         return
       }
-      void loadTeachersPage(teacherPage)
+      void loadTeachersPage(teacherPage, debouncedServerSearchQuery)
     }, 0)
     return () => window.clearTimeout(t)
-  }, [token, teacherPage, loadTeachersPage])
+  }, [token, teacherPage, loadTeachersPage, debouncedServerSearchQuery])
 
   const manage = canManageTeachers(user.role)
   const baseTeachers = remoteTeachers !== undefined ? remoteTeachers : teachers
@@ -894,23 +907,15 @@ export function TeachersModule() {
       render: (row) => {
         const ids = Array.isArray(row.classIds) ? row.classIds : []
         if (!ids.length) return <span className="text-slate-500">—</span>
+        const tooltip = ids
+          .map((id) => {
+            const room = roomNumberForClassId(id)
+            return room ? `Room ${room} — ${classNameForClassId(id)}` : classNameForClassId(id)
+          })
+          .join(', ')
         return (
-          <span className="flex max-w-[14rem] flex-wrap gap-1">
-            {ids.map((id) => {
-              const room = roomNumberForClassId(id)
-              const title = room
-                ? `Room ${room} — ${classNameForClassId(id)}`
-                : classNameForClassId(id)
-              return (
-                <AssignedClassPill
-                  key={String(id)}
-                  label={room || classNameForClassId(id)}
-                  room=""
-                  compact
-                  title={title}
-                />
-              )
-            })}
+          <span className="font-medium tabular-nums text-slate-800" title={tooltip}>
+            {ids.length}
           </span>
         )
       },
@@ -1044,7 +1049,7 @@ export function TeachersModule() {
           searchKeys={remoteTeachers !== undefined ? [] : TEACHER_SEARCH_KEYS}
           searchPlaceholder="Search teachers…"
           pageSize={remoteTeachers !== undefined ? TEACHER_PAGE_LIMIT : LOCAL_TEACHER_PAGE_SIZE}
-          showSearch={remoteTeachers === undefined}
+          showSearch
           serverPagination={remoteTeachers !== undefined}
           serverTotal={teacherTotal}
           serverPage={teacherPage}
@@ -1056,7 +1061,13 @@ export function TeachersModule() {
                 onExternalSearchQueryChange: setClientTeacherSearch,
                 onClientPageChange: setClientTeacherTablePage,
               }
-            : {})}
+            : {
+                externalSearchQuery: serverSearchQuery,
+                onExternalSearchQueryChange: (v) => {
+                  setServerSearchQuery(v)
+                  setTeacherPage(1)
+                },
+              })}
         />
       </Card>
 
@@ -1064,7 +1075,7 @@ export function TeachersModule() {
         open={importModalOpen}
         onClose={closeImportTeacherCsvModal}
         title="Import teachers (CSV)"
-        size="xl"
+        size="sm"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <Button
@@ -1087,7 +1098,7 @@ export function TeachersModule() {
           </div>
         }
       >
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <CsvImportGuideTable
             headers={TEACHER_IMPORT_CSV_HEADERS}
             requiredHeaders={TEACHER_IMPORT_CSV_REQUIRED}
@@ -1095,7 +1106,7 @@ export function TeachersModule() {
               'John Smith',
               'john@school.com',
               'secret456',
-              '',
+              '9876501234',
               'Science',
               '15;16',
               'yes',

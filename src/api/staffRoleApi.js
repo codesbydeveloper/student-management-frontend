@@ -95,15 +95,17 @@ export function mapApiStaffUserToRow(raw) {
 /**
  * @param {StaffRoleResource} resource
  */
-export async function fetchStaffRoleList(token, resource, { page = 1, limit = 10 } = {}) {
+export async function fetchStaffRoleList(token, resource, { page = 1, limit = 10, search = '' } = {}) {
   const meta = RESOURCE_META[resource]
   const label = resource === 'admins' ? 'admins' : 'principals'
+  const searchText = String(search ?? '').trim()
   if (!token) {
     return { ok: false, error: 'Not signed in', rows: [], total: 0, page: 1, limit }
   }
   const p = Math.max(1, Number(page) || 1)
   const lim = Math.min(100, Math.max(1, Number(limit) || 10))
   const qs = new URLSearchParams({ page: String(p), limit: String(lim) })
+  if (searchText) qs.set('search', searchText)
   try {
     const res = await fetch(`${staffUrl(resource)}?${qs}`, {
       method: 'GET',

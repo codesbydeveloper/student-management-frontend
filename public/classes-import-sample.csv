@@ -1,4 +1,2 @@
-name,gradeLevel,section,room,teacherIds
-Grade 10 A,10,A,201,1;2
-Grade 9 Science,9,B,105,1
-Intro Art,8,,,2
+name,gradeLevel,section,room,teacherEmail
+Class 9A,9,A,20,

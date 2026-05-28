@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import { fetchDriversPicker } from '../api/driversApi'
 import { createBus, deleteBus, fetchBus, fetchBuses, updateBus } from '../api/busesApi'
 import { Card, CardHeader } from '../components/ui/Card'
@@ -20,6 +21,7 @@ const emptyListMeta = { total: 0, totalPages: 0, hasNextPage: false, hasPrevPage
 
 export default function CreateBusesPage() {
   const { token } = useAuth()
+  const confirm = useConfirm()
 
   const [busName, setBusName] = useState('')
   const [numberPlate, setNumberPlate] = useState('')
@@ -197,7 +199,13 @@ export default function CreateBusesPage() {
       toast.error('Sign in to delete a bus.')
       return
     }
-    const ok = window.confirm(`Delete bus “${row.name}” (${row.plate})? This cannot be undone.`)
+    const ok = await confirm({
+      title: 'Delete bus?',
+      message: `Delete bus "${row.name}".`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      variant: 'danger',
+    })
     if (!ok) return
     setDeletingId(row.id)
     try {

@@ -1,3 +1,2 @@
-fullName,email,phone,password,studentIds,active
-Riley Morgan,riley.morgan@school.test,555-0301,Secret01,,yes
-Taylor Brooks,taylor.brooks@school.test,555-0302,Secret02,1;2,yes
+fullName,email,phone,password,active
+Riley Morgan,riley.morgan@school.test,555-0301,Secret01,yes

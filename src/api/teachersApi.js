@@ -603,11 +603,13 @@ export async function importTeachersCsv(token, file) {
 export async function fetchTeachersList(token, params = {}) {
   const page = Math.max(1, Number(params.page) || 1)
   const limit = Math.max(1, Math.min(100, Number(params.limit) || 10))
+  const search = String(params.search ?? '').trim()
   if (!token) {
     return { ok: false, error: 'Not signed in', teachers: [], total: 0, page: 1, limit }
   }
   try {
     const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
+    if (search) qs.set('search', search)
     const res = await fetch(`${API_BASE_URL}/api/teachers?${qs}`, {
       method: 'GET',
       headers: {

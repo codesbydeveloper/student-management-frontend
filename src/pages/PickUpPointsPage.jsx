@@ -11,7 +11,7 @@ import {
   updatePickupPoint,
 } from '../api/pickupPointsApi'
 import { PickupPointLocationFields } from '../components/transport/PickupPointLocationFields'
-import { SearchableSingleSelect } from '../components/SearchableSingleSelect'
+import { SearchableMultiSelect } from '../components/SearchableMultiSelect'
 import { buildPickupGeocodeQuery, geocodeAddress } from '../utils/nominatimGeocode'
 import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
 import { Card, CardHeader } from '../components/ui/Card'
@@ -44,7 +44,7 @@ export default function PickUpPointsPage() {
   const [mapSearchLoading, setMapSearchLoading] = useState(false)
   const [pickUpTime, setPickUpTime] = useState('')
   const [dropTime, setDropTime] = useState('')
-  const [studentId, setStudentId] = useState('')
+  const [studentIds, setStudentIds] = useState([])
   const [creating, setCreating] = useState(false)
 
   const [studentOptions, setStudentOptions] = useState([])
@@ -70,6 +70,7 @@ export default function PickUpPointsPage() {
   const [editPickUpTime, setEditPickUpTime] = useState('')
   const [editDropTime, setEditDropTime] = useState('')
   const [editStudentLabel, setEditStudentLabel] = useState('')
+  const [editStudentIds, setEditStudentIds] = useState([])
   const [editLoading, setEditLoading] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
@@ -132,7 +133,7 @@ export default function PickUpPointsPage() {
     setLongitude(null)
     setPickUpTime('')
     setDropTime('')
-    setStudentId('')
+    setStudentIds([])
   }
 
   const findOnMap = async (fields, { forEdit = false } = {}) => {
@@ -181,8 +182,8 @@ export default function PickUpPointsPage() {
       toast.error('Select a drop time.')
       return
     }
-    if (!studentId) {
-      toast.error('Select a student.')
+    if (!studentIds.length) {
+      toast.error('Select at least one student.')
       return
     }
     if (!coordsValid(latitude, longitude)) {
@@ -191,20 +192,36 @@ export default function PickUpPointsPage() {
     }
 
     setCreating(true)
-    const res = await createPickupPoint(token, {
-      location: pickUpPointName,
-      latitude,
-      longitude,
-      pickupTime: pickUpTime,
-      dropTime,
-      studentId,
-    })
+    let created = 0
+    let failed = 0
+    let firstError = ''
+    for (const sid of studentIds) {
+      const res = await createPickupPoint(token, {
+        location: pickUpPointName,
+        latitude,
+        longitude,
+        pickupTime: pickUpTime,
+        dropTime,
+        studentId: sid,
+      })
+      if (res.ok) created += 1
+      else {
+        failed += 1
+        if (!firstError) firstError = res.error || 'Could not create pick up point.'
+      }
+    }
     setCreating(false)
-    if (!res.ok) {
-      toast.error(res.error || 'Could not create pick up point.')
+    if (!created) {
+      toast.error(firstError || 'Could not create pick up points.')
       return
     }
-    toast.success('Pick up point created.')
+    if (failed) {
+      toast.warn(`Created ${created} pick up point(s). ${failed} failed.`)
+    } else {
+      toast.success(
+        created === 1 ? 'Pick up point created.' : `${created} pick up points created.`,
+      )
+    }
     resetForm()
     if (page !== 1) {
       setPage(1)
@@ -226,6 +243,7 @@ export default function PickUpPointsPage() {
     setEditPickUpTime('')
     setEditDropTime('')
     setEditStudentLabel('')
+    setEditStudentIds([])
     setEditLoading(false)
   }
 
@@ -246,6 +264,13 @@ export default function PickUpPointsPage() {
     setEditPickUpTime(row.pickupTime)
     setEditDropTime(row.dropTime)
     setEditStudentLabel(row.studentLabel)
+    setEditStudentIds(
+      Array.isArray(row.studentIds) && row.studentIds.length
+        ? row.studentIds.map(String)
+        : row.studentId
+          ? [String(row.studentId)]
+          : [],
+    )
     setEditLatitude(row.latitude ?? null)
     setEditLongitude(row.longitude ?? null)
     setEditLoading(true)
@@ -259,6 +284,13 @@ export default function PickUpPointsPage() {
       setEditPickUpTime(res.point.pickupTime)
       setEditDropTime(res.point.dropTime)
       setEditStudentLabel(res.point.studentLabel)
+      setEditStudentIds(
+        Array.isArray(res.point.studentIds) && res.point.studentIds.length
+          ? res.point.studentIds.map(String)
+          : res.point.studentId
+            ? [String(res.point.studentId)]
+            : [],
+      )
       setEditLatitude(res.point.latitude ?? null)
       setEditLongitude(res.point.longitude ?? null)
     } else if (!res.ok) {
@@ -278,24 +310,57 @@ export default function PickUpPointsPage() {
       toast.error('Pick-up and drop times are required.')
       return
     }
+    if (!editStudentIds.length) {
+      toast.error('Select at least one student.')
+      return
+    }
     if (!coordsValid(editLatitude, editLongitude)) {
       toast.error('Place the stop on the map (click the map or use Find on map).')
       return
     }
     setEditSaving(true)
+    const [firstStudentId, ...extraStudentIds] = editStudentIds
     const res = await updatePickupPoint(token, editId, {
       location: pickUpPointName,
       latitude: editLatitude,
       longitude: editLongitude,
       pickupTime: editPickUpTime,
       dropTime: editDropTime,
+      studentId: firstStudentId,
     })
-    setEditSaving(false)
     if (!res.ok) {
+      setEditSaving(false)
       toast.error(res.error || 'Could not update pick up point.')
       return
     }
-    toast.success('Pick up point updated.')
+    let created = 0
+    let failed = 0
+    let firstError = ''
+    for (const sid of extraStudentIds) {
+      const createRes = await createPickupPoint(token, {
+        location: pickUpPointName,
+        latitude: editLatitude,
+        longitude: editLongitude,
+        pickupTime: editPickUpTime,
+        dropTime: editDropTime,
+        studentId: sid,
+      })
+      if (createRes.ok) created += 1
+      else {
+        failed += 1
+        if (!firstError) firstError = createRes.error || 'Could not add one of the students.'
+      }
+    }
+    setEditSaving(false)
+    if (failed) {
+      toast.warn(
+        `Pick up point updated. Added ${created} extra student(s), ${failed} failed.${firstError ? ` ${firstError}` : ''}`,
+      )
+    } else if (created > 0) {
+      toast.success(`Pick up point updated and ${created} extra student(s) added.`)
+    } else {
+      toast.success('Pick up point updated.')
+    }
     closeEdit()
     await loadList()
   }
@@ -304,7 +369,7 @@ export default function PickUpPointsPage() {
     if (!token) return
     const ok = await confirm({
       title: 'Delete pick up point?',
-      message: `Remove "${row.name !== '—' ? row.name : row.location}" for ${row.studentLabel}?`,
+      message: `Remove "${row.location}"?`,
       confirmLabel: 'Delete',
       variant: 'danger',
     })
@@ -383,14 +448,14 @@ export default function PickUpPointsPage() {
             </div>
 
             <div className="md:col-span-2">
-              <SearchableSingleSelect
+              <SearchableMultiSelect
                 id="pickup-student"
                 label="Student"
                 options={studentOptions}
-                value={studentId}
-                onChange={setStudentId}
+                value={studentIds}
+                onChange={setStudentIds}
                 disabled={studentsLoading || !token || creating}
-                placeholder={studentsLoading ? 'Loading students…' : 'Search and select a student'}
+                collapsedHint={studentsLoading ? 'Loading students…' : 'Search and select student(s)'}
                 searchPlaceholder="Search by name…"
                 emptyText={studentsError || 'No students found.'}
               />
@@ -459,10 +524,9 @@ export default function PickUpPointsPage() {
                     <tr>
                       <th className="px-4 py-3">#</th>
                       <th className="px-4 py-3">Name</th>
-                      <th className="px-4 py-3">Location</th>
                       <th className="px-4 py-3">Pick up</th>
                       <th className="px-4 py-3">Drop</th>
-                      <th className="px-4 py-3">Student</th>
+                      <th className="px-4 py-3">Students</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -472,11 +536,10 @@ export default function PickUpPointsPage() {
                         <td className="px-4 py-3 tabular-nums text-slate-600">
                           {(page - 1) * PAGE_LIMIT + idx + 1}
                         </td>
-                        <td className="px-4 py-3 font-medium">{row.name}</td>
-                        <td className="px-4 py-3 text-slate-600">{row.location}</td>
+                        <td className="px-4 py-3 font-medium text-slate-700">{row.location}</td>
                         <td className="px-4 py-3">{formatTimeForDisplay(row.pickupTime)}</td>
                         <td className="px-4 py-3">{formatTimeForDisplay(row.dropTime)}</td>
-                        <td className="px-4 py-3">{row.studentLabel}</td>
+                        <td className="px-4 py-3 tabular-nums">{row.studentCount ?? 0}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-wrap justify-end gap-2">
                             <Button
@@ -521,25 +584,42 @@ export default function PickUpPointsPage() {
 
       {editOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center sm:p-5"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !editSaving) closeEdit()
           }}
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            className="relative max-h-[92vh] w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-pickup-title"
           >
-            <h2 id="edit-pickup-title" className="text-lg font-bold text-slate-900">
-              Edit pick up point
-            </h2>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h2 id="edit-pickup-title" className="text-lg font-bold text-slate-900">
+                Edit pick up point
+              </h2>
+              <button
+                type="button"
+                aria-label="Close edit dialog"
+                className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={editSaving}
+                onClick={closeEdit}
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
             {editLoading ? (
               <p className="mt-4 text-sm text-slate-500">Loading details…</p>
             ) : (
-              <form onSubmit={onSaveEdit} className="mt-4 space-y-4">
+              <form onSubmit={onSaveEdit} className="space-y-4">
                 <PickupPointLocationFields
                   idPrefix="edit-pickup"
                   pointName={editPointName}
@@ -594,13 +674,18 @@ export default function PickUpPointsPage() {
                     />
                   </div>
                 </div>
-                <div>
-                  <Label>Student</Label>
-                  <p className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                    {editStudentLabel || '—'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3 pt-2">
+                <SearchableMultiSelect
+                  id="edit-pickup-student"
+                  label="Student"
+                  options={studentOptions}
+                  value={editStudentIds}
+                  onChange={setEditStudentIds}
+                  disabled={studentsLoading || !token || editSaving}
+                  collapsedHint={studentsLoading ? 'Loading students…' : 'Search and select student(s)'}
+                  searchPlaceholder="Search by name…"
+                  emptyText={studentsError || 'No students found.'}
+                />
+                <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
                   <Button type="submit" disabled={editSaving}>
                     {editSaving ? 'Saving…' : 'Save changes'}
                   </Button>

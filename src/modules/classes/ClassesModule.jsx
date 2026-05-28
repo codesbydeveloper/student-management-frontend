@@ -30,6 +30,10 @@ import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
 const CLASS_PAGE_LIMIT = 10
 const LOCAL_CLASS_PAGE_SIZE = 5
 
+/** Must match POST /api/classes/import/csv column names. */
+const CLASS_IMPORT_CSV_HEADERS = ['name', 'gradeLevel', 'section', 'room', 'teacherEmail']
+const CLASS_IMPORT_CSV_REQUIRED = ['name', 'gradeLevel']
+
 function pickCsvField(row, keys) {
   for (const k of keys) {
     const v = row[k]
@@ -38,18 +42,33 @@ function pickCsvField(row, keys) {
   return ''
 }
 
+function resolveTeacherIdsFromCsv(raw, teachers) {
+  const tokens = String(raw ?? '')
+    .split(/[;,]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const ids = []
+  for (const token of tokens) {
+    if (token.includes('@')) {
+      const e = token.toLowerCase()
+      const match = teachers.find((t) => String(t.email ?? '').trim().toLowerCase() === e)
+      if (match) ids.push(String(match.id))
+    } else {
+      ids.push(token)
+    }
+  }
+  return [...new Set(ids)]
+}
+
 function csvRowToClassDraft(row) {
   const name = pickCsvField(row, ['name', 'displayname', 'class_name', 'classname', 'display_name'])
   const gradeLevel = pickCsvField(row, ['gradelevel', 'grade'])
   const section = pickCsvField(row, ['section'])
   const room = pickCsvField(row, ['room'])
-  const teachersRaw =
+  const teacherEmail = pickCsvField(row, ['teacheremail', 'teacher_email', 'teacher_emails'])
+  const teacherIdsLegacy =
     pickCsvField(row, ['teacher_ids', 'teacherids', 'teachers', 'assigned_teachers']) || ''
-  const teacherIds = teachersRaw
-    .split(/[;,]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  return { name, gradeLevel, section, room, teacherIds }
+  return { name, gradeLevel, section, room, teacherEmail, teacherIdsLegacy }
 }
 
 export function ClassesModule() {
@@ -63,11 +82,13 @@ export function ClassesModule() {
   const [classesLoading, setClassesLoading] = useState(false)
   const [classPage, setClassPage] = useState(1)
   const [classTotal, setClassTotal] = useState(0)
+  const [serverSearchQuery, setServerSearchQuery] = useState('')
+  const [debouncedServerSearchQuery, setDebouncedServerSearchQuery] = useState('')
   /** Full list from GET /api/classes/assigned (teacher); paginated slices go into `remoteClasses`. */
   const teacherAssignedCacheRef = useRef(null)
 
   const loadClassesPage = useCallback(
-    async (pageNum) => {
+    async (pageNum, searchQuery = '') => {
       if (!token) {
         teacherAssignedCacheRef.current = null
         setRemoteClasses(undefined)
@@ -77,11 +98,21 @@ export function ClassesModule() {
       }
 
       if (user?.role === ROLES.TEACHER) {
+        const q = String(searchQuery ?? '').trim().toLowerCase()
+        const applyTeacherSearch = (list) =>
+          q
+            ? list.filter((c) =>
+                [c.name, c.gradeLevel, c.section, c.room]
+                  .map((v) => String(v ?? '').toLowerCase())
+                  .some((v) => v.includes(q)),
+              )
+            : list
         const cached = teacherAssignedCacheRef.current
         if (cached) {
+          const filtered = applyTeacherSearch(cached)
           const start = (Math.max(1, pageNum) - 1) * CLASS_PAGE_LIMIT
-          setRemoteClasses(cached.slice(start, start + CLASS_PAGE_LIMIT))
-          setClassTotal(cached.length)
+          setRemoteClasses(filtered.slice(start, start + CLASS_PAGE_LIMIT))
+          setClassTotal(filtered.length)
           return
         }
         setClassesLoading(true)
@@ -90,9 +121,10 @@ export function ClassesModule() {
         if (res.ok) {
           const full = res.classes
           teacherAssignedCacheRef.current = full
+          const filtered = applyTeacherSearch(full)
           const start = (Math.max(1, pageNum) - 1) * CLASS_PAGE_LIMIT
-          setRemoteClasses(full.slice(start, start + CLASS_PAGE_LIMIT))
-          setClassTotal(full.length)
+          setRemoteClasses(filtered.slice(start, start + CLASS_PAGE_LIMIT))
+          setClassTotal(filtered.length)
         } else {
           toast.error(res.error)
           teacherAssignedCacheRef.current = null
@@ -104,7 +136,11 @@ export function ClassesModule() {
 
       teacherAssignedCacheRef.current = null
       setClassesLoading(true)
-      const res = await fetchClassesList(token, { page: pageNum, limit: CLASS_PAGE_LIMIT })
+      const res = await fetchClassesList(token, {
+        page: pageNum,
+        limit: CLASS_PAGE_LIMIT,
+        search: searchQuery,
+      })
       setClassesLoading(false)
       if (res.ok) {
         setRemoteClasses(res.classes)
@@ -120,15 +156,22 @@ export function ClassesModule() {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      setDebouncedServerSearchQuery(String(serverSearchQuery ?? '').trim())
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [serverSearchQuery])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
       if (!token) {
         setRemoteClasses(undefined)
         setClassTotal(0)
         return
       }
-      void loadClassesPage(classPage)
+      void loadClassesPage(classPage, debouncedServerSearchQuery)
     }, 0)
     return () => window.clearTimeout(t)
-  }, [token, classPage, loadClassesPage])
+  }, [token, classPage, loadClassesPage, debouncedServerSearchQuery])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -211,15 +254,23 @@ export function ClassesModule() {
     URL.revokeObjectURL(url)
   }
 
+  const teacherEmailsForIds = useCallback((teacherIds) => {
+    return (Array.isArray(teacherIds) ? teacherIds : [])
+      .map((id) => {
+        const t = teachers.find((x) => String(x.id) === String(id))
+        return t ? String(t.email ?? '').trim() : ''
+      })
+      .filter(Boolean)
+      .join(';')
+  }, [teachers])
+
   const downloadClassesCsv = (classList, filename) => {
-    const header = ['name', 'gradeLevel', 'section', 'room', 'teacherIds', 'studentCount']
-    const lines = classList.map((c) => {
-      const sc = students.filter((s) => String(s.classId) === String(c.id)).length
-      const tids = (Array.isArray(c.teacherIds) ? c.teacherIds : []).join(';')
-      return [c.name, c.gradeLevel, c.section, c.room, tids, sc]
+    const header = CLASS_IMPORT_CSV_HEADERS
+    const lines = classList.map((c) =>
+      [c.name, c.gradeLevel, c.section, c.room, teacherEmailsForIds(c.teacherIds)]
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-        .join(',')
-    })
+        .join(','),
+    )
     const csv = [header.join(','), ...lines].join('\n')
     downloadBlobFile(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), filename)
   }
@@ -394,7 +445,13 @@ export function ClassesModule() {
           skipped++
           continue
         }
-        drafts.push({ ...d, teacherIds: Array.isArray(d.teacherIds) ? d.teacherIds : [] })
+        const teacherIds = [
+          ...new Set([
+            ...resolveTeacherIdsFromCsv(d.teacherEmail, teachers),
+            ...resolveTeacherIdsFromCsv(d.teacherIdsLegacy, teachers),
+          ]),
+        ]
+        drafts.push({ ...d, teacherIds })
       }
       if (!drafts.length) {
         toast.error(
@@ -703,12 +760,21 @@ export function ClassesModule() {
           searchKeys={remoteClasses !== undefined ? [] : ['name', 'gradeLevel', 'section', 'room']}
           searchPlaceholder="Search classes…"
           pageSize={remoteClasses !== undefined ? CLASS_PAGE_LIMIT : LOCAL_CLASS_PAGE_SIZE}
-          showSearch={remoteClasses === undefined}
+          showSearch
           serverPagination={remoteClasses !== undefined}
           serverTotal={classTotal}
           serverPage={classPage}
           onServerPageChange={setClassPage}
           onDisplayedRowsChange={onDisplayedRowsChange}
+          {...(remoteClasses !== undefined
+            ? {
+                externalSearchQuery: serverSearchQuery,
+                onExternalSearchQueryChange: (v) => {
+                  setServerSearchQuery(v)
+                  setClassPage(1)
+                },
+              }
+            : {})}
         />
       </Card>
 
@@ -741,9 +807,10 @@ export function ClassesModule() {
       >
         <div className="space-y-4">
           <CsvImportGuideTable
-            headers={['name', 'gradeLevel', 'section', 'room', 'teacherIds']}
-            requiredHeaders={['name', 'gradeLevel']}
-            exampleRow={['Grade 10 A', '10', 'A', '201', '1;2']}
+            headers={CLASS_IMPORT_CSV_HEADERS}
+            requiredHeaders={CLASS_IMPORT_CSV_REQUIRED}
+            exampleRow={['Class 9A', '9', 'A', '20', 'teacher@school.com']}
+            footnote="To assign more than one teacher, list their emails separated by a semicolon (e.g. a@school.com;b@school.com). "
             sampleHref="/classes-import-sample.csv"
           />
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-6 text-center">

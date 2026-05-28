@@ -25,8 +25,15 @@ function countRouteGroupStats(routes) {
   for (const stop of stops) {
     const loc = String(stop.location ?? '').trim()
     if (loc && loc !== '—') locations.add(loc)
-    const name = String(stop.studentName ?? '').trim()
-    if (name && name !== '—') students.add(name)
+    if (Array.isArray(stop.studentNames) && stop.studentNames.length) {
+      for (const n of stop.studentNames) {
+        const name = String(n ?? '').trim()
+        if (name && name !== '—') students.add(name)
+      }
+    } else {
+      const name = String(stop.studentName ?? '').trim()
+      if (name && name !== '—') students.add(name)
+    }
   }
   return {
     locationCount: locations.size || stops.length,
@@ -119,7 +126,12 @@ function RouteSummaryBox({ kind, stats, vehicleLabel }) {
                 <tr key={`${stop.id}-${idx}`} className="text-slate-800">
                   <td className="px-4 py-3 tabular-nums text-slate-600">{idx + 1}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{stop.location}</td>
-                  <td className="px-4 py-3">{stop.studentName}</td>
+                  <td className="px-4 py-3">
+                    <p>{stop.studentName}</p>
+                    {Array.isArray(stop.studentNames) && stop.studentNames.length > 1 ? (
+                      <p className="text-xs text-slate-500">{stop.studentNames.join(', ')}</p>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3 font-medium text-indigo-900">{stop.timeForType}</td>
                 </tr>
               ))}

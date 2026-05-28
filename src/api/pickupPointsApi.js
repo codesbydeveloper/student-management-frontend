@@ -106,6 +106,13 @@ export function mapPickupPointRow(raw) {
   if (id == null) return null
 
   const studentRaw = raw.student ?? raw.studentDetails ?? raw.studentInfo
+  const studentsRaw = Array.isArray(raw.students)
+    ? raw.students
+    : Array.isArray(raw.studentDetails)
+      ? raw.studentDetails
+      : Array.isArray(raw.studentIds)
+        ? raw.studentIds
+        : []
   const studentId =
     raw.studentId ??
     raw.student_id ??
@@ -115,6 +122,23 @@ export function mapPickupPointRow(raw) {
     pickText(raw.studentName ?? raw.student_name) ||
     pickText(studentRaw) ||
     (studentId != null ? `Student #${studentId}` : '—')
+
+  const studentCount = studentsRaw.length
+    ? studentsRaw.length
+    : studentId != null && String(studentId).trim() !== ''
+      ? 1
+      : 0
+  const studentIds = studentsRaw.length
+    ? studentsRaw
+        .map((s) => {
+          if (s && typeof s === 'object') return s.id ?? s.studentId ?? null
+          return s
+        })
+        .filter((v) => v != null && String(v).trim() !== '')
+        .map((v) => String(v))
+    : studentId != null && String(studentId).trim() !== ''
+      ? [String(studentId)]
+      : []
 
   const name = String(raw.name ?? raw.pickupPointName ?? raw.pointName ?? '').trim()
   const location = String(
@@ -130,7 +154,9 @@ export function mapPickupPointRow(raw) {
     pickupTime: normalizeTimeForInput(raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime),
     dropTime: normalizeTimeForInput(raw.dropTime ?? raw.drop_time ?? raw.dropTime),
     studentId: studentId != null ? String(studentId) : '',
+    studentIds,
     studentLabel,
+    studentCount,
     latitude: parseCoordinate(raw.latitude ?? raw.lat),
     longitude: parseCoordinate(raw.longitude ?? raw.lng ?? raw.lon),
   }
@@ -140,13 +166,16 @@ export function mapPickupPointRow(raw) {
  * POST/PATCH body — pick up point name is `location`; plus lat/lng and times.
  */
 function pickupPointPayloadFields(body) {
-  return {
+  const out = {
     location: String(body.location ?? body.name ?? body.pointName ?? '').trim(),
     latitude: parseCoordinate(body.latitude ?? body.lat),
     longitude: parseCoordinate(body.longitude ?? body.lng ?? body.lon),
     pickupTime: timeForApi(body.pickupTime),
     dropTime: timeForApi(body.dropTime),
   }
+  const studentId = body.studentId != null ? Number(body.studentId) : NaN
+  if (Number.isFinite(studentId)) out.studentId = studentId
+  return out
 }
 
 function validatePickupPointPayload(payload) {

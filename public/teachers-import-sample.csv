@@ -1,4 +1,2 @@
 Full Name,Email,Password,phone,subject,room,active
 Jane Doe,jane@school.com,secret123,9876543210,Math,12,true
-John Smith,john@school.com,secret456,,Science,15;16,yes
-No Room Teacher,noroom@school.com,secret789,,,,

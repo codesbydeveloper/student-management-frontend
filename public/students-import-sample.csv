@@ -1,4 +1,2 @@
-fullName,classId,parentId,active
-Jordan Lee,5,,yes
-Sam Patel,,,yes
-Alex Chen,5,22,no
+fullName,room,parentEmail,active
+Jordan Lee,12,parent@school.com,yes

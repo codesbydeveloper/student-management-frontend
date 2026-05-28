@@ -68,11 +68,13 @@ export function extractPagedStudentsResponse(data) {
 export async function fetchStudentsList(token, params = {}) {
   const page = Math.max(1, Number(params.page) || 1)
   const limit = Math.max(1, Math.min(100, Number(params.limit) || 10))
+  const search = String(params.search ?? '').trim()
   if (!token) {
     return { ok: false, error: 'Not signed in', students: [], total: 0, page: 1, limit }
   }
   try {
     const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
+    if (search) qs.set('search', search)
     const res = await fetch(`${API_BASE_URL}/api/students?${qs}`, {
       method: 'GET',
       headers: {
@@ -107,11 +109,13 @@ export async function fetchStudentsList(token, params = {}) {
 export async function fetchStudentsAssigned(token, params = {}) {
   const page = Math.max(1, Number(params.page) || 1)
   const limit = Math.max(1, Math.min(100, Number(params.limit) || 10))
+  const search = String(params.search ?? '').trim()
   if (!token) {
     return { ok: false, error: 'Not signed in', students: [], total: 0, page: 1, limit }
   }
   try {
     const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
+    if (search) qs.set('search', search)
     const res = await fetch(`${API_BASE_URL}/api/students/assigned?${qs}`, {
       method: 'GET',
       headers: {

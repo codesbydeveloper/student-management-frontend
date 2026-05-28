@@ -550,6 +550,7 @@ function extractDriverMyTransportRoutesList(data) {
 function mapDriverTransportStopRow(raw, routeType) {
   if (!raw || typeof raw !== 'object') return null
   const id = raw.id ?? raw.stopId ?? raw.pickupPointId
+  const studentsList = Array.isArray(raw.students) ? raw.students : []
   const student =
     raw.student && typeof raw.student === 'object'
       ? raw.student
@@ -567,6 +568,22 @@ function mapDriverTransportStopRow(raw, routeType) {
       student?.name ??
       '',
   ).trim()
+  const studentNames = studentsList
+    .map((s) =>
+      String(
+        s?.fullName ?? s?.studentName ?? s?.student_name ?? s?.name ?? '',
+      ).trim(),
+    )
+    .filter(Boolean)
+  const studentCountRaw = Number(
+    raw.studentsCount ?? raw.studentCount ?? raw.students_count ?? studentNames.length,
+  )
+  const studentCount = Number.isFinite(studentCountRaw) && studentCountRaw >= 0 ? studentCountRaw : 0
+  const resolvedStudentNames = studentNames.length ? studentNames : studentName ? [studentName] : []
+  const studentLabel =
+    resolvedStudentNames.length > 1
+      ? `${resolvedStudentNames.length} students`
+      : resolvedStudentNames[0] || (studentCount > 1 ? `${studentCount} students` : '—')
   const label = String(raw.label ?? '').trim()
   const pickupTime = formatDriverRouteTime(raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime)
   const dropTime = formatDriverRouteTime(raw.dropTime ?? raw.drop_time ?? raw.dropTime)
@@ -578,7 +595,9 @@ function mapDriverTransportStopRow(raw, routeType) {
   return {
     id: id != null ? String(id) : `${location}-${studentName}`,
     location: location || label || '—',
-    studentName: studentName || '—',
+    studentName: studentLabel,
+    studentNames: resolvedStudentNames,
+    studentCount: Math.max(studentCount, resolvedStudentNames.length),
     label: label || undefined,
     pickupTime: pickupTime || '—',
     dropTime: dropTime || '—',
@@ -663,6 +682,243 @@ export async function fetchDriverMyTransportRoutes(token) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, routes: [] }
+  }
+}
+
+function formatTripFlowError(data, status) {
+  if (data == null) return `Trip request failed (${status})`
+  if (typeof data === 'string' && data) return data
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  return `Trip request failed (${status})`
+}
+
+function mapTripStudentRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id ?? raw.studentId ?? raw.student_id ?? raw.userId
+  const name = String(raw.fullName ?? raw.studentName ?? raw.student_name ?? raw.name ?? '').trim() || '—'
+  const status = String(raw.status ?? raw.tripStatus ?? raw.trip_status ?? raw.pickupStatus ?? '').trim()
+  return {
+    id: id != null ? String(id) : `${name}-${Math.random().toString(36).slice(2, 7)}`,
+    name,
+    status: status || 'pending',
+  }
+}
+
+function mapTripStopRow(raw, fallbackOrder = 0) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = raw.id ?? raw.stopId ?? raw.stop_id ?? raw.pickupPointId
+  let studentsRaw = raw.students ?? raw.studentList ?? raw.children ?? raw.passengers ?? []
+  if (!Array.isArray(studentsRaw)) studentsRaw = []
+  const students = studentsRaw.map(mapTripStudentRow).filter(Boolean)
+  const location = String(
+    raw.location ?? raw.locationName ?? raw.stopName ?? raw.name ?? raw.address ?? raw.label ?? '',
+  ).trim()
+  const order = Number(raw.order ?? raw.sequence ?? raw.stopOrder ?? raw.index ?? fallbackOrder) || fallbackOrder
+  const studentsCountRaw = Number(raw.studentsCount ?? raw.studentCount ?? raw.students_count ?? students.length)
+  const studentsCount = Number.isFinite(studentsCountRaw) ? studentsCountRaw : students.length
+  const fallbackStudents =
+    students.length === 0 && studentsCount > 0
+      ? Array.from({ length: studentsCount }, (_, i) => ({
+          id: `pending-${id ?? order}-${i + 1}`,
+          name: `Student ${i + 1}`,
+          status: 'pending',
+        }))
+      : students
+  return {
+    id: id != null ? String(id) : `stop-${order}-${location || 'x'}`,
+    location: location || '—',
+    order,
+    done: Boolean(raw.done ?? raw.isDone ?? raw.completed ?? raw.isCompleted),
+    students: fallbackStudents,
+  }
+}
+
+function pickTripRoot(data) {
+  if (!data || typeof data !== 'object') return null
+  if (data.trip && typeof data.trip === 'object') return data.trip
+  if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    if (data.data.trip && typeof data.data.trip === 'object') return data.data.trip
+    return data.data
+  }
+  return data
+}
+
+function mapDriverTripProgress(data) {
+  const root = pickTripRoot(data)
+  if (!root || typeof root !== 'object') return null
+  const tripId = root.id ?? root.tripId ?? root.trip_id
+  let stopsRaw = root.stops ?? root.routeStops ?? root.tripStops ?? root.turnsList ?? root.turns ?? []
+  if ((!Array.isArray(stopsRaw) || stopsRaw.length === 0) && data && typeof data === 'object') {
+    stopsRaw = data.turnsList ?? data.turns ?? data.stops ?? stopsRaw
+  }
+  if (!Array.isArray(stopsRaw)) stopsRaw = []
+  const stops = stopsRaw
+    .map((s, idx) => mapTripStopRow(s, idx + 1))
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order)
+
+  const currentRaw = root.currentStop ?? root.current_stop ?? data?.currentStop ?? data?.current_stop
+  const nextRaw = root.nextStop ?? root.next_stop ?? data?.nextStop ?? data?.next_stop
+  const currentStopId = root.currentStopId ?? root.current_stop_id
+  const nextStopId = root.nextStopId ?? root.next_stop_id
+
+  const currentFromList =
+    currentStopId != null ? stops.find((s) => String(s.id) === String(currentStopId)) || null : null
+  const nextFromList = nextStopId != null ? stops.find((s) => String(s.id) === String(nextStopId)) || null : null
+
+  const currentFromRawObject = currentRaw && typeof currentRaw === 'object' ? mapTripStopRow(currentRaw) : null
+  const nextFromRawObject = nextRaw && typeof nextRaw === 'object' ? mapTripStopRow(nextRaw) : null
+
+  let currentStop =
+    currentFromRawObject ||
+    currentFromList ||
+    (stops.find((s) => !s.done) || null)
+
+  let nextStop =
+    nextFromRawObject ||
+    nextFromList ||
+    (currentStop ? stops.find((s) => s.order > currentStop.order && !s.done) || null : null)
+
+  // Some backends send only `nextStop` after completing a stop.
+  // In that case, promote next -> current so driver always sees where to go now.
+  if (!currentStop && nextStop) {
+    currentStop = nextStop
+    nextStop = stops.find((s) => s.order > currentStop.order && !s.done) || null
+  }
+
+  const hasMeaningfulTripData =
+    Boolean(tripId) || Boolean(currentStop) || Boolean(nextStop) || stops.length > 0
+  if (!hasMeaningfulTripData) return null
+
+  return {
+    tripId: tripId != null ? String(tripId) : '',
+    routeId: root.routeId != null ? String(root.routeId) : '',
+    routeName: String(root.routeName ?? root.route_name ?? '').trim(),
+    active: Boolean(root.active ?? root.isActive ?? true),
+    currentStop,
+    nextStop,
+    stops,
+  }
+}
+
+/**
+ * POST /api/drivers/my-trips/start — start driver trip flow for route.
+ * @param {string} token
+ * @param {{ routeId: string|number }} payload
+ */
+export async function startDriverTrip(token, payload) {
+  if (!token) return { ok: false, error: 'Not signed in', progress: null }
+  const routeId = String(payload?.routeId ?? '').trim()
+  if (!routeId) return { ok: false, error: 'Missing routeId', progress: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-trips/start`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ routeId: /^\d+$/.test(routeId) ? Number(routeId) : routeId }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatTripFlowError(data, res.status), progress: null }
+    return { ok: true, progress: mapDriverTripProgress(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, progress: null }
+  }
+}
+
+/**
+ * GET /api/drivers/my-trips/:tripId — current/next stop progress.
+ * @param {string} token
+ * @param {string|number} tripId
+ */
+export async function fetchDriverTripProgress(token, tripId) {
+  if (!token) return { ok: false, error: 'Not signed in', progress: null }
+  const id = encodeURIComponent(String(tripId ?? '').trim())
+  if (!id) return { ok: false, error: 'Missing trip id', progress: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-trips/${id}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatTripFlowError(data, res.status), progress: null }
+    return { ok: true, progress: mapDriverTripProgress(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, progress: null }
+  }
+}
+
+/**
+ * PATCH /api/drivers/my-trips/:tripId/stops/:stopId/students/:studentId/status
+ * status: picked_up | absent | dropped_off
+ */
+export async function markDriverTripStudentStatus(token, { tripId, stopId, studentId, status }) {
+  if (!token) return { ok: false, error: 'Not signed in', progress: null }
+  const tid = encodeURIComponent(String(tripId ?? '').trim())
+  const sid = encodeURIComponent(String(stopId ?? '').trim())
+  const stid = encodeURIComponent(String(studentId ?? '').trim())
+  const statusVal = String(status ?? '').trim()
+  if (!tid || !sid || !stid || !statusVal) {
+    return { ok: false, error: 'Missing trip/stop/student/status', progress: null }
+  }
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/api/drivers/my-trips/${tid}/stops/${sid}/students/${stid}/status`,
+      {
+        method: 'PATCH',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: statusVal }),
+      },
+    )
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatTripFlowError(data, res.status), progress: null }
+    return { ok: true, progress: mapDriverTripProgress(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, progress: null }
+  }
+}
+
+/**
+ * PATCH /api/drivers/my-trips/:tripId/stops/:stopId/complete — mark stop done, next stop returned.
+ */
+export async function completeDriverTripStop(token, { tripId, stopId }) {
+  if (!token) return { ok: false, error: 'Not signed in', progress: null }
+  const tid = encodeURIComponent(String(tripId ?? '').trim())
+  const sid = encodeURIComponent(String(stopId ?? '').trim())
+  if (!tid || !sid) return { ok: false, error: 'Missing trip/stop id', progress: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-trips/${tid}/stops/${sid}/complete`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatTripFlowError(data, res.status), progress: null }
+    return { ok: true, progress: mapDriverTripProgress(data) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, progress: null }
   }
 }
 

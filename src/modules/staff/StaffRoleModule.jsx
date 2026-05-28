@@ -81,6 +81,8 @@ export function StaffRoleModule({ roleKey }) {
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -90,6 +92,13 @@ export function StaffRoleModule({ roleKey }) {
   const [deletingId, setDeletingId] = useState(null)
   const [togglingActiveId, setTogglingActiveId] = useState(null)
 
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedSearchQuery(String(searchQuery ?? '').trim())
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [searchQuery])
+
   const load = useCallback(async () => {
     if (!token) {
       setRows([])
@@ -97,7 +106,11 @@ export function StaffRoleModule({ roleKey }) {
       return
     }
     setLoading(true)
-    const res = await fetchStaffRoleList(token, cfg.resource, { page, limit: PAGE_LIMIT })
+    const res = await fetchStaffRoleList(token, cfg.resource, {
+      page,
+      limit: PAGE_LIMIT,
+      search: debouncedSearchQuery,
+    })
     setLoading(false)
     if (res.ok) {
       setRows(res.rows)
@@ -107,7 +120,7 @@ export function StaffRoleModule({ roleKey }) {
       setRows([])
       setTotal(0)
     }
-  }, [token, cfg.resource, page])
+  }, [token, cfg.resource, page, debouncedSearchQuery])
 
   useEffect(() => {
     void load()
@@ -367,13 +380,19 @@ export function StaffRoleModule({ roleKey }) {
           columns={columns}
           rows={rows}
           searchKeys={[]}
+          searchPlaceholder={`Search ${cfg.title.toLowerCase()}…`}
           pageSize={PAGE_LIMIT}
           emptyMessage={cfg.emptyMessage}
-          showSearch={false}
+          showSearch
           serverPagination
           serverTotal={total}
           serverPage={page}
           onServerPageChange={setPage}
+          externalSearchQuery={searchQuery}
+          onExternalSearchQueryChange={(v) => {
+            setSearchQuery(v)
+            setPage(1)
+          }}
         />
       </Card>
 
