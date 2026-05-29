@@ -36,7 +36,10 @@ export function DataTable({
   const controlledSearch = typeof onExternalSearchQueryChange === 'function'
   const query = controlledSearch ? (externalSearchQuery ?? '') : internalQuery
 
-  const filtered = useMemo(() => filterRowsByTableSearch(rows, searchKeys, query), [rows, searchKeys, query])
+  const filtered = useMemo(() => {
+    if (serverPagination && controlledSearch) return rows
+    return filterRowsByTableSearch(rows, searchKeys, query)
+  }, [rows, searchKeys, query, serverPagination, controlledSearch])
 
   const clientTotalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const serverTotalPages = Math.max(1, Math.ceil((serverTotal || 0) / pageSize))

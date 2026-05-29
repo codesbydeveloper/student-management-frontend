@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
-import { useConfirm } from '../../context/ConfirmContext'
 import { Card, CardHeader } from '../../components/ui/Card'
+import { VisitorDeleteReasonModal } from '../../components/crm/VisitorDeleteReasonModal'
+import { VisitorViewEditModal } from '../../components/crm/VisitorViewEditModal'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { DateTimeInput } from '../../components/ui/DateTimeInput'
 import { PhoneInput } from '../../components/ui/PhoneInput'
 import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import {
@@ -29,7 +31,6 @@ function fmt(iso) {
 
 export default function AdminVisitorLogsPage() {
   const { token } = useAuth()
-  const confirm = useConfirm()
 
   const [visitors, setVisitors] = useState(null)
   const [audit, setAudit] = useState(null)
@@ -43,11 +44,14 @@ export default function AdminVisitorLogsPage() {
   const [phone, setPhone] = useState('')
   const [purpose, setPurpose] = useState('')
   const [visitAt, setVisitAt] = useState('')
+  const [leaveAt, setLeaveAt] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  /** Per-row delete reasons + busy state, keyed by visitor id. */
-  const [deleteReason, setDeleteReason] = useState({})
-  const [deletingId, setDeletingId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+
+  const [viewVisitorId, setViewVisitorId] = useState(null)
 
   const loadVisitors = useCallback(
     async (nextPage) => {
@@ -136,6 +140,7 @@ export default function AdminVisitorLogsPage() {
         phone: sanitizePhoneDigits(phone),
         purpose: purpose.trim(),
         visitAt,
+        leaveAt,
       })
       if (!res.ok) {
         toast.error(res.error)
@@ -146,42 +151,44 @@ export default function AdminVisitorLogsPage() {
       setPhone('')
       setPurpose('')
       setVisitAt('')
+      setLeaveAt('')
       await loadVisitors(1)
     } finally {
       setSubmitting(false)
     }
   }
 
-  const onDelete = async (row) => {
-    if (deletingId) return
-    const reason = (deleteReason[row.id] || '').trim()
+  const openDeleteModal = (row) => {
+    setDeleteTarget(row)
+    setDeleteReason('')
+  }
+
+  const closeDeleteModal = () => {
+    if (deleteSubmitting) return
+    setDeleteTarget(null)
+    setDeleteReason('')
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleteSubmitting) return
+    const reason = deleteReason.trim()
     if (!reason) {
-      toast.error('Type a reason before deleting — it is saved to the audit trail.')
+      toast.error('Enter a reason — it is saved to the audit trail.')
       return
     }
-    const ok = await confirm({
-      title: 'Remove visitor entry?',
-      message: `Delete log for “${row.name}”? This will be recorded in the audit trail with the reason you typed.`,
-      confirmLabel: 'Delete',
-      cancelLabel: 'Cancel',
-    })
-    if (!ok) return
-    setDeletingId(row.id)
+    setDeleteSubmitting(true)
     try {
-      const res = await apiDeleteVisitor(token, row.id, { reason })
+      const res = await apiDeleteVisitor(token, deleteTarget.id, { reason })
       if (!res.ok) {
         toast.error(res.error)
         return
       }
       toast.success('Entry removed.')
-      setDeleteReason((m) => {
-        const n = { ...m }
-        delete n[row.id]
-        return n
-      })
+      setDeleteTarget(null)
+      setDeleteReason('')
       await Promise.all([loadVisitors(page), loadAudit()])
     } finally {
-      setDeletingId(null)
+      setDeleteSubmitting(false)
     }
   }
 
@@ -239,14 +246,23 @@ export default function AdminVisitorLogsPage() {
           </div>
           <div>
             <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Visit date & time</label>
-            <Input
+            <DateTimeInput
               className="mt-1"
-              type="datetime-local"
               value={visitAt}
               onChange={(e) => setVisitAt(e.target.value)}
               required
               disabled={submitting}
             />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Leave date & time</label>
+            <DateTimeInput
+              className="mt-1"
+              value={leaveAt}
+              onChange={(e) => setLeaveAt(e.target.value)}
+              disabled={submitting}
+            />
+            <p className="mt-1 text-xs text-slate-500">Optional — when the visitor left the premises.</p>
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Purpose</label>
@@ -291,47 +307,48 @@ export default function AdminVisitorLogsPage() {
                   <th className="px-3 py-2">Phone</th>
                   <th className="px-3 py-2">Purpose</th>
                   <th className="px-3 py-2">Visit</th>
+                  <th className="px-3 py-2">Leave</th>
                   <th className="px-3 py-2">Created by</th>
-                  <th className="px-3 py-2" />
+                  <th className="px-3 py-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visitors.map((v) => {
-                  const isDeleting = deletingId === v.id
-                  return (
-                    <tr key={v.id} className="align-top">
-                      <td className="px-3 py-2 font-medium text-slate-900">{v.name}</td>
-                      <td className="px-3 py-2 text-slate-700">{v.phone}</td>
-                      <td className="px-3 py-2 text-slate-600">{v.purpose}</td>
-                      <td className="px-3 py-2 text-slate-600">
-                        {notificationDisplayTime(v.visitAtDisplay, v.visitAt)}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-slate-500">{v.createdByName}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex min-w-[16rem] flex-col gap-1.5">
-                          <Input
-                            type="text"
-                            placeholder="Reason (saved to audit)"
-                            value={deleteReason[v.id] || ''}
-                            onChange={(e) =>
-                              setDeleteReason((m) => ({ ...m, [v.id]: e.target.value }))
-                            }
-                            disabled={isDeleting}
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            onClick={() => onDelete(v)}
-                            disabled={isDeleting}
-                          >
-                            {isDeleting ? 'Deleting…' : 'Delete'}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {visitors.map((v) => (
+                  <tr key={v.id}>
+                    <td className="px-3 py-2 font-medium text-slate-900">{v.name}</td>
+                    <td className="px-3 py-2 text-slate-700">{v.phone}</td>
+                    <td className="px-3 py-2 text-slate-600">{v.purpose}</td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {notificationDisplayTime(v.visitAtDisplay, v.visitAt)}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {notificationDisplayTime(v.leaveAtDisplay, v.leaveAt)}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-500">{v.createdByName}</td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={deleteSubmitting}
+                          onClick={() => setViewVisitorId(v.id)}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          disabled={deleteSubmitting}
+                          onClick={() => openDeleteModal(v)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -435,6 +452,24 @@ export default function AdminVisitorLogsPage() {
           </div>
         ) : null}
       </Card>
+
+      <VisitorDeleteReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={closeDeleteModal}
+        visitorName={deleteTarget?.name || ''}
+        reason={deleteReason}
+        onReasonChange={setDeleteReason}
+        onConfirm={confirmDelete}
+        submitting={deleteSubmitting}
+      />
+
+      <VisitorViewEditModal
+        open={Boolean(viewVisitorId)}
+        onClose={() => setViewVisitorId(null)}
+        visitorId={viewVisitorId}
+        token={token}
+        onSaved={() => void loadVisitors(page)}
+      />
     </div>
   )
 }

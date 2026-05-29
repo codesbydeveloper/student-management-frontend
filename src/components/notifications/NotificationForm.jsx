@@ -169,7 +169,7 @@ export function NotificationForm() {
             </option>
           </Select>
           <p className="mt-1.5 text-xs text-slate-500">
-            Admin → admin approval. Principal → principal approval.
+            Administrative → admin approval. Academic → principal approval.
           </p>
         </div>
         <div>

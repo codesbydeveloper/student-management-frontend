@@ -5,6 +5,8 @@ import { fetchParentDashboard } from '../../api/parentsApi'
 import { useParentMessageViewer } from '../../hooks/useParentMessageViewer'
 import { onParentMessagesRefreshRequested } from '../../utils/parentMessagesRefreshBus'
 import { Card } from '../ui/Card'
+import { NavIconTile } from '../icons/NavIcon'
+import { DashboardCardHeading, DashboardStatTile } from './DashboardStatTile'
 import { PtmStatusBadge } from '../phase6/PtmStatusBadge'
 import { ParentMessageDetailModal } from '../parent/ParentMessageDetailModal'
 
@@ -187,52 +189,38 @@ export function ParentDashboardOverview() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <button
+        <DashboardStatTile
           type="button"
           onClick={() => setTeachersOpen((o) => !o)}
           aria-expanded={teachersOpen}
-          className={`dash-stat w-full transition ${
-            teachersOpen ? 'border-indigo-400 ring-1 ring-indigo-200' : 'hover:border-slate-300'
-          }`}
+          navKey="teachers"
+          label="Teachers"
+          value={teachersCount != null ? teachersCount : '—'}
+          className={teachersOpen ? 'border-indigo-400 ring-1 ring-indigo-200' : ''}
         >
-          <p className="text-sm font-medium text-slate-600">Teachers</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">
-            {teachersCount != null ? teachersCount : '—'}
-          </p>
           <p className="mt-2 text-sm font-medium text-indigo-700">
             {teachersOpen ? 'Hide names & subjects' : 'Tap for names & subjects'}
           </p>
-        </button>
+        </DashboardStatTile>
 
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">Total notices</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">
-            {totalNotices != null ? totalNotices : '—'}
-          </p>
-          <Link
-            to="/parent-notifications"
-            className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline"
-          >
-            School messages →
-          </Link>
-        </div>
+        <DashboardStatTile
+          to="/parent-notifications"
+          navKey="parent_notifications"
+          label="Total notices"
+          value={totalNotices != null ? totalNotices : '—'}
+          hint="School messages →"
+        />
 
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">Unread notices</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">
-            {unreadNotices != null ? unreadNotices : '—'}
-          </p>
-          <Link
-            to="/parent-notifications"
-            className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline"
-          >
-            Open messages →
-          </Link>
-        </div>
+        <DashboardStatTile
+          to="/parent-notifications"
+          navKey="parent_notifications"
+          label="Unread notices"
+          value={unreadNotices != null ? unreadNotices : '—'}
+          hint="Open messages →"
+        />
 
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">Bus trip</p>
-          <div className="mt-3 flex items-center gap-2">
+        <DashboardStatTile to="/parent-bus" navKey="parent_bus" label="Bus trip" hint="Bus tracking →">
+          <div className="mt-2 flex items-center gap-2">
             <span
               className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${
                 busTripKnown && busTripActive
@@ -253,18 +241,15 @@ export function ParentDashboardOverview() {
                     : 'Not active'}
             </span>
           </div>
-          <Link
-            to="/parent-bus"
-            className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline"
-          >
-            Bus tracking →
-          </Link>
-        </div>
+        </DashboardStatTile>
       </div>
 
       {teachersOpen ? (
         <Card>
-          <h2 className="text-lg font-bold text-slate-900">Teachers assigned to your child</h2>
+          <h2 className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
+            <NavIconTile navKey="teachers" size="sm" />
+            Teachers assigned to your child
+          </h2>
           {studentTeachers.length === 0 ? (
             <p className="mt-4 text-sm text-slate-600">No teachers listed yet.</p>
           ) : (
@@ -303,15 +288,18 @@ export function ParentDashboardOverview() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-lg font-bold text-slate-900">Recent notices</h2>
-            <Link
-              to="/parent-notifications"
-              className="shrink-0 text-xs font-bold text-indigo-600 hover:underline"
-            >
-              View all
-            </Link>
-          </div>
+          <DashboardCardHeading
+            title="Recent notices"
+            navKey="parent_notifications"
+            action={
+              <Link
+                to="/parent-notifications"
+                className="shrink-0 text-xs font-bold text-indigo-600 hover:underline"
+              >
+                View all
+              </Link>
+            }
+          />
           {recentNoticesRows.length === 0 ? (
             <p className="mt-4 text-sm text-slate-600">No notices yet.</p>
           ) : (
@@ -345,15 +333,18 @@ export function ParentDashboardOverview() {
         </Card>
 
         <Card>
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-lg font-bold text-slate-900">Recent PTM requests</h2>
-            <Link
-              to="/parent/ptm/history"
-              className="shrink-0 text-xs font-bold text-indigo-600 hover:underline"
-            >
-              View all
-            </Link>
-          </div>
+          <DashboardCardHeading
+            title="Recent PTM requests"
+            navKey="parent_ptm_history"
+            action={
+              <Link
+                to="/parent/ptm/history"
+                className="shrink-0 text-xs font-bold text-indigo-600 hover:underline"
+              >
+                View all
+              </Link>
+            }
+          />
           {recentPtmRows.length === 0 ? (
             <p className="mt-4 text-sm text-slate-600">No recent PTM requests.</p>
           ) : (

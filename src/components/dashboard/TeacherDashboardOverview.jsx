@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
 import { fetchTeacherDashboard } from '../../api/teachersApi'
 import { Card } from '../ui/Card'
+import { DashboardCardHeading, DashboardStatTile } from './DashboardStatTile'
 import { NOTIFICATION_STATUSES } from '../../utils/notificationConstants'
 import { formatApprovalDateTime } from '../../utils/notificationTimestamps'
 
@@ -145,20 +146,19 @@ export function TeacherDashboardOverview() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">Assigned classes</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">
-            {assignedClassesCount != null ? assignedClassesCount : '—'}
-          </p>
-        </div>
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">Students in those classes</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">
-            {studentsInAssignedCount != null ? studentsInAssignedCount : '—'}
-          </p>
-        </div>
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">Notifications</p>
+        <DashboardStatTile
+          to="/classes"
+          navKey="classes"
+          label="Assigned classes"
+          value={assignedClassesCount != null ? assignedClassesCount : '—'}
+        />
+        <DashboardStatTile
+          to="/students"
+          navKey="students"
+          label="Students in those classes"
+          value={studentsInAssignedCount != null ? studentsInAssignedCount : '—'}
+        />
+        <DashboardStatTile to="/notifications" navKey="notifications" label="Notifications">
           <div className="mt-2 flex flex-wrap gap-2 text-sm font-semibold text-slate-800">
             <span className="rounded-lg bg-white/80 px-2 py-1 text-emerald-800 ring-1 ring-emerald-200/60">
               Approved {notifCounts.approved}
@@ -170,12 +170,9 @@ export function TeacherDashboardOverview() {
               Pending {notifCounts.pending}
             </span>
           </div>
-          <Link to="/notifications" className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline">
-            Open notifications →
-          </Link>
-        </div>
-        <div className="dash-stat">
-          <p className="text-sm font-medium text-slate-600">PTM</p>
+          <p className="mt-2 text-xs text-slate-500">Open notifications →</p>
+        </DashboardStatTile>
+        <DashboardStatTile to="/ptm-requests" navKey="teacher_ptm_requests" label="PTM">
           <div className="mt-2 flex gap-4 text-sm">
             <div>
               <p className="text-2xl font-bold text-slate-900">{ptmUpcoming}</p>
@@ -186,36 +183,32 @@ export function TeacherDashboardOverview() {
               <p className="text-xs text-slate-500">Completed</p>
             </div>
           </div>
-          <Link to="/ptm-requests" className="mt-3 inline-block text-sm font-medium text-indigo-700 hover:underline">
-            PTM requests →
-          </Link>
-        </div>
+          <p className="mt-2 text-xs text-slate-500">PTM requests →</p>
+        </DashboardStatTile>
       </div>
 
-      <Card>
-        <p className="text-sm font-medium text-slate-600">Assigned leads</p>
-        <p className="mt-1 text-2xl font-semibold text-slate-900">{leadsDisplay}</p>
-        <Link
-          to="/assigned-leads"
-          className="mt-4 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
-        >
-          View leads
-        </Link>
-      </Card>
+      <DashboardStatTile
+        to="/assigned-leads"
+        navKey="teacher_assigned_leads"
+        label="Assigned leads"
+        value={leadsDisplay}
+        hint="View leads →"
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Recent notices</h2>
-            </div>
-            <Link
-              to="/notifications/create"
-              className="shrink-0 text-xs font-bold text-indigo-600 hover:underline"
-            >
-              New notice
-            </Link>
-          </div>
+          <DashboardCardHeading
+            title="Recent notices"
+            navKey="create_notice"
+            action={
+              <Link
+                to="/notifications/create"
+                className="shrink-0 text-xs font-bold text-indigo-600 hover:underline"
+              >
+                New notice
+              </Link>
+            }
+          />
           {recentNoticesRows.length === 0 ? (
             <p className="mt-4 text-sm text-slate-600">No notices yet.</p>
           ) : (
@@ -241,14 +234,15 @@ export function TeacherDashboardOverview() {
         </Card>
 
         <Card>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Recent PTM requests</h2>
-            </div>
-            <Link to="/ptm-requests" className="shrink-0 text-xs font-bold text-indigo-600 hover:underline">
-              View all
-            </Link>
-          </div>
+          <DashboardCardHeading
+            title="Recent PTM requests"
+            navKey="teacher_ptm_requests"
+            action={
+              <Link to="/ptm-requests" className="shrink-0 text-xs font-bold text-indigo-600 hover:underline">
+                View all
+              </Link>
+            }
+          />
           {recentPtmRows.length === 0 ? (
             <p className="mt-4 text-sm text-slate-600">No recent PTM requests.</p>
           ) : (

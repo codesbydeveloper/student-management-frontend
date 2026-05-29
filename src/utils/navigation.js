@@ -202,3 +202,57 @@ export function getNavSidebarEntries(role) {
 export function getNavItemsForRole(role) {
   return buildFlatNav(role)
 }
+
+/** Paths where the dashboard already shows icon tiles — skip the main-content header. */
+const MAIN_CONTENT_HEADER_SKIP = new Set(['/dashboard', '/parent-dashboard'])
+
+/**
+ * Extra routes not in the flat `items` list (or need a longer prefix match).
+ * @type {{ prefix: string, navKey?: string, groupKey?: string, label: string }[]}
+ */
+const PATH_NAV_EXTRAS = [
+  { prefix: '/transport-assignments', navKey: 'admin_assign_bus', label: 'Transport assignments' },
+  { prefix: '/notifications/create', navKey: 'create_notice', label: 'Create notice' },
+  { prefix: '/create-notice', navKey: 'create_notice', label: 'Create notice' },
+  { prefix: '/notifications/admin-approval', navKey: 'notifications_admin', label: 'Admin approvals' },
+  { prefix: '/notifications/principal-approval', navKey: 'notifications_principal', label: 'Principal approvals' },
+  { prefix: '/leads', navKey: 'admin_leads', label: 'Leads' },
+  { prefix: '/create-lead', navKey: 'create_lead', label: 'Create lead' },
+  { prefix: '/assigned-leads', navKey: 'teacher_assigned_leads', label: 'Assigned leads' },
+  { prefix: '/settings/login-branding', navKey: 'admins', label: 'Login branding' },
+  { prefix: '/settings/smtp', navKey: 'admins', label: 'SMTP settings' },
+  { prefix: '/settings', navKey: 'admins', label: 'Settings' },
+  { prefix: '/profile', navKey: 'dashboard', label: 'Profile' },
+]
+
+/**
+ * Resolve sidebar-style icon + label for the current URL (main content header).
+ * @param {string} pathname
+ * @returns {{ navKey?: string, groupKey?: string, label: string } | null}
+ */
+export function resolveNavFromPath(pathname) {
+  const path = String(pathname || '')
+    .split('?')[0]
+    .replace(/\/$/, '') || '/'
+
+  if (MAIN_CONTENT_HEADER_SKIP.has(path)) return null
+
+  for (const extra of PATH_NAV_EXTRAS) {
+    if (path === extra.prefix || path.startsWith(`${extra.prefix}/`)) {
+      return {
+        navKey: extra.navKey,
+        groupKey: extra.groupKey,
+        label: extra.label,
+      }
+    }
+  }
+
+  const sorted = [...items].sort((a, b) => b.to.length - a.to.length)
+  for (const item of sorted) {
+    if (path === item.to || path.startsWith(`${item.to}/`)) {
+      return { navKey: item.key, label: item.label }
+    }
+  }
+
+  return null
+}

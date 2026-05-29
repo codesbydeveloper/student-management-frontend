@@ -76,6 +76,13 @@
   }
 }
 
+/* datetime-local — hide native icon; DateTimeInput shows one calendar button */
+.datetime-input::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Toasts — clear notches / home indicator */
 .Toastify__toast-container {
   --toastify-toast-width: min(22rem, calc(100vw - 1.25rem));

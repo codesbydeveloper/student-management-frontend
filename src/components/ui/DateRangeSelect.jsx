@@ -11,12 +11,15 @@ export function DateRangeSelect({
   className = '',
   selectClassName = '',
   id = 'date-range',
+  hideLabel = false,
 }) {
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-        Date range
-      </label>
+      {hideLabel ? null : (
+        <label htmlFor={id} className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          Date range
+        </label>
+      )}
       <Select
         id={id}
         value={value}

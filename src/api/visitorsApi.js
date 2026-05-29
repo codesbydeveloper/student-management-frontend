@@ -67,22 +67,28 @@ export function mapApiVisitorRow(raw) {
     raw.createdByName ?? createdByBlock?.fullName ?? createdByBlock?.name ?? '',
   ).trim()
 
-  const visitRaw =
-    raw.visitAt ?? raw.visit_at ?? raw.visitTime ?? raw.visit_time ?? raw.scheduledAt
-  let visitAtDisplay = null
-  let visitAtMs = null
-  if (typeof visitRaw === 'string' && visitRaw.trim()) {
-    visitAtDisplay = visitRaw.trim()
-    visitAtMs = parseNotificationTimestamp(visitRaw)
-  } else if (visitRaw != null && visitRaw !== '') {
-    const iso = pickIso(visitRaw)
-    if (iso) {
-      visitAtMs = Date.parse(iso)
-      if (!Number.isFinite(visitAtMs)) visitAtMs = null
-    }
-  }
+  const { display: visitAtDisplay, ms: visitAtMs } = parseVisitorTimestamp(
+    raw.visitAt ?? raw.visit_at ?? raw.visitTime ?? raw.visit_time ?? raw.scheduledAt,
+  )
+  const { display: leaveAtDisplay, ms: leaveAtMs } = parseVisitorTimestamp(
+    raw.leaveAt ?? raw.leave_at ?? raw.leaveTime ?? raw.leave_time,
+  )
 
-  const createdIso = pickIso(raw.createdAt, raw.created_at)
+  const createdRaw = raw.createdAt ?? raw.created_at
+  const createdIso = pickIso(createdRaw)
+  let createdAtDisplay = null
+  let createdAtMs = null
+  if (typeof createdRaw === 'string' && createdRaw.trim()) {
+    createdAtDisplay = createdRaw.trim()
+    createdAtMs = parseNotificationTimestamp(createdRaw)
+    if (createdAtMs == null && createdIso) {
+      const t = Date.parse(createdIso)
+      if (Number.isFinite(t)) createdAtMs = t
+    }
+  } else if (createdIso) {
+    createdAtMs = Date.parse(createdIso)
+    if (Number.isFinite(createdAtMs)) createdAtDisplay = createdIso
+  }
 
   return {
     id: String(id),
@@ -91,9 +97,13 @@ export function mapApiVisitorRow(raw) {
     purpose: String(raw.purpose ?? raw.reason ?? '').trim(),
     visitAtDisplay,
     visitAt: visitAtMs,
+    leaveAtDisplay,
+    leaveAt: leaveAtMs,
     createdByUserId: createdByUserId != null ? String(createdByUserId) : '',
     createdByName: createdByName || 'Admin',
     createdAt: createdIso || new Date().toISOString(),
+    createdAtDisplay,
+    createdAtMs,
   }
 }
 
@@ -203,6 +213,50 @@ function extractPagedVisitorResponse(data, listKeys) {
   }
 }
 
+function parseVisitorTimestamp(raw) {
+  let display = null
+  let ms = null
+  if (typeof raw === 'string' && raw.trim()) {
+    display = raw.trim()
+    ms = parseNotificationTimestamp(raw)
+    if (ms == null) {
+      const iso = pickIso(raw)
+      if (iso) {
+        const t = Date.parse(iso)
+        if (Number.isFinite(t)) ms = t
+      }
+    }
+  } else if (raw != null && raw !== '') {
+    const iso = pickIso(raw)
+    if (iso) {
+      const t = Date.parse(iso)
+      if (Number.isFinite(t)) {
+        ms = t
+        display = iso
+      }
+    }
+  }
+  return { display, ms }
+}
+
+function visitorMutationPayload(body, { useIsoForTimestamps = false } = {}) {
+  const name = String(body?.name ?? '').trim()
+  const phone = String(body?.phone ?? '').trim()
+  const purpose = String(body?.purpose ?? '').trim()
+  const visitAtRaw = String(body?.visitAt ?? '').trim()
+  const leaveAtRaw = String(body?.leaveAt ?? '').trim()
+  const payload = {
+    name,
+    phone,
+    purpose,
+    visitAt: useIsoForTimestamps ? coerceVisitAt(visitAtRaw) || visitAtRaw : visitAtRaw,
+  }
+  if (leaveAtRaw) {
+    payload.leaveAt = useIsoForTimestamps ? coerceVisitAt(leaveAtRaw) || leaveAtRaw : leaveAtRaw
+  }
+  return payload
+}
+
 /** Convert a `datetime-local` value or any parseable date into a server-friendly ISO string. */
 function coerceVisitAt(input) {
   if (!input) return null
@@ -224,15 +278,12 @@ function coerceVisitAt(input) {
  * string when the caller already has one.
  *
  * @param {string} token
- * @param {{ name: string, phone: string, purpose: string, visitAt: string }} body
+ * @param {{ name: string, phone: string, purpose: string, visitAt: string, leaveAt?: string }} body
  */
 export async function createVisitor(token, body) {
   if (!token) return { ok: false, error: 'Not signed in' }
-  const name = String(body?.name ?? '').trim()
-  const phone = String(body?.phone ?? '').trim()
-  const purpose = String(body?.purpose ?? '').trim()
   const visitAtRaw = String(body?.visitAt ?? '').trim()
-  if (!name || !phone || !purpose || !visitAtRaw) {
+  if (!String(body?.name ?? '').trim() || !String(body?.phone ?? '').trim() || !String(body?.purpose ?? '').trim() || !visitAtRaw) {
     return { ok: false, error: 'Name, phone, purpose, and visit date/time are required.' }
   }
   try {
@@ -243,7 +294,7 @@ export async function createVisitor(token, body) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name, phone, purpose, visitAt: visitAtRaw }),
+      body: JSON.stringify(visitorMutationPayload(body)),
     })
     const data = await res.json().catch(() => null)
     if (!res.ok) {
@@ -317,6 +368,80 @@ export async function fetchVisitors(token, { page = 1, limit = 20 } = {}) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, visitors: [], total: 0, page: p, limit: lim }
+  }
+}
+
+/**
+ * GET /api/visitors/:id — single visitor for view / edit.
+ *
+ * @param {string} token
+ * @param {string | number} id
+ */
+export async function fetchVisitorById(token, id) {
+  if (!token) return { ok: false, error: 'Not signed in', visitor: null }
+  if (id == null || String(id).trim() === '') return { ok: false, error: 'Missing visitor id.', visitor: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/visitors/${encodeURIComponent(id)}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatListError(data, res.status, 'visitor'), visitor: null }
+    }
+    const candidate =
+      (data && typeof data === 'object' && (data.visitor || data.data || data)) || null
+    const visitor = mapApiVisitorRow(candidate)
+    if (!visitor) {
+      return { ok: false, error: 'Invalid visitor response.', visitor: null }
+    }
+    return { ok: true, visitor }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, visitor: null }
+  }
+}
+
+/**
+ * PATCH /api/visitors/:id — update visitor fields.
+ *
+ * @param {string} token
+ * @param {string | number} id
+ * @param {{ name: string, phone: string, purpose: string, visitAt: string, leaveAt?: string }} body
+ */
+export async function updateVisitor(token, id, body) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  if (id == null || String(id).trim() === '') return { ok: false, error: 'Missing visitor id.' }
+  const visitAtRaw = String(body?.visitAt ?? '').trim()
+  if (!String(body?.name ?? '').trim() || !String(body?.phone ?? '').trim() || !String(body?.purpose ?? '').trim() || !visitAtRaw) {
+    return { ok: false, error: 'Name, phone, purpose, and visit date/time are required.' }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/visitors/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(visitorMutationPayload(body, { useIsoForTimestamps: true })),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatMutationError(data, res.status), status: res.status }
+    }
+    const candidate =
+      (data && typeof data === 'object' && (data.visitor || data.data || data)) || null
+    const visitor = mapApiVisitorRow(candidate)
+    return { ok: true, visitor, data: data && typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
   }
 }
 

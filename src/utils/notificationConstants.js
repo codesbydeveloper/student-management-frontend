@@ -7,8 +7,8 @@ export const NOTIFICATION_CATEGORIES = {
 }
 
 export const NOTIFICATION_CATEGORY_LABELS = {
-  [NOTIFICATION_CATEGORIES.ADMINISTRATIVE]: 'Admin',
-  [NOTIFICATION_CATEGORIES.ACADEMIC]: 'Principal',
+  [NOTIFICATION_CATEGORIES.ADMINISTRATIVE]: 'Administrative',
+  [NOTIFICATION_CATEGORIES.ACADEMIC]: 'Academic',
 }
 
 /** Display label for API category values (`administrative`, `academic`, or legacy text). */

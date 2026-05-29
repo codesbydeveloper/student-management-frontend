@@ -580,10 +580,32 @@ function mapDriverTransportStopRow(raw, routeType) {
   )
   const studentCount = Number.isFinite(studentCountRaw) && studentCountRaw >= 0 ? studentCountRaw : 0
   const resolvedStudentNames = studentNames.length ? studentNames : studentName ? [studentName] : []
+  const students = studentsList
+    .map((s, idx) => {
+      const sid = s?.id ?? s?.studentId ?? s?.student_id
+      const sname = String(
+        s?.fullName ?? s?.studentName ?? s?.student_name ?? s?.name ?? '',
+      ).trim()
+      if (!sid && !sname) return null
+      return {
+        id: sid != null ? String(sid) : `student-${idx}-${sname}`,
+        name: sname || `Student ${idx + 1}`,
+        status: String(s?.status ?? 'pending'),
+      }
+    })
+    .filter(Boolean)
+  const resolvedStudents =
+    students.length > 0
+      ? students
+      : resolvedStudentNames.map((name, idx) => ({
+          id: `student-${idx}-${name}`,
+          name,
+          status: 'pending',
+        }))
   const studentLabel =
-    resolvedStudentNames.length > 1
-      ? `${resolvedStudentNames.length} students`
-      : resolvedStudentNames[0] || (studentCount > 1 ? `${studentCount} students` : '—')
+    resolvedStudents.length > 1
+      ? `${resolvedStudents.length} students`
+      : resolvedStudents[0]?.name || (studentCount > 1 ? `${studentCount} students` : '—')
   const label = String(raw.label ?? '').trim()
   const pickupTime = formatDriverRouteTime(raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime)
   const dropTime = formatDriverRouteTime(raw.dropTime ?? raw.drop_time ?? raw.dropTime)
@@ -597,7 +619,8 @@ function mapDriverTransportStopRow(raw, routeType) {
     location: location || label || '—',
     studentName: studentLabel,
     studentNames: resolvedStudentNames,
-    studentCount: Math.max(studentCount, resolvedStudentNames.length),
+    students: resolvedStudents,
+    studentCount: Math.max(studentCount, resolvedStudentNames.length, resolvedStudents.length),
     label: label || undefined,
     pickupTime: pickupTime || '—',
     dropTime: dropTime || '—',
@@ -727,11 +750,16 @@ function mapTripStopRow(raw, fallbackOrder = 0) {
           status: 'pending',
         }))
       : students
+  const status = String(raw.status ?? '').trim().toLowerCase()
+  const done =
+    Boolean(raw.done ?? raw.isDone ?? raw.completed ?? raw.isCompleted) ||
+    status === 'completed' ||
+    status === 'done'
   return {
     id: id != null ? String(id) : `stop-${order}-${location || 'x'}`,
     location: location || '—',
     order,
-    done: Boolean(raw.done ?? raw.isDone ?? raw.completed ?? raw.isCompleted),
+    done,
     students: fallbackStudents,
   }
 }
@@ -750,9 +778,24 @@ function mapDriverTripProgress(data) {
   const root = pickTripRoot(data)
   if (!root || typeof root !== 'object') return null
   const tripId = root.id ?? root.tripId ?? root.trip_id
-  let stopsRaw = root.stops ?? root.routeStops ?? root.tripStops ?? root.turnsList ?? root.turns ?? []
+  const routeNested = root.route ?? data?.route ?? null
+  let stopsRaw =
+    root.stops ??
+    root.routeStops ??
+    root.tripStops ??
+    root.turnsList ??
+    root.turns ??
+    routeNested?.stops ??
+    routeNested?.pickupPoints ??
+    []
   if ((!Array.isArray(stopsRaw) || stopsRaw.length === 0) && data && typeof data === 'object') {
-    stopsRaw = data.turnsList ?? data.turns ?? data.stops ?? stopsRaw
+    stopsRaw =
+      data.turnsList ??
+      data.turns ??
+      data.stops ??
+      data.route?.stops ??
+      data.route?.pickupPoints ??
+      stopsRaw
   }
   if (!Array.isArray(stopsRaw)) stopsRaw = []
   const stops = stopsRaw
@@ -772,21 +815,28 @@ function mapDriverTripProgress(data) {
   const currentFromRawObject = currentRaw && typeof currentRaw === 'object' ? mapTripStopRow(currentRaw) : null
   const nextFromRawObject = nextRaw && typeof nextRaw === 'object' ? mapTripStopRow(nextRaw) : null
 
+  const tripJustStarted = !currentRaw && Boolean(nextRaw)
   let currentStop =
     currentFromRawObject ||
     currentFromList ||
-    (stops.find((s) => !s.done) || null)
+    (tripJustStarted ? null : stops.find((s) => !s.done) || null)
 
   let nextStop =
     nextFromRawObject ||
     nextFromList ||
     (currentStop ? stops.find((s) => s.order > currentStop.order && !s.done) || null : null)
 
-  // Some backends send only `nextStop` after completing a stop.
-  // In that case, promote next -> current so driver always sees where to go now.
+  // On start, backend often sends first destination in `nextStop` with `currentStop: null`.
+  // Show that first location as current stop (where driver should go now).
   if (!currentStop && nextStop) {
     currentStop = nextStop
-    nextStop = stops.find((s) => s.order > currentStop.order && !s.done) || null
+    nextStop =
+      stops.find(
+        (s) =>
+          !s.done &&
+          String(s.id) !== String(currentStop.id) &&
+          s.order > currentStop.order,
+      ) || null
   }
 
   const hasMeaningfulTripData =

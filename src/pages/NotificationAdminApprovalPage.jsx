@@ -21,6 +21,7 @@ import { ROLES } from '../utils/constants'
 import { pickApprovedAtMs } from '../utils/notificationTimestamps'
 import {
   NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_STATUSES,
 } from '../utils/notificationConstants'
 import { requestParentMessagesRefresh } from '../utils/parentMessagesRefreshBus'
@@ -258,7 +259,7 @@ export default function NotificationAdminApprovalPage() {
                 }`}
                 onClick={() => selectQueue(APPROVAL_QUEUE.ADMIN)}
               >
-                Admin
+                {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
               </button>
               <button
                 type="button"
@@ -269,7 +270,7 @@ export default function NotificationAdminApprovalPage() {
                 }`}
                 onClick={() => selectQueue(APPROVAL_QUEUE.PRINCIPAL)}
               >
-                Principal
+                {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
               </button>
             </div>
             <NotificationApprovalStatsBoxes

@@ -1,3 +1,5 @@
+import { NavIconTile } from '../icons/NavIcon'
+
 export function Card({ children, className = '' }) {
   return (
     <div className={`rounded-lg border border-slate-200 bg-white shadow-sm ${className}`}>
@@ -6,11 +8,14 @@ export function Card({ children, className = '' }) {
   )
 }
 
-export function CardHeader({ title, subtitle, action, subtitleCompact }) {
+export function CardHeader({ title, subtitle, action, subtitleCompact, navKey, groupKey }) {
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <h2 className="flex items-center gap-2.5 text-lg font-semibold text-slate-900">
+          {navKey || groupKey ? <NavIconTile navKey={navKey} groupKey={groupKey} size="sm" /> : null}
+          <span>{title}</span>
+        </h2>
         {subtitle ? (
           <p
             className={

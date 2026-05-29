@@ -3,6 +3,7 @@ import { useAppData } from '../../context/AppDataContext'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { StatusBadge } from './StatusBadge'
+import { ReadReportActionButton } from './ReadReportActionButton'
 import { NOTIFICATION_CATEGORY_LABELS } from '../../utils/notificationConstants'
 import { formatTargetSummary, formatTargetTypeLabel } from '../../utils/notificationFormat'
 import { notificationDisplayTime } from '../../utils/notificationTimestamps'
@@ -13,9 +14,17 @@ export function NotificationTable({
   onView,
   viewLoadingId = null,
   viewDisabled = false,
+  hideSearch = false,
+  searchQuery: searchQueryProp,
+  onSearchQueryChange,
+  showReadReportColumn = false,
+  onReadReport,
+  readReportDisabled = false,
 }) {
   const { classes, students } = useAppData()
-  const [query, setQuery] = useState('')
+  const [internalQuery, setInternalQuery] = useState('')
+  const query = hideSearch ? (searchQueryProp ?? '') : internalQuery
+  const setQuery = hideSearch ? onSearchQueryChange : setInternalQuery
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -36,15 +45,17 @@ export function NotificationTable({
   }, [notifications, query, classes, students])
 
   return (
-    <div className="space-y-4">
-      <div className="max-w-md">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search your notifications…"
-          aria-label="Search notifications"
-        />
-      </div>
+    <div className={hideSearch ? '' : 'space-y-4'}>
+      {hideSearch ? null : (
+        <div className="max-w-md">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search your notifications…"
+            aria-label="Search notifications"
+          />
+        </div>
+      )}
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -60,13 +71,18 @@ export function NotificationTable({
                     View
                   </th>
                 ) : null}
+                {showReadReportColumn ? (
+                  <th className="min-w-[11rem] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
+                    Read report
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5 + (showViewColumn ? 1 : 0)}
+                    colSpan={5 + (showViewColumn ? 1 : 0) + (showReadReportColumn ? 1 : 0)}
                     className="px-4 py-12 text-center text-sm font-medium text-slate-500"
                   >
                     No notifications yet. Create one to see it here.
@@ -111,6 +127,20 @@ export function NotificationTable({
                             ? 'Loading…'
                             : 'View'}
                         </Button>
+                      </td>
+                    ) : null}
+                    {showReadReportColumn ? (
+                      <td className="min-w-[11rem] whitespace-nowrap px-4 py-3 text-center align-middle">
+                        {onReadReport ? (
+                          <ReadReportActionButton
+                            disabled={readReportDisabled}
+                            onClick={() => onReadReport(n)}
+                          />
+                        ) : (
+                          <span className="text-sm text-slate-400" aria-hidden>
+                            —
+                          </span>
+                        )}
                       </td>
                     ) : null}
                   </tr>

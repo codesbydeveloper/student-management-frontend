@@ -239,17 +239,13 @@ export default function NoticeHistoryPage() {
   const categoryStats = useMemo(() => {
     const empty = { total: 0, pending: 0, approved: 0 }
     if (!statsBundle) return empty
-    if (isPrincipal) {
-      const s = statsBundle.principal ?? statsBundle.overall ?? empty
-      return { total: s.total, pending: s.pending, approved: s.approved }
-    }
     if (categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC) {
-      const s = statsBundle.principal ?? empty
+      const s = statsBundle.principal ?? statsBundle.overall ?? empty
       return { total: s.total, pending: s.pending, approved: s.approved }
     }
     const s = statsBundle.admin ?? empty
     return { total: s.total, pending: s.pending, approved: s.approved }
-  }, [statsBundle, isPrincipal, categoryFilter])
+  }, [statsBundle, categoryFilter])
 
   const loadStats = useCallback(async () => {
     if (!token || !allowed) {
@@ -265,11 +261,6 @@ export default function NoticeHistoryPage() {
 
   useEffect(() => {
     const cat = String(searchParams.get('category') ?? '').toLowerCase()
-    if (isPrincipal) {
-      setCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)
-      setPage(1)
-      return
-    }
     if (cat === NOTIFICATION_CATEGORIES.ADMINISTRATIVE) {
       setCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)
       setPage(1)
@@ -277,14 +268,7 @@ export default function NoticeHistoryPage() {
       setCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)
       setPage(1)
     }
-  }, [searchParams, isPrincipal])
-
-  useEffect(() => {
-    if (isPrincipal && categoryFilter !== NOTIFICATION_CATEGORIES.ACADEMIC) {
-      setCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)
-      setPage(1)
-    }
-  }, [isPrincipal, categoryFilter])
+  }, [searchParams])
 
   const load = useCallback(async () => {
     if (!token || !allowed) {
@@ -292,14 +276,6 @@ export default function NoticeHistoryPage() {
       setTotal(0)
       setHasNext(false)
       setLoading(false)
-      setError(null)
-      return
-    }
-    if (isPrincipalAdministrativeTab(isPrincipal, categoryFilter)) {
-      setLoading(false)
-      setRows([])
-      setTotal(0)
-      setHasNext(false)
       setError(null)
       return
     }
@@ -530,41 +506,33 @@ export default function NoticeHistoryPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="grid w-full gap-4 sm:grid-cols-2 lg:max-w-3xl lg:flex-1">
               <div className="w-full min-w-0">
-                {isAdmin ? (
-                  <>
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      Category
-                    </p>
-                    <div className="flex w-full min-w-[16rem] rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner sm:min-w-[18rem]">
-                      <button
-                        type="button"
-                        className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-                          categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
-                            ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                        onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)}
-                      >
-                        {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
-                      </button>
-                      <button
-                        type="button"
-                        className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-                          categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC
-                            ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                        onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)}
-                      >
-                        {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="min-h-11 text-sm font-medium leading-[2.75rem] text-slate-700">
-                    {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]} notices
-                  </p>
-                )}
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Category
+                </p>
+                <div className="flex w-full min-w-[16rem] rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner sm:min-w-[18rem]">
+                  <button
+                    type="button"
+                    className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                      categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+                        ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)}
+                  >
+                    {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
+                  </button>
+                  <button
+                    type="button"
+                    className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                      categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC
+                        ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    onClick={() => selectCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)}
+                  >
+                    {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
+                  </button>
+                </div>
               </div>
               <DateRangeSelect
                 id="notice-history-date-range"

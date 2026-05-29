@@ -86,6 +86,18 @@ export function ClassesModule() {
   const [debouncedServerSearchQuery, setDebouncedServerSearchQuery] = useState('')
   /** Full list from GET /api/classes/assigned (teacher); paginated slices go into `remoteClasses`. */
   const teacherAssignedCacheRef = useRef(null)
+  /** Cached filtered list while admin/principal search is active (avoids refetch on every page click). */
+  const adminSearchCacheRef = useRef({ query: '', list: null })
+
+  function applyClassSearch(list, searchQuery) {
+    const q = String(searchQuery ?? '').trim().toLowerCase()
+    if (!q) return list
+    return list.filter((c) =>
+      [c.name, c.gradeLevel, c.section, c.room]
+        .map((v) => String(v ?? '').toLowerCase())
+        .some((v) => v.includes(q)),
+    )
+  }
 
   const loadClassesPage = useCallback(
     async (pageNum, searchQuery = '') => {
@@ -135,11 +147,35 @@ export function ClassesModule() {
       }
 
       teacherAssignedCacheRef.current = null
+      const q = String(searchQuery ?? '').trim()
+
+      if (q) {
+        let filtered = adminSearchCacheRef.current.query === q ? adminSearchCacheRef.current.list : null
+        if (!filtered) {
+          setClassesLoading(true)
+          const res = await fetchAllClassesList(token)
+          setClassesLoading(false)
+          if (!res.ok) {
+            toast.error(res.error)
+            adminSearchCacheRef.current = { query: '', list: null }
+            setRemoteClasses([])
+            setClassTotal(0)
+            return
+          }
+          filtered = applyClassSearch(res.classes, q)
+          adminSearchCacheRef.current = { query: q, list: filtered }
+        }
+        const start = (Math.max(1, pageNum) - 1) * CLASS_PAGE_LIMIT
+        setRemoteClasses(filtered.slice(start, start + CLASS_PAGE_LIMIT))
+        setClassTotal(filtered.length)
+        return
+      }
+
+      adminSearchCacheRef.current = { query: '', list: null }
       setClassesLoading(true)
       const res = await fetchClassesList(token, {
         page: pageNum,
         limit: CLASS_PAGE_LIMIT,
-        search: searchQuery,
       })
       setClassesLoading(false)
       if (res.ok) {
@@ -160,6 +196,10 @@ export function ClassesModule() {
     }, 350)
     return () => window.clearTimeout(t)
   }, [serverSearchQuery])
+
+  useEffect(() => {
+    setClassPage(1)
+  }, [debouncedServerSearchQuery])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -414,8 +454,9 @@ export function ClassesModule() {
         setPendingImportFile(null)
         setCsvInputKey((k) => k + 1)
         if (remoteClasses !== undefined) {
+          adminSearchCacheRef.current = { query: '', list: null }
           setClassPage(1)
-          await loadClassesPage(1)
+          await loadClassesPage(1, debouncedServerSearchQuery)
         }
         return
       }
@@ -584,7 +625,8 @@ export function ClassesModule() {
       toast.success('Class updated.')
       setModalOpen(false)
       if (remoteClasses !== undefined) {
-        await loadClassesPage(classPage)
+        adminSearchCacheRef.current = { query: '', list: null }
+        await loadClassesPage(classPage, debouncedServerSearchQuery)
       }
       return
     }
@@ -618,8 +660,9 @@ export function ClassesModule() {
         teacherIds: Array.isArray(mapped.teacherIds) ? [...mapped.teacherIds] : [],
       }
       if (remoteClasses !== undefined) {
+        adminSearchCacheRef.current = { query: '', list: null }
         setClassPage(1)
-        await loadClassesPage(1)
+        await loadClassesPage(1, debouncedServerSearchQuery)
       } else {
         setClasses((list) => [...list, classRow])
       }
@@ -664,7 +707,8 @@ export function ClassesModule() {
     )
     toast.info('Class removed. Affected students were unassigned.')
     if (remoteClasses !== undefined) {
-      await loadClassesPage(classPage)
+      adminSearchCacheRef.current = { query: '', list: null }
+      await loadClassesPage(classPage, debouncedServerSearchQuery)
     }
   }
 

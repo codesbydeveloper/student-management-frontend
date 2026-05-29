@@ -35,7 +35,7 @@ import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '
 import { SearchableMultiSelect } from '../../components/SearchableMultiSelect'
 
 const TEACHER_PAGE_LIMIT = 10
-const LOCAL_TEACHER_PAGE_SIZE = 5
+const LOCAL_TEACHER_PAGE_SIZE = 10
 const TEACHER_SEARCH_KEYS = ['fullName', 'email', 'subject']
 
 /** Must match server CSV import — shown in UI and sample file (parseCsv → snake_case keys). */

@@ -9,6 +9,7 @@ import { canAccessRoute } from '../utils/permissions'
 import { TeacherDashboardOverview } from '../components/dashboard/TeacherDashboardOverview'
 import { ParentDashboardOverview } from '../components/dashboard/ParentDashboardOverview'
 import { AdminDashboardOverview } from '../components/dashboard/AdminDashboardOverview'
+import { NavIconTile } from '../components/icons/NavIcon'
 
 function Stat({ label, value, hint }) {
   return (
@@ -75,20 +76,27 @@ export default function DashboardHomePage() {
 
       {user.role === ROLES.DRIVER ? (
         <Card>
-          <h2 className="text-base font-semibold text-slate-900">Transport</h2>
+          <h2 className="flex items-center gap-2.5 text-base font-semibold text-slate-900">
+            <NavIconTile navKey="driver_transport" size="sm" />
+            Transport
+          </h2>
           <p className="mt-2 text-sm text-slate-600">
             Start and end your route trip. Parents on your bus can see live location while a trip is active.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/driver-transport">
-              <span className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
-                Open my trip
-              </span>
+            <Link
+              to="/driver-transport"
+              className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              <NavIconTile navKey="driver_transport" size="sm" />
+              Open my trip
             </Link>
-            <Link to="/driver/routes">
-              <span className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
-                View routes
-              </span>
+            <Link
+              to="/driver/routes"
+              className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              <NavIconTile navKey="driver_my_routes" size="sm" />
+              View routes
             </Link>
           </div>
         </Card>
@@ -124,8 +132,9 @@ export default function DashboardHomePage() {
               <Link
                 key={l.to}
                 to={l.to}
-                className="inline-flex rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
+                <NavIconTile navKey={l.key} size="sm" />
                 {l.label}
               </Link>
             ))}

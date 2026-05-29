@@ -3,6 +3,7 @@ import { formatNotificationTimeAgo, pickNotificationMediaUrl } from '../utils/no
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_STATUSES,
+  NOTIFICATION_TARGET_LABELS,
   NOTIFICATION_TARGET_TYPES,
 } from '../utils/notificationConstants'
 import { parseNotificationTimestamp, pickApprovedAtMs } from '../utils/notificationTimestamps'
@@ -984,6 +985,41 @@ export async function fetchNotificationBannerAssets(token, { page = 1, limit = 2
   }
 }
 
+/**
+ * DELETE /api/notifications/banner-assets/:fileName — or ?bannerImageUrl= for full path.
+ * Admin / principal only (enforced on server).
+ */
+export async function deleteNotificationBannerAsset(token, { fileName, bannerImageUrl } = {}) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const name = String(fileName ?? '').trim()
+  const imageUrl = String(bannerImageUrl ?? '').trim()
+  if (!name && !imageUrl) {
+    return { ok: false, error: 'Missing banner file name or URL.' }
+  }
+  const url = name
+    ? `${API_BASE_URL}/api/notifications/banner-assets/${encodeURIComponent(name)}`
+    : `${API_BASE_URL}/api/notifications/banner-assets?${new URLSearchParams({ bannerImageUrl: imageUrl })}`
+  try {
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (res.status === 204) return { ok: true, data: null }
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatMutationError(data, res.status), status: res.status }
+    }
+    return { ok: true, data: data && typeof data === 'object' ? data : null }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
 function extractAdminNotificationDetailPayload(data) {
   if (!data || typeof data !== 'object') return null
 
@@ -1005,37 +1041,87 @@ function extractAdminNotificationDetailPayload(data) {
   return data
 }
 
+function isIdOnlyAudienceLabel(label) {
+  const s = String(label ?? '').trim()
+  if (!s) return true
+  if (/^student\s*#\s*\d+$/i.test(s)) return true
+  if (/^students\s*:\s*[\d,\s]+$/i.test(s)) return true
+  if (/^class\s*#\s*\d+$/i.test(s)) return true
+  if (/^classes\s*:\s*[\d,\s]+$/i.test(s)) return true
+  return false
+}
+
+function studentNamesFromNotificationRaw(raw) {
+  const names = []
+  const sources = [raw.targetStudents, raw.students, raw.studentTargets, raw.recipients]
+  for (const arr of sources) {
+    if (!Array.isArray(arr)) continue
+    for (const item of arr) {
+      if (typeof item === 'string') {
+        const s = item.trim()
+        if (s && !/^\d+$/.test(s)) names.push(s)
+      } else if (item && typeof item === 'object') {
+        const n = String(
+          item.fullName ?? item.name ?? item.studentName ?? item.displayName ?? '',
+        ).trim()
+        if (n) names.push(n)
+      }
+    }
+  }
+  return [...new Set(names)]
+}
+
 function audienceLabelsFromNotificationRaw(raw) {
   const labels = []
+  const seen = new Set()
+
+  const add = (label) => {
+    const s = String(label ?? '').trim()
+    if (!s || isIdOnlyAudienceLabel(s)) return
+    const key = s.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    labels.push(s)
+  }
+
+  for (const name of studentNamesFromNotificationRaw(raw)) {
+    add(name)
+  }
+
+  if (Array.isArray(raw.targetSections) && raw.targetSections.length) {
+    for (const s of raw.targetSections) {
+      if (s && typeof s === 'object') {
+        const cn = String(s.className ?? s.class_name ?? '').trim()
+        const sec = String(s.section ?? s.sectionName ?? '').trim()
+        const part = [cn, sec].filter(Boolean).join(' — ')
+        if (part) add(part)
+      }
+    }
+  }
+
   const summary =
     (typeof raw.targetSummary === 'string' && raw.targetSummary.trim()) ||
     (typeof raw.target === 'string' && raw.target.trim()) ||
     (typeof raw.targets === 'string' && raw.targets.trim()) ||
     ''
-  if (summary) labels.push(summary)
+  add(summary)
 
-  if (Array.isArray(raw.targetSections) && raw.targetSections.length) {
-    for (const s of raw.targetSections) {
-      if (s && typeof s === 'object') {
-        const cn = String(s.className ?? s.class_name ?? s.classId ?? '').trim()
-        const sec = String(s.section ?? s.sectionName ?? '').trim()
-        const part = [cn, sec].filter(Boolean).join(' — ')
-        if (part) labels.push(part)
-      }
-    }
-  }
+  if (labels.length) return labels
 
-  if (Array.isArray(raw.targetClassIds) && raw.targetClassIds.length) {
-    const joined = raw.targetClassIds.map(String).join(', ')
-    if (joined) labels.push(`Classes: ${joined}`)
-  }
-
+  const targetType = String(raw.targetType ?? '').toLowerCase()
   if (Array.isArray(raw.targetStudentIds) && raw.targetStudentIds.length) {
-    const joined = raw.targetStudentIds.map(String).join(', ')
-    if (joined) labels.push(`Students: ${joined}`)
+    const n = raw.targetStudentIds.length
+    return [n === 1 ? 'Student' : 'Students']
+  }
+  if (Array.isArray(raw.targetClassIds) && raw.targetClassIds.length) {
+    const n = raw.targetClassIds.length
+    return [n === 1 ? 'Class' : 'Classes']
+  }
+  if (NOTIFICATION_TARGET_LABELS[targetType]) {
+    return [NOTIFICATION_TARGET_LABELS[targetType]]
   }
 
-  return labels.length ? labels : ['—']
+  return ['—']
 }
 
 /** Rejection copy from GET /api/notifications/:id (and admin detail) payloads. */
@@ -1418,7 +1504,7 @@ export async function patchNotificationReject(token, notificationId, opts = {}) 
   }
 }
 
-const TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT = 20
+const TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT = 10
 
 /**
  * GET /api/notifications/mine?page=&limit= — teacher’s submitted notifications (Bearer).
@@ -1427,13 +1513,17 @@ const TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT = 20
  *   | { ok: false, error: string, useClient?: boolean, notifications: [], total: 0 }
  * >}
  */
-export async function fetchTeacherNotificationsMine(token, { page = 1, limit = TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT } = {}) {
+export async function fetchTeacherNotificationsMine(
+  token,
+  { page = 1, limit = TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT, dateRange } = {},
+) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
   }
   const p = Math.max(1, Number(page) || 1)
   const lim = Math.min(100, Math.max(1, Number(limit) || TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT))
   const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  appendDateRangeToSearchParams(params, dateRange)
   try {
     const res = await fetch(`${API_BASE_URL}/api/notifications/mine?${params}`, {
       method: 'GET',

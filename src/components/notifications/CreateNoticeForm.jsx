@@ -33,6 +33,8 @@ export function CreateNoticeForm() {
   const { classes, students } = useAppData()
   const useSchoolDirectory =
     user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
+  const canManageBannerLibrary =
+    user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
   const [summaryClasses, setSummaryClasses] = useState(undefined)
   const [directoryBundle, setDirectoryBundle] = useState(null)
 
@@ -182,8 +184,8 @@ export function CreateNoticeForm() {
             if (res.httpStatus === 403) {
               setSubCategoriesError(
                 category === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
-                  ? 'Admin sub-categories are only available to administrators.'
-                  : 'Principal sub-categories are only available to the principal.',
+                  ? 'Administrative sub-categories are only available to administrators.'
+                  : 'Academic sub-categories are only available to the principal.',
               )
             } else {
               const msg = res.error || 'Could not load sub-categories.'
@@ -402,8 +404,15 @@ export function CreateNoticeForm() {
             token={token}
             open={bannerLibraryOpen}
             selectedId={selectedBannerAsset?.id}
+            canDelete={canManageBannerLibrary}
             onClose={() => setBannerLibraryOpen(false)}
-            onSelect={onSelectBannerAsset}
+            onSelect={(asset) => {
+              if (!asset) {
+                clearBanner()
+                return
+              }
+              onSelectBannerAsset(asset)
+            }}
           />
           <div>
             <Label htmlFor="cn-videos">Video URLs (one per line)</Label>

@@ -7,6 +7,8 @@ import { EMPTY_ADMIN_DASHBOARD } from './adminDashboardTypes'
 import { Card, CardHeader } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { NotificationReadReportModal } from '../notifications/NotificationReadReportModal'
+import { NavIconTile } from '../icons/NavIcon'
+import { DashboardSectionTitle, DashboardStatTile } from './DashboardStatTile'
 import { NOTIFICATION_CATEGORY_LABELS } from '../../utils/notificationConstants'
 import { ROLES } from '../../utils/constants'
 
@@ -60,30 +62,6 @@ function noticeAction(n, approvalsPath) {
     return { to: `${approvalsPath}${qs}`, label: 'Review' }
   }
   return { to: `/notifications/history${qs}`, label: 'Review' }
-}
-
-/**
- * Clickable stat tile — navigates to a related page.
- */
-function StatLink({ to, label, value, hint, className = '' }) {
-  return (
-    <Link
-      to={to}
-      className={`dash-stat block transition hover:border-slate-300 hover:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${className}`}
-    >
-      <p className="text-sm font-medium text-slate-600">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
-    </Link>
-  )
-}
-
-function SectionTitle({ children, id }) {
-  return (
-    <h2 id={id} className="text-base font-semibold text-slate-900">
-      {children}
-    </h2>
-  )
 }
 
 /**
@@ -147,28 +125,34 @@ export function AdminDashboardOverview() {
 
       {/* Staff & fleet */}
       <section className="space-y-3" aria-labelledby="admin-dash-staff">
-        <SectionTitle id="admin-dash-staff">Staff & fleet</SectionTitle>
+        <DashboardSectionTitle id="admin-dash-staff" groupKey="academics">
+          Staff & fleet
+        </DashboardSectionTitle>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatLink
+          <DashboardStatTile
             to="/teachers"
+            navKey="teachers"
             label="Active teachers"
             value={fmtNum(dash.teachers.active)}
             hint="Open teachers list →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/teachers"
+            navKey="teachers"
             label="Inactive teachers"
             value={fmtNum(dash.teachers.inactive)}
             hint="Filter inactive on list →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/transport/buses"
+            navKey="admin_create_buses"
             label="Total buses"
             value={fmtNum(dash.transport.totalBuses)}
             hint="Manage buses →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/drivers"
+            navKey="drivers"
             label="Total drivers"
             value={fmtNum(dash.transport.totalDrivers)}
             hint="Bus drivers →"
@@ -178,10 +162,13 @@ export function AdminDashboardOverview() {
 
       {/* Notices */}
       <section className="space-y-3" aria-labelledby="admin-dash-notices">
-        <SectionTitle id="admin-dash-notices">Notices</SectionTitle>
+        <DashboardSectionTitle id="admin-dash-notices" groupKey="notices">
+          Notices
+        </DashboardSectionTitle>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatLink
+          <DashboardStatTile
             to={noticeApprovalsPath}
+            navKey="notice_history"
             label="Pending notice approvals"
             value={fmtNum(dash.pendingNoticeApprovals)}
             hint="Review queue →"
@@ -192,16 +179,20 @@ export function AdminDashboardOverview() {
 
       {/* Transport */}
       <section className="space-y-3" aria-labelledby="admin-dash-transport">
-        <SectionTitle id="admin-dash-transport">Transport</SectionTitle>
+        <DashboardSectionTitle id="admin-dash-transport" groupKey="transport">
+          Transport
+        </DashboardSectionTitle>
         <div className="grid gap-4 sm:grid-cols-2">
-          <StatLink
+          <DashboardStatTile
             to="/transport-assignments"
+            navKey="admin_assign_bus"
             label="Active trips today"
             value={fmtNum(dash.transport.activeTripsToday)}
             hint="Assignments & live trips →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/transport-assignments"
+            navKey="admin_transport_routes"
             label="Completed trips today"
             value={fmtNum(dash.transport.completedTripsToday)}
             hint="Trip history →"
@@ -211,16 +202,20 @@ export function AdminDashboardOverview() {
 
       {/* Visitors */}
       <section className="space-y-3" aria-labelledby="admin-dash-visitors">
-        <SectionTitle id="admin-dash-visitors">Visitors</SectionTitle>
+        <DashboardSectionTitle id="admin-dash-visitors" navKey="admin_visitor_logs">
+          Visitors
+        </DashboardSectionTitle>
         <div className="grid gap-4 sm:grid-cols-2">
-          <StatLink
+          <DashboardStatTile
             to="/visitor-logs"
+            navKey="admin_visitor_logs"
             label="Visitors today"
             value={fmtNum(dash.visitors.today)}
             hint="Visitor log →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/visitor-logs"
+            navKey="admin_visitor_logs"
             label="Visitors this week"
             value={fmtNum(dash.visitors.thisWeek)}
             hint="Weekly view on log →"
@@ -231,7 +226,9 @@ export function AdminDashboardOverview() {
       {/* Leads */}
       <section className="space-y-3" aria-labelledby="admin-dash-leads">
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <SectionTitle id="admin-dash-leads">Leads</SectionTitle>
+          <DashboardSectionTitle id="admin-dash-leads" navKey="admin_leads">
+            Leads
+          </DashboardSectionTitle>
           <Link
             to="/leads"
             className="text-sm font-medium text-indigo-700 hover:underline"
@@ -240,9 +237,12 @@ export function AdminDashboardOverview() {
           </Link>
         </div>
         <Card className="!p-0">
-          <div className="border-b border-slate-100 px-4 py-4 sm:px-6">
-            <p className="text-sm font-medium text-slate-600">Total leads</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmtNum(dash.leads.total)}</p>
+          <div className="flex items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+            <NavIconTile navKey="admin_leads" size="sm" />
+            <div>
+              <p className="text-sm font-medium text-slate-600">Total leads</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{fmtNum(dash.leads.total)}</p>
+            </div>
           </div>
           <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-3">
             {LEAD_STAGES.map((stage) => (
@@ -265,22 +265,27 @@ export function AdminDashboardOverview() {
 
       {/* PTM */}
       <section className="space-y-3" aria-labelledby="admin-dash-ptm">
-        <SectionTitle id="admin-dash-ptm">PTM</SectionTitle>
+        <DashboardSectionTitle id="admin-dash-ptm" groupKey="ptm">
+          PTM
+        </DashboardSectionTitle>
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatLink
+          <DashboardStatTile
             to="/ptm-requests/admin/history"
+            navKey="staff_ptm_history"
             label="Completed"
             value={fmtNum(dash.ptm.completed)}
             hint="PTM history →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/ptm-requests/staff"
+            navKey="staff_ptm_requests"
             label="Upcoming"
             value={fmtNum(dash.ptm.upcoming)}
             hint="Staff PTM queue →"
           />
-          <StatLink
+          <DashboardStatTile
             to="/ptm-requests/staff"
+            navKey="staff_ptm_requests"
             label="Pending requests"
             value={fmtNum(dash.ptm.pending)}
             hint="Review requests →"
@@ -292,6 +297,7 @@ export function AdminDashboardOverview() {
       <Card>
         <CardHeader
           title="Recent notices"
+          navKey="notice_history"
           subtitle="Up to 10 — review or open the approval queue."
           action={
             <Link

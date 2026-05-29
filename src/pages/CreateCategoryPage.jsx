@@ -7,7 +7,10 @@ import { Label } from '../components/ui/Label'
 import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { ROLES } from '../utils/constants'
-import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
+} from '../utils/notificationConstants'
 import {
   deleteNoticeCategory,
   fetchNoticeCategories,
@@ -228,7 +231,7 @@ export default function CreateCategoryPage() {
                   setPage(1)
                 }}
               >
-                Admin
+                {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE]}
               </button>
               <button
                 type="button"
@@ -242,12 +245,12 @@ export default function CreateCategoryPage() {
                   setPage(1)
                 }}
               >
-                Principal
+                {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC]}
               </button>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Switch to create and manage administrative categories (admin notices) or academic categories (principal
-              notices).
+              Switch to create and manage {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ADMINISTRATIVE].toLowerCase()}{' '}
+              or {NOTIFICATION_CATEGORY_LABELS[NOTIFICATION_CATEGORIES.ACADEMIC].toLowerCase()} sub-categories.
             </p>
           </div>
         ) : null}
@@ -309,7 +312,6 @@ export default function CreateCategoryPage() {
                   <thead>
                     <tr className="app-table-head">
                       <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Category name</th>
-                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">ID</th>
                       <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -332,9 +334,6 @@ export default function CreateCategoryPage() {
                             ) : (
                               <span className="font-medium">{row.displayName}</span>
                             )}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 align-middle font-mono text-xs text-slate-500">
-                            {row.id}
                           </td>
                           <td className="px-4 py-3 align-middle">
                             <div className="flex flex-wrap justify-end gap-2">
