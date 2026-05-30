@@ -8,6 +8,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { PasswordInput } from '../../components/ui/PasswordInput'
+import { Label } from '../../components/ui/Label'
 
 export default function SmtpSettingsPage() {
   const { token } = useAuth()
@@ -137,9 +138,9 @@ export default function SmtpSettingsPage() {
         {!loading ? (
           <div className="space-y-5">
             <div>
-              <label htmlFor="smtp-user" className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              <Label variant="compact" htmlFor="smtp-user" required>
                 SMTP user (email)
-              </label>
+              </Label>
               <Input
                 id="smtp-user"
                 type="email"
@@ -152,9 +153,9 @@ export default function SmtpSettingsPage() {
             </div>
 
             <div>
-              <label htmlFor="smtp-from" className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              <Label variant="compact" htmlFor="smtp-from" required>
                 From address
-              </label>
+              </Label>
               <Input
                 id="smtp-from"
                 type="email"
@@ -167,9 +168,9 @@ export default function SmtpSettingsPage() {
             </div>
 
             <div>
-              <label htmlFor="smtp-pass" className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              <Label variant="compact" htmlFor="smtp-pass" required={!hasPassword}>
                 SMTP password
-              </label>
+              </Label>
               <PasswordInput
                 id="smtp-pass"
                 autoComplete="new-password"
@@ -203,9 +204,9 @@ export default function SmtpSettingsPage() {
                 Save SMTP settings first, then send a test email to see if mail goes through.
               </p>
               <div className="mt-3">
-                <label htmlFor="smtp-test-to" className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                <Label variant="compact" htmlFor="smtp-test-to" required>
                   Send test to
-                </label>
+                </Label>
                 <div className="mt-1 flex flex-wrap items-center gap-2 sm:max-w-xl">
                   <Input
                     id="smtp-test-to"

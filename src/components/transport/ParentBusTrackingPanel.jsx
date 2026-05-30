@@ -1,0 +1,525 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
+import { fetchParentMyDriver, markParentBusLiveAlertsRead } from '../../api/parentsApi'
+import { Button } from '../ui/Button'
+import { ParentBusLiveMap } from './ParentBusLiveMap'
+import { getParentAssignedBusId } from '../../modules/transport/transportAssignmentStore'
+import { useTransportAssignmentRevision } from '../../modules/transport/useTransportAssignmentRevision'
+import { isSocketTransportEnabled } from '../../modules/transport/transportSocketConfig'
+import { useParentBusLiveMap } from '../../modules/transport/useParentBusLiveMap'
+import { useParentBusLiveStatus } from '../../modules/transport/useParentBusLiveStatus'
+import { ROLES } from '../../utils/constants'
+
+function parseBusNumericIdForSocket(busKey) {
+  const s = String(busKey ?? '').trim()
+  if (!s) return null
+  const m = s.match(/^bus-(\d+)$/i)
+  if (m) {
+    const n = Number(m[1])
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+  if (/^\d+$/.test(s)) {
+    const n = Number(s)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+  return null
+}
+
+/** Ignore bad backend ETA/distance (e.g. wrong coordinates). */
+function saneEtaMinutes(minutes) {
+  const n = Number(minutes)
+  if (!Number.isFinite(n) || n < 0 || n > 180) return null
+  return Math.round(n)
+}
+
+function saneDistanceKm(km) {
+  const n = Number(km)
+  if (!Number.isFinite(n) || n < 0 || n > 50) return null
+  return n
+}
+
+function formatEtaForParent(minutes) {
+  const n = saneEtaMinutes(minutes)
+  if (n == null) return null
+  if (n === 0) return 'Arriving now'
+  if (n === 1) return 'About 1 minute'
+  if (n < 60) return `About ${n} minutes`
+  const h = Math.floor(n / 60)
+  const m = n % 60
+  if (m === 0) return `About ${h} hour${h > 1 ? 's' : ''}`
+  return `About ${h} hr ${m} min`
+}
+
+function formatArrivalTime(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(d)
+}
+
+function parentStatusMessage({
+  tripLive,
+  stopStatus,
+  pickupLabel,
+  etaMinutes,
+  stopsRemaining,
+  hasMap,
+}) {
+  const status = String(stopStatus ?? '').trim().toLowerCase()
+
+  if (status === 'completed') {
+    return 'Pick-up at your stop is finished.'
+  }
+  if (status === 'in_progress') {
+    return `The bus is at ${pickupLabel || 'your pick-up point'} now.`
+  }
+  if (status === 'bus_arrived' || status === 'arrived') {
+    return `The bus has reached ${pickupLabel || 'your pick-up point'}.`
+  }
+
+  if (tripLive) {
+    const eta = formatEtaForParent(etaMinutes)
+    if (eta) {
+      return `Bus is on the way to ${pickupLabel || 'your stop'}. ${eta}.`
+    }
+    if (stopsRemaining != null && stopsRemaining > 1) {
+      return `Bus is on the route. ${stopsRemaining - 1} stop(s) before yours.`
+    }
+    return 'Bus is on the way. We will update the arrival time shortly.'
+  }
+
+  if (hasMap) {
+    return 'Last known bus location is shown on the map. The driver has not started today’s trip yet.'
+  }
+
+  return 'When the driver starts the trip, you will see the bus and your pick-up point here.'
+}
+
+/**
+ * Routes-page live map: pick-up point, bus location, and plain-language updates for parents.
+ * @param {{ compact?: boolean, showFullPageLink?: boolean, showRefresh?: boolean, studentId?: number | string | null }} props
+ */
+export function ParentBusTrackingPanel({
+  compact = false,
+  showFullPageLink = false,
+  showRefresh = true,
+  studentId: fixedStudentId = null,
+}) {
+  const { user, token } = useAuth()
+  const assignRev = useTransportAssignmentRevision()
+
+  const localBusId = useMemo(() => getParentAssignedBusId(user), [user, assignRev])
+  const socketMode = isSocketTransportEnabled()
+
+  const [apiDriverRows, setApiDriverRows] = useState([])
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const [refreshBusy, setRefreshBusy] = useState(false)
+  const [selectedStudentId, setSelectedStudentId] = useState(fixedStudentId)
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => new Set())
+  const refreshInFlight = useRef(false)
+
+  const activeStudentId = fixedStudentId ?? selectedStudentId
+
+  const {
+    pickupStudents,
+    liveStudents,
+    loading: liveLoading,
+    error: liveError,
+    refresh: refreshLive,
+  } = useParentBusLiveStatus(token, {
+    enabled: user?.role === ROLES.PARENT,
+  })
+
+  const loadApiDriverRows = useCallback(async () => {
+    if (!token || user?.role !== ROLES.PARENT) {
+      setApiDriverRows([])
+      return
+    }
+    const res = await fetchParentMyDriver(token)
+    if (res.ok) setApiDriverRows(res.rows)
+    else setApiDriverRows([])
+  }, [token, user?.role])
+
+  useEffect(() => {
+    void loadApiDriverRows()
+  }, [loadApiDriverRows])
+
+  useEffect(() => {
+    if (fixedStudentId != null) return
+    if (activeStudentId != null) return
+    const first =
+      liveStudents[0]?.studentId ??
+      pickupStudents[0]?.studentId ??
+      apiDriverRows[0]?.studentId
+    if (first != null) setSelectedStudentId(first)
+  }, [fixedStudentId, activeStudentId, liveStudents, pickupStudents, apiDriverRows])
+
+  const onRefresh = useCallback(async () => {
+    if (!token || user?.role !== ROLES.PARENT || refreshInFlight.current) return
+    refreshInFlight.current = true
+    setRefreshBusy(true)
+    try {
+      await Promise.all([loadApiDriverRows(), refreshLive()])
+      setRefreshNonce((n) => n + 1)
+    } finally {
+      refreshInFlight.current = false
+      setRefreshBusy(false)
+    }
+  }, [token, user?.role, loadApiDriverRows, refreshLive])
+
+  const childOptions = useMemo(() => {
+    const map = new Map()
+    for (const s of pickupStudents) {
+      if (s.studentId != null) map.set(String(s.studentId), s.studentName)
+    }
+    for (const s of liveStudents) {
+      if (s.studentId != null) map.set(String(s.studentId), s.studentName)
+    }
+    for (const r of apiDriverRows) {
+      if (r.studentId != null) map.set(String(r.studentId), r.studentName || 'Child')
+    }
+    return [...map.entries()].map(([id, name]) => ({ id, name }))
+  }, [pickupStudents, liveStudents, apiDriverRows])
+
+  const selectedLive = useMemo(() => {
+    if (!liveStudents.length) return null
+    if (activeStudentId == null) return liveStudents[0]
+    return (
+      liveStudents.find((s) => String(s.studentId) === String(activeStudentId)) ?? liveStudents[0]
+    )
+  }, [liveStudents, activeStudentId])
+
+  const selectedPickup = useMemo(() => {
+    if (!pickupStudents.length) return null
+    if (activeStudentId == null) return pickupStudents[0]
+    return (
+      pickupStudents.find((s) => String(s.studentId) === String(activeStudentId)) ?? pickupStudents[0]
+    )
+  }, [pickupStudents, activeStudentId])
+
+  const selectedChildName =
+    selectedLive?.studentName ??
+    selectedPickup?.studentName ??
+    childOptions.find((c) => c.id === String(activeStudentId))?.name ??
+    null
+
+  const apiDriverRow = useMemo(() => {
+    if (!apiDriverRows.length) return null
+    if (activeStudentId != null) {
+      const match = apiDriverRows.find((r) => String(r.studentId) === String(activeStudentId))
+      if (match) return match
+    }
+    const match = apiDriverRows.find((r) => String(r.assignedBus) === String(localBusId))
+    return match ?? apiDriverRows[0]
+  }, [apiDriverRows, localBusId, activeStudentId])
+
+  const socketBusId = useMemo(() => {
+    const fromLive = selectedLive?.bus?.id ?? selectedLive?.bus?.plate
+    if (fromLive != null && String(fromLive).trim() && String(fromLive).trim() !== '—') {
+      return String(fromLive).trim()
+    }
+    const a = apiDriverRow?.assignedBus
+    const trimmed = a != null ? String(a).trim() : ''
+    if (trimmed && trimmed !== '—') return trimmed
+    return localBusId
+  }, [selectedLive, apiDriverRow, localBusId])
+
+  const socketBusNumericId = useMemo(() => {
+    const fromLive = selectedLive?.bus?.id
+    return parseBusNumericIdForSocket(fromLive ?? socketBusId)
+  }, [selectedLive, socketBusId])
+
+  const vehicleLabel = useMemo(() => {
+    const plate = selectedLive?.bus?.plate
+    if (plate && plate !== '—') return plate
+    const a = apiDriverRow?.assignedBus
+    const t = a != null ? String(a).trim() : ''
+    if (t && t !== '—') return t
+    return socketBusId || '—'
+  }, [selectedLive, apiDriverRow, socketBusId])
+
+  const driver = useMemo(() => {
+    const d = selectedLive?.bus?.driver
+    if (d) return { fullName: d.fullName, phone: d.phone }
+    if (apiDriverRow) {
+      return { fullName: apiDriverRow.driverName, phone: apiDriverRow.phone }
+    }
+    return null
+  }, [selectedLive, apiDriverRow])
+
+  const {
+    position: socketMapPos,
+    routeLine,
+    isDriverLive: socketDriverLive,
+    joinedRoomMissing,
+  } = useParentBusLiveMap(socketBusId, token, {
+    busNumericId: socketBusNumericId,
+    reconnectNonce: refreshNonce,
+  })
+
+  const restLivePos = useMemo(() => {
+    const lat = selectedLive?.live?.lat
+    const lng = selectedLive?.live?.lng
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng]
+    return null
+  }, [selectedLive])
+
+  const mapPos = useMemo(() => {
+    if (socketMapPos && socketDriverLive) return socketMapPos
+    if (restLivePos) return restLivePos
+    return socketMapPos
+  }, [socketMapPos, socketDriverLive, restLivePos])
+
+  const pickupMarkers = useMemo(() => {
+    const markers = []
+    for (const student of pickupStudents) {
+      const pts =
+        student.pickupPoints?.length > 0
+          ? student.pickupPoints
+          : selectedLive?.pickupPoint &&
+              String(student.studentId) === String(selectedLive.studentId)
+            ? [selectedLive.pickupPoint]
+            : []
+      for (const pt of pts) {
+        if (!Number.isFinite(pt.latitude) || !Number.isFinite(pt.longitude)) continue
+        const isSelected =
+          activeStudentId == null || String(student.studentId) === String(activeStudentId)
+        if (!isSelected && childOptions.length > 1) continue
+        const yourStatus = selectedLive?.stopProgress?.yourStopStatus
+        markers.push({
+          id: `${student.studentId}-${pt.id ?? pt.location}`,
+          position: [pt.latitude, pt.longitude],
+          label: pt.location,
+          variant:
+            yourStatus === 'in_progress' || yourStatus === 'completed' ? 'arrived' : 'default',
+        })
+      }
+    }
+    if (!markers.length && selectedLive?.pickupPoint) {
+      const pp = selectedLive.pickupPoint
+      if (Number.isFinite(pp.latitude) && Number.isFinite(pp.longitude)) {
+        markers.push({
+          id: `live-${pp.id}`,
+          position: [pp.latitude, pp.longitude],
+          label: pp.location,
+          variant:
+            selectedLive.stopProgress?.yourStopStatus === 'in_progress' ? 'arrived' : 'default',
+        })
+      }
+    }
+    return markers
+  }, [pickupStudents, selectedLive, activeStudentId, childOptions.length])
+
+  const visibleAlerts = useMemo(() => {
+    if (!selectedLive?.alerts?.length) return []
+    return selectedLive.alerts.filter(
+      (a) => !a.isRead && !dismissedAlerts.has(a.alertKey),
+    )
+  }, [selectedLive, dismissedAlerts])
+
+  const onDismissAlert = useCallback(
+    async (alert) => {
+      if (!alert?.alertKey || !token) return
+      setDismissedAlerts((prev) => new Set(prev).add(alert.alertKey))
+      await markParentBusLiveAlertsRead(token, {
+        alertKey: alert.alertKey,
+        studentId: selectedLive?.studentId,
+      })
+    },
+    [token, selectedLive?.studentId],
+  )
+
+  const tripLooksLive = Boolean(
+    selectedLive?.live?.isRunning ||
+      selectedLive?.trip?.status === 'running' ||
+      socketDriverLive,
+  )
+
+  const pickupPointLabel =
+    selectedLive?.pickupPoint?.location ??
+    selectedPickup?.pickupPoints?.[0]?.location ??
+    null
+
+  const scheduledTime =
+    selectedPickup?.pickupPoints?.[0]?.scheduledTime ??
+    selectedPickup?.pickupPoints?.[0]?.pickupTime ??
+    null
+
+  const etaLabel = formatEtaForParent(selectedLive?.live?.estimatedMinutes)
+  const arrivalLabel = formatArrivalTime(selectedLive?.live?.estimatedArrivalAt)
+  const distanceKm = saneDistanceKm(selectedLive?.live?.distanceKm)
+
+  const statusMessage = parentStatusMessage({
+    tripLive: tripLooksLive,
+    stopStatus: selectedLive?.stopProgress?.yourStopStatus,
+    pickupLabel: pickupPointLabel,
+    etaMinutes: selectedLive?.live?.estimatedMinutes,
+    stopsRemaining: selectedLive?.stopProgress?.stopsRemainingIncludingYours,
+    hasMap: Boolean(mapPos || pickupMarkers.length),
+  })
+
+  const mapMinHeight = compact ? 'min(40vh, 16rem)' : 'min(50vh, 22rem)'
+
+  return (
+    <div className="space-y-4">
+      {childOptions.length > 1 && fixedStudentId == null ? (
+        <div>
+          <p className="mb-2 text-sm text-slate-600">Which child?</p>
+          <div className="flex flex-wrap gap-2">
+            {childOptions.map((c) => (
+              <Button
+                key={c.id}
+                type="button"
+                size="sm"
+                variant={String(activeStudentId) === c.id ? 'primary' : 'secondary'}
+                onClick={() => setSelectedStudentId(c.id)}
+              >
+                {c.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {visibleAlerts.map((alert) => (
+        <div
+          key={alert.alertKey}
+          className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="alert"
+        >
+          <div>
+            <p className="font-semibold">{alert.title}</p>
+            {alert.message ? <p className="mt-1 text-amber-900">{alert.message}</p> : null}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            onClick={() => void onDismissAlert(alert)}
+          >
+            Okay
+          </Button>
+        </div>
+      ))}
+
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
+        {selectedChildName ? (
+          <p className="text-sm font-medium text-slate-600">{selectedChildName}</p>
+        ) : null}
+        <p className={`font-semibold text-slate-900 ${selectedChildName ? 'mt-1' : ''}`}>
+          {statusMessage}
+        </p>
+
+        {tripLooksLive && etaLabel ? (
+          <p className="mt-2 text-lg font-bold text-teal-800">{etaLabel}</p>
+        ) : null}
+        {tripLooksLive && arrivalLabel && etaLabel ? (
+          <p className="mt-0.5 text-sm text-slate-600">Expected around {arrivalLabel}</p>
+        ) : null}
+        {tripLooksLive && distanceKm != null ? (
+          <p className="mt-0.5 text-sm text-slate-600">{distanceKm.toFixed(1)} km away</p>
+        ) : null}
+
+        <dl className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-slate-500">Bus</dt>
+            <dd className="font-medium text-slate-900">{vehicleLabel !== '—' ? vehicleLabel : 'Not assigned'}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Driver</dt>
+            <dd className="font-medium text-slate-900">{driver?.fullName ?? '—'}</dd>
+            {driver?.phone ? (
+              <dd className="text-slate-600">{driver.phone}</dd>
+            ) : null}
+          </div>
+          <div>
+            <dt className="text-slate-500">Where to wait</dt>
+            <dd className="font-medium text-slate-900">{pickupPointLabel ?? 'Not set yet'}</dd>
+            {scheduledTime ? (
+              <dd className="text-slate-600">Usually around {scheduledTime}</dd>
+            ) : null}
+          </div>
+          <div>
+            <dt className="text-slate-500">Trip</dt>
+            <dd className="font-medium text-slate-900">
+              {tripLooksLive ? 'Bus is running' : 'Not started yet'}
+            </dd>
+          </div>
+        </dl>
+
+        {selectedLive?.stopProgress?.currentStop && tripLooksLive ? (
+          <p className="mt-3 text-sm text-slate-600">
+            Right now the bus is near{' '}
+            <span className="font-medium text-slate-800">
+              {selectedLive.stopProgress.currentStop.location}
+            </span>
+            .
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {showRefresh && token && user?.role === ROLES.PARENT ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={refreshBusy || liveLoading}
+            onClick={() => void onRefresh()}
+          >
+            {refreshBusy || liveLoading ? 'Updating…' : 'Update map'}
+          </Button>
+        ) : null}
+        {showFullPageLink ? (
+          <Link to="/parent-bus">
+            <Button type="button" size="sm" variant="secondary">
+              Open bus tracking
+            </Button>
+          </Link>
+        ) : null}
+      </div>
+
+      {liveError && !tripLooksLive ? (
+        <p className="text-sm text-slate-600">
+          We could not refresh the map just now. It will try again automatically.
+        </p>
+      ) : null}
+
+      {socketMode && joinedRoomMissing && !tripLooksLive ? (
+        <p className="text-sm text-slate-600">
+          The driver has not started the trip yet. This page updates on its own when they do.
+        </p>
+      ) : null}
+
+      {mapPos || pickupMarkers.length ? (
+        <ParentBusLiveMap
+          position={mapPos}
+          routeLine={routeLine}
+          label={vehicleLabel ? `Bus ${vehicleLabel}` : 'School bus'}
+          minHeight={mapMinHeight}
+          pickupMarkers={pickupMarkers}
+          fitAllMarkers={!tripLooksLive || pickupMarkers.length > 0}
+          followBus={tripLooksLive}
+        />
+      ) : (
+        <div
+          className={`flex items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center ${compact ? 'min-h-48' : 'min-h-56'}`}
+          role="status"
+        >
+          <div>
+            <p className="text-sm font-medium text-slate-700">Map will appear here</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Once the school sets your pick-up point and the driver starts the trip.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <p className="text-sm text-slate-500">
+        Pin = where your child is picked up. Bus icon = where the bus is now.
+      </p>
+    </div>
+  )
+}

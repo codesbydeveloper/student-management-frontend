@@ -76,10 +76,10 @@ export default defineConfig({
           },
         ],
       },
-      // Keep SW off during `npm run dev` — dev SW + HMR causes reload loops for many users
-      // (vite-plugin-pwa #142 / Chrome “Update on reload” + precache churn).
+      // Service worker required for install prompt (beforeinstallprompt).
       devOptions: {
-        enabled: false,
+        enabled: true,
+        type: 'module',
         navigateFallback: 'index.html',
       },
     }),

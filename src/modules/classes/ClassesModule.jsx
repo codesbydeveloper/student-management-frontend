@@ -725,10 +725,8 @@ export function ClassesModule() {
     {
       key: 'actions',
       header: '',
-      thClassName: 'text-right',
-      tdClassName: 'text-right',
       render: (row) => (
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           {manage ? (
             <Button type="button" size="sm" variant="secondary" onClick={() => void openEdit(row)}>
               Edit
@@ -1015,7 +1013,7 @@ export function ClassesModule() {
         {manage || !editing ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Label htmlFor="cl-name">Display name</Label>
+              <Label htmlFor="cl-name" required>Display name</Label>
               <Input
                 id="cl-name"
                 value={form.name}
@@ -1026,7 +1024,7 @@ export function ClassesModule() {
               {errors.name ? <p className="mt-1 text-xs text-red-600">{errors.name}</p> : null}
             </div>
             <div>
-              <Label htmlFor="cl-grade">Grade level</Label>
+              <Label htmlFor="cl-grade" required>Grade level</Label>
               <Input
                 id="cl-grade"
                 value={form.gradeLevel}

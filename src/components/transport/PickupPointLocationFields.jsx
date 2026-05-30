@@ -91,7 +91,7 @@ export function PickupPointLocationFields({
       />
 
       <div>
-        <Label htmlFor={`${idPrefix}-point-name`}>Pick up point name</Label>
+        <Label htmlFor={`${idPrefix}-point-name`} required>Pick up point name</Label>
         <Input
           id={`${idPrefix}-point-name`}
           value={pointName}
@@ -105,7 +105,7 @@ export function PickupPointLocationFields({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor={`${idPrefix}-latitude`}>Latitude</Label>
+          <Label htmlFor={`${idPrefix}-latitude`} required>Latitude</Label>
           <Input
             id={`${idPrefix}-latitude`}
             readOnly
@@ -115,7 +115,7 @@ export function PickupPointLocationFields({
           />
         </div>
         <div>
-          <Label htmlFor={`${idPrefix}-longitude`}>Longitude</Label>
+          <Label htmlFor={`${idPrefix}-longitude`} required>Longitude</Label>
           <Input
             id={`${idPrefix}-longitude`}
             readOnly

@@ -493,7 +493,7 @@ export default function DriverMapPage() {
               <div className="space-y-3">
                 <div className="rounded-xl border border-slate-200/80 bg-slate-50/70">
                   <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm">
+                    <table className="app-data-table">
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                           <th className="px-3 py-2">#</th>

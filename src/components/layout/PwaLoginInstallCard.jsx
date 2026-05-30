@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLoginBranding } from '../../hooks/useLoginBranding'
 import {
   dismissPwaInstallForToday,
+  hasNativeInstallPrompt,
+  isChromiumDesktopBrowser,
   isIosLike,
   isLikelyMobileDevice,
-  markPwaInstallCompleted,
   PWA_INSTALL_LOGIN_PROMPT_EVENT,
+  PWA_INSTALL_PROMPT_READY_EVENT,
   shouldShowPwaInstallPrompt,
+  triggerNativePwaInstall,
 } from '../../utils/pwaInstall'
 
 function InstallAppIcon({ className = 'h-10 w-10 text-sky-500' }) {
@@ -27,13 +30,13 @@ function InstallAppIcon({ className = 'h-10 w-10 text-sky-500' }) {
 export function PwaLoginInstallCard() {
   const branding = useLoginBranding()
   const appName = branding.title?.trim() || 'School Management'
-  const deferredRef = useRef(null)
-  const [hasDeferredPrompt, setHasDeferredPrompt] = useState(false)
+  const [nativeReady, setNativeReady] = useState(() => hasNativeInstallPrompt())
   const [visible, setVisible] = useState(false)
   const [installing, setInstalling] = useState(false)
-  const [showIosSteps, setShowIosSteps] = useState(false)
+  const [showManualSteps, setShowManualSteps] = useState(false)
 
   const syncVisible = useCallback(() => {
+    setNativeReady(hasNativeInstallPrompt())
     setVisible(shouldShowPwaInstallPrompt())
   }, [])
 
@@ -41,61 +44,41 @@ export function PwaLoginInstallCard() {
     syncVisible()
     const onRefresh = () => syncVisible()
     window.addEventListener(PWA_INSTALL_LOGIN_PROMPT_EVENT, onRefresh)
-    return () => window.removeEventListener(PWA_INSTALL_LOGIN_PROMPT_EVENT, onRefresh)
-  }, [syncVisible])
-
-  useEffect(() => {
-    const onBip = (e) => {
-      e.preventDefault()
-      deferredRef.current = e
-      setHasDeferredPrompt(true)
-      syncVisible()
-    }
-    const onInstalled = () => {
-      deferredRef.current = null
-      setHasDeferredPrompt(false)
-      markPwaInstallCompleted()
-      setVisible(false)
-    }
-    window.addEventListener('beforeinstallprompt', onBip)
-    window.addEventListener('appinstalled', onInstalled)
+    window.addEventListener(PWA_INSTALL_PROMPT_READY_EVENT, onRefresh)
     return () => {
-      window.removeEventListener('beforeinstallprompt', onBip)
-      window.removeEventListener('appinstalled', onInstalled)
+      window.removeEventListener(PWA_INSTALL_LOGIN_PROMPT_EVENT, onRefresh)
+      window.removeEventListener(PWA_INSTALL_PROMPT_READY_EVENT, onRefresh)
     }
   }, [syncVisible])
 
   const runInstall = async () => {
-    const ev = deferredRef.current
-    if (ev && typeof ev.prompt === 'function') {
+    if (hasNativeInstallPrompt()) {
       setInstalling(true)
+      setShowManualSteps(false)
       try {
-        await ev.prompt()
-        const choice = await ev.userChoice
-        if (choice?.outcome === 'accepted') {
-          markPwaInstallCompleted()
+        const result = await triggerNativePwaInstall()
+        if (result.ok) {
           setVisible(false)
         }
-      } catch {
-        /* dismissed */
       } finally {
         setInstalling(false)
-        deferredRef.current = null
-        setHasDeferredPrompt(false)
+        setNativeReady(hasNativeInstallPrompt())
         syncVisible()
       }
       return
     }
+
     if (isIosLike()) {
-      setShowIosSteps(true)
+      setShowManualSteps(true)
       return
     }
-    setShowIosSteps(false)
+
+    setShowManualSteps(true)
   }
 
   const onDismiss = () => {
     dismissPwaInstallForToday()
-    setShowIosSteps(false)
+    setShowManualSteps(false)
     setVisible(false)
   }
 
@@ -103,6 +86,7 @@ export function PwaLoginInstallCard() {
 
   const ios = isIosLike()
   const mobile = isLikelyMobileDevice()
+  const chromiumDesktop = isChromiumDesktopBrowser()
 
   return (
     <div
@@ -121,16 +105,31 @@ export function PwaLoginInstallCard() {
             {mobile ? 'device' : 'computer'}?
           </p>
 
-          {showIosSteps && ios ? (
+          {showManualSteps && ios ? (
             <p className="mt-2 text-xs leading-relaxed text-slate-600">
               In Safari: tap <strong className="text-slate-800">Share</strong> →{' '}
               <strong className="text-slate-800">Add to Home Screen</strong> → <strong>Add</strong>.
             </p>
           ) : null}
 
-          {!ios && !hasDeferredPrompt && !showIosSteps ? (
+          {showManualSteps && !ios && chromiumDesktop ? (
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              In Chrome or Edge: click the <strong className="text-slate-800">install icon</strong> in the
+              address bar (top right), or open the browser menu → <strong className="text-slate-800">Install app</strong>.
+            </p>
+          ) : null}
+
+          {showManualSteps && !ios && !chromiumDesktop ? (
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              Open your browser menu and look for <strong className="text-slate-800">Install app</strong> or{' '}
+              <strong className="text-slate-800">Add to Home screen</strong>.
+            </p>
+          ) : null}
+
+          {!showManualSteps && !nativeReady && !ios ? (
             <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Use the install icon in your browser address bar, or the browser menu → Install app.
+              Tap <strong className="text-slate-700">Yes</strong> to open the install dialog, or use the install
+              icon in your browser address bar.
             </p>
           ) : null}
 
@@ -146,9 +145,15 @@ export function PwaLoginInstallCard() {
               type="button"
               disabled={installing}
               className="min-w-[4.5rem] rounded bg-sky-500 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-sky-600 disabled:opacity-60"
-              onClick={() => void runInstall()}
+              onClick={() => {
+                if (showManualSteps && !hasNativeInstallPrompt()) {
+                  onDismiss()
+                  return
+                }
+                void runInstall()
+              }}
             >
-              {installing ? '…' : 'Yes'}
+              {installing ? '…' : nativeReady ? 'Yes' : showManualSteps ? 'Got it' : 'Yes'}
             </button>
           </div>
         </div>

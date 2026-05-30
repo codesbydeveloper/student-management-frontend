@@ -4,6 +4,7 @@ import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { Label } from '../../components/ui/Label'
 import { SearchableSingleSelect } from '../../components/SearchableSingleSelect'
 import { fetchParentMyStudents } from '../../api/parentsApi'
 import { fetchTeachersPicker } from '../../api/teachersApi'
@@ -62,6 +63,16 @@ export default function ParentPtmRequestPage() {
       cancelled = true
     }
   }, [token, user?.role])
+
+  const studentOptions = useMemo(() => {
+    if (!Array.isArray(myStudents)) return []
+    return myStudents
+      .map((s) => ({
+        value: String(s.id),
+        label: s.fullName || `Student ${s.id}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [myStudents])
 
   const teacherOptions = useMemo(() => {
     if (!Array.isArray(pickerTeachers)) return []
@@ -140,24 +151,19 @@ export default function ParentPtmRequestPage() {
         />
         <form onSubmit={onSubmit} className="space-y-5">
           <div>
-            <label htmlFor="ptm-child" className="block text-xs font-bold uppercase tracking-wide text-slate-500">
-              Child
-            </label>
-            <select
+            <SearchableSingleSelect
               id="ptm-child"
+              label="Child"
               required
+              options={studentOptions}
               value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              <option value="">Select child…</option>
-              {Array.isArray(myStudents) &&
-                myStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.fullName}
-                  </option>
-                ))}
-            </select>
+              onChange={setStudentId}
+              disabled={myStudents === null}
+              placeholder={myStudents === null ? 'Loading children…' : 'Select child…'}
+              searchPlaceholder="Search by child name…"
+              emptyText="No children match your search."
+              panelMaxHeightClass="max-h-56"
+            />
             {Array.isArray(myStudents) && myStudents.length === 0 ? (
               <p className="mt-2 text-xs text-amber-800">
                 No linked students. Ask your school to connect your account first.
@@ -166,12 +172,9 @@ export default function ParentPtmRequestPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="ptm-teacher-trigger"
-              className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500"
-            >
+            <Label htmlFor="ptm-teacher-trigger" required>
               Teacher
-            </label>
+            </Label>
             <SearchableSingleSelect
               id="ptm-teacher"
               options={teacherOptions.map((t) => ({
@@ -200,9 +203,9 @@ export default function ParentPtmRequestPage() {
           </div>
 
           <div>
-            <label htmlFor="ptm-reason" className="block text-xs font-bold uppercase tracking-wide text-slate-500">
+            <Label variant="compact" htmlFor="ptm-reason" required>
               Reason for meeting
-            </label>
+            </Label>
             <textarea
               id="ptm-reason"
               required

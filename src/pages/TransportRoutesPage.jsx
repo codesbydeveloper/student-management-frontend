@@ -631,7 +631,7 @@ export default function TransportRoutesPage() {
           {routes.length > 0 ? (
             <>
               <div className="overflow-x-auto rounded-xl border border-slate-200/90">
-                <table className="min-w-full text-left text-sm">
+                <table className="app-data-table">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
                       <th className="px-4 py-3">Route name</th>

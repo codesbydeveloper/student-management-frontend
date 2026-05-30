@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { Card, CardHeader } from '../../components/ui/Card'
+import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
-import {
-  LEAD_STAGES,
-  LEAD_STAGE_LABELS,
-} from '../../data/phase6Constants'
+import { SearchableStageFilterSelect } from '../../components/SearchableStageSelect'
+import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { fetchTeacherLeads } from '../../api/leadsApi'
 
 const PAGE_LIMIT = 20
@@ -102,10 +100,9 @@ export default function TeacherAssignedLeadsPage() {
       </div>
 
       <Card>
-        <CardHeader
-          title="Assigned leads"
-          subtitle="Leads your admin assigned to you. Update stages, add notes, and log follow-ups — you cannot delete leads or see unassigned leads here."
-        />
+        <p className="mb-4 max-w-2xl text-xs leading-relaxed text-slate-500">
+          Leads assigned by your admin. Update stage, notes, and follow-ups here.
+        </p>
 
         <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_220px]">
           <Input
@@ -113,54 +110,76 @@ export default function TeacherAssignedLeadsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select
-            className="rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm"
+          <SearchableStageFilterSelect
+            id="teacher-leads-stage-filter"
             value={stage}
-            onChange={(e) => setStage(e.target.value)}
-          >
-            <option value="">All stages</option>
-            {LEAD_STAGES.map((s) => (
-              <option key={s} value={s}>
-                {LEAD_STAGE_LABELS[s] ?? s}
-              </option>
-            ))}
-          </select>
+            onChange={setStage}
+          />
         </div>
 
         {leads === null ? (
-          <p className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-            Loading leads…
-          </p>
+          <div className="overflow-hidden rounded-xl border border-slate-200/80">
+            <div className="flex min-h-[12rem] items-center justify-center bg-slate-50/50 px-4 py-10">
+              <p className="text-sm text-slate-600">Loading leads…</p>
+            </div>
+          </div>
         ) : null}
 
         {listError ? (
-          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-center text-sm text-amber-950">
             {listError}
           </p>
         ) : null}
 
         {leads !== null && leads.length === 0 && !listError ? (
-          <p className="text-sm text-slate-600">
-            {q || stage ? 'No leads match your filters.' : 'No leads assigned to you yet.'}
-          </p>
+          <div className="overflow-hidden rounded-xl border border-slate-200/80">
+            <div className="overflow-x-auto">
+              <table className="app-data-table">
+                <thead>
+                  <tr className="app-table-head">
+                    <th className="px-3 py-2.5">Student</th>
+                    <th className="px-3 py-2.5">Parent</th>
+                    <th className="px-3 py-2.5">Phone</th>
+                    <th className="px-3 py-2.5">Teacher</th>
+                    <th className="px-3 py-2.5">Stage</th>
+                    <th className="px-3 py-2.5">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colSpan={6} className="px-4 py-16 text-center">
+                      <p className="text-sm font-medium text-slate-700">
+                        {q || stage ? 'No leads match your filters.' : 'No leads assigned to you yet.'}
+                      </p>
+                      {!q && !stage ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          When your admin assigns leads, they will appear in this table.
+                        </p>
+                      ) : null}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : null}
 
         {Array.isArray(leads) && leads.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-data-table">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                  <th className="px-3 py-2">Student</th>
-                  <th className="px-3 py-2">Parent</th>
-                  <th className="px-3 py-2">Phone</th>
-                  <th className="px-3 py-2">Teacher</th>
-                  <th className="px-3 py-2">Stage</th>
-                  <th className="px-3 py-2" />
+                <tr className="app-table-head">
+                  <th className="px-3 py-2.5">Student</th>
+                  <th className="px-3 py-2.5">Parent</th>
+                  <th className="px-3 py-2.5">Phone</th>
+                  <th className="px-3 py-2.5">Teacher</th>
+                  <th className="px-3 py-2.5">Stage</th>
+                  <th className="px-3 py-2.5">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {leads.map((l) => (
-                  <tr key={l.id} className="align-top transition hover:bg-slate-50/60">
+                  <tr key={l.id} className="transition hover:bg-slate-50/60">
                     <td className="px-3 py-2 font-medium text-slate-900">{l.studentName}</td>
                     <td className="px-3 py-2 text-slate-700">{l.parentName}</td>
                     <td className="px-3 py-2 text-slate-600">{l.phone}</td>
@@ -172,7 +191,7 @@ export default function TeacherAssignedLeadsPage() {
                         {LEAD_STAGE_LABELS[l.stage] ?? l.stage}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2">
                       <Link to={`/leads/${l.id}`}>
                         <Button type="button" size="sm" variant="secondary">
                           Open

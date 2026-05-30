@@ -112,7 +112,7 @@ function RouteSummaryBox({ kind, stats, vehicleLabel }) {
         <p className="px-4 py-6 text-sm text-slate-500 sm:px-5">No stops listed yet.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+          <table className="app-data-table">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-2.5">#</th>

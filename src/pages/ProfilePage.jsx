@@ -12,7 +12,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PasswordInput } from '../components/ui/PasswordInput'
-import { Label } from '../components/ui/Label'
+import { Label, RequiredMark } from '../components/ui/Label'
 import { RoleBadge } from '../components/ui/Badge'
 import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
 import { ProfilePhotoPreviewModal } from '../components/profile/ProfilePhotoPreviewModal'
@@ -211,7 +211,10 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-8 border-t border-slate-100 pt-6">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Display name</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Display name
+                <RequiredMark />
+              </p>
               <p className="mt-1 text-sm text-slate-600">Shown in the header and across the app.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1 sm:max-w-md">
@@ -253,7 +256,7 @@ export default function ProfilePage() {
         <form className="mt-6" onSubmit={(e) => void onChangePassword(e)}>
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <Label htmlFor="profile-current-password">Current password</Label>
+              <Label htmlFor="profile-current-password" required>Current password</Label>
               <PasswordInput
                 id="profile-current-password"
                 className="mt-1.5"
@@ -266,7 +269,7 @@ export default function ProfilePage() {
               ) : null}
             </div>
             <div>
-              <Label htmlFor="profile-new-password">New password</Label>
+              <Label htmlFor="profile-new-password" required>New password</Label>
               <PasswordInput
                 id="profile-new-password"
                 className="mt-1.5"
@@ -279,7 +282,7 @@ export default function ProfilePage() {
               ) : null}
             </div>
             <div>
-              <Label htmlFor="profile-confirm-password">Confirm password</Label>
+              <Label htmlFor="profile-confirm-password" required>Confirm password</Label>
               <PasswordInput
                 id="profile-confirm-password"
                 className="mt-1.5"

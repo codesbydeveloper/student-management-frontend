@@ -301,7 +301,7 @@ export function CreateNoticeForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit} noValidate>
       <div>
-        <Label htmlFor="cn-title">Title</Label>
+        <Label htmlFor="cn-title" required>Title</Label>
         <Input
           id="cn-title"
           value={title}
@@ -310,7 +310,7 @@ export function CreateNoticeForm() {
         />
       </div>
       <div>
-        <Label htmlFor="cn-message">Message</Label>
+        <Label htmlFor="cn-message" required>Message</Label>
         <textarea
           id="cn-message"
           value={message}
@@ -441,7 +441,7 @@ export function CreateNoticeForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="cn-target-type">Target type</Label>
+          <Label htmlFor="cn-target-type" required>Target type</Label>
           <Select
             id="cn-target-type"
             value={targetType}

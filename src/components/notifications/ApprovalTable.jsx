@@ -60,7 +60,7 @@ export function ApprovalTable({
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+          <table className="app-data-table">
             <thead>
               <tr className="app-table-head">
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Title</th>
@@ -101,15 +101,15 @@ export function ApprovalTable({
                   const showReadReport = canShowReadReport(n, showReadReportColumn)
                   return (
                   <tr key={n.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                    <td className="max-w-[180px] px-4 py-3 align-top">
+                    <td className="max-w-[180px] px-4 py-3 align-middle">
                       <p className="font-semibold text-slate-900">{n.title}</p>
                       <p className="mt-1 line-clamp-2 text-xs text-slate-500">{n.message}</p>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 align-top text-slate-600">
+                    <td className="whitespace-nowrap px-4 py-3 align-middle text-slate-600">
                       {getNotificationCategoryLabel(n.category)}
                     </td>
-                    <td className="max-w-xs min-w-[10rem] px-4 py-3.5 align-top">
-                      <div className="flex flex-col gap-1.5">
+                    <td className="max-w-xs min-w-[10rem] px-4 py-3.5 align-middle">
+                      <div className="mx-auto flex flex-col items-center gap-1.5 text-center">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">
                           {formatTargetTypeLabel(n.targetType)}
                         </span>
@@ -118,10 +118,10 @@ export function ApprovalTable({
                         </span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 align-top font-medium text-slate-800">
+                    <td className="whitespace-nowrap px-4 py-3 align-middle font-medium text-slate-800">
                       {n.createdByName || '—'}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 align-top text-slate-600">
+                    <td className="whitespace-nowrap px-4 py-3 align-middle text-slate-600">
                       {notificationDisplayTime(n.submittedAtDisplay, n.createdAt)}
                     </td>
                     {showViewColumn ? (
@@ -139,7 +139,7 @@ export function ApprovalTable({
                         </Button>
                       </td>
                     ) : null}
-                    <td className="min-w-[9.5rem] whitespace-nowrap px-4 py-3 align-top text-center">
+                    <td className="min-w-[9.5rem] whitespace-nowrap px-4 py-3 align-middle text-center">
                       {locked ? (
                         <NotificationDecisionBadge
                           status={n.status}

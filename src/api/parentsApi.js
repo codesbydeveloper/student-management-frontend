@@ -1463,6 +1463,330 @@ export function mapParentMyDriverLocationPayload(data) {
   }
 }
 
+function formatParentBusLiveError(data, status) {
+  if (data == null) return `Could not load live bus status (${status})`
+  if (typeof data === 'string' && data) return data
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  return `Could not load live bus status (${status})`
+}
+
+function mapParentPickupPoint(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const lat = Number(raw.latitude ?? raw.lat)
+  const lng = Number(raw.longitude ?? raw.lng ?? raw.lon)
+  const id = raw.id ?? raw.pickupPointId ?? raw.pickup_point_id
+  const location = String(raw.location ?? raw.name ?? raw.label ?? '').trim()
+  if (!location && !Number.isFinite(lat)) return null
+  const routeType = String(raw.routeType ?? raw.route_type ?? '').trim()
+  return {
+    id,
+    location: location || '—',
+    latitude: Number.isFinite(lat) ? lat : null,
+    longitude: Number.isFinite(lng) ? lng : null,
+    pickupTime: formatParentScheduledTime(raw.pickupTime ?? raw.pickup_time),
+    dropTime: formatParentScheduledTime(raw.dropTime ?? raw.drop_time),
+    scheduledTime: formatParentScheduledTime(
+      raw.scheduledTime ?? raw.scheduled_time ?? raw.pickupTime ?? raw.pickup_time,
+    ),
+    stopOrder: raw.stopOrder ?? raw.stop_order ?? null,
+    routeId: raw.routeId ?? raw.route_id ?? null,
+    routeName: String(raw.routeName ?? raw.route_name ?? '').trim() || '—',
+    routeType,
+    routeTypeLabel:
+      PARENT_ROUTE_TYPE_LABELS[routeType] ||
+      String(raw.routeTypeLabel ?? raw.route_type_label ?? '').trim() ||
+      (routeType ? routeType.replace(/_/g, ' ') : '—'),
+  }
+}
+
+function mapParentPickupPointsStudent(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const studentId = raw.studentId ?? raw.student_id ?? raw.id
+  const studentName = String(raw.studentName ?? raw.student_name ?? raw.name ?? '').trim() || 'Student'
+  const ptsRaw = raw.pickupPoints ?? raw.pickuppoints ?? raw.pickUpPoints ?? []
+  const pickupPoints = Array.isArray(ptsRaw) ? ptsRaw.map(mapParentPickupPoint).filter(Boolean) : []
+  return {
+    studentId,
+    studentName,
+    pickupPoints,
+  }
+}
+
+/**
+ * GET /api/parents/my-pickup-points — pickup locations assigned to linked children.
+ * @param {string} token
+ * @param {{ studentId?: number | string }} [options]
+ */
+export async function fetchParentMyPickupPoints(token, options = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', assigned: false, students: [] }
+  }
+  const params = new URLSearchParams()
+  if (options.studentId != null && String(options.studentId).trim() !== '') {
+    params.set('studentId', String(options.studentId))
+  }
+  const qs = params.toString()
+  const url = `${API_BASE_URL}/api/parents/my-pickup-points${qs ? `?${qs}` : ''}`
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: true, assigned: false, students: [] }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatMyTransportError(data, res.status),
+        assigned: false,
+        students: [],
+      }
+    }
+    const studentsRaw = extractParentMyTransportStudents(data)
+    const students = studentsRaw.map(mapParentPickupPointsStudent).filter(Boolean)
+    const assigned =
+      data?.assigned === true ||
+      students.some((s) => s.pickupPoints.length > 0)
+    return { ok: true, assigned, students }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, assigned: false, students: [] }
+  }
+}
+
+function mapParentBusLiveAlert(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const alertKey = String(raw.alertKey ?? raw.alert_key ?? raw.key ?? '').trim()
+  if (!alertKey) return null
+  return {
+    alertKey,
+    type: String(raw.type ?? raw.alertType ?? '').trim(),
+    title: String(raw.title ?? '').trim() || 'Bus update',
+    message: String(raw.message ?? '').trim(),
+    isRead: raw.isRead === true || raw.is_read === true || raw.read === true,
+  }
+}
+
+function mapParentBusLiveStudent(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const studentId = raw.studentId ?? raw.student_id
+  const studentName = String(raw.studentName ?? raw.student_name ?? '').trim() || 'Student'
+  const pp = raw.pickupPoint ?? raw.pickup_point
+  const pickupPoint =
+    pp && typeof pp === 'object'
+      ? {
+          id: pp.id,
+          location: String(pp.location ?? pp.name ?? '').trim() || '—',
+          latitude: Number.isFinite(Number(pp.latitude ?? pp.lat))
+            ? Number(pp.latitude ?? pp.lat)
+            : null,
+          longitude: Number.isFinite(Number(pp.longitude ?? pp.lng ?? pp.lon))
+            ? Number(pp.longitude ?? pp.lng ?? pp.lon)
+            : null,
+          stopOrder: pp.stopOrder ?? pp.stop_order ?? null,
+        }
+      : null
+
+  const busRaw = raw.bus
+  const bus =
+    busRaw && typeof busRaw === 'object'
+      ? {
+          id: busRaw.id,
+          plate: String(busRaw.plate ?? busRaw.number ?? '').trim() || '—',
+          name: String(busRaw.name ?? '').trim(),
+          driver:
+            busRaw.driver && typeof busRaw.driver === 'object'
+              ? {
+                  id: busRaw.driver.id,
+                  fullName: String(busRaw.driver.fullName ?? busRaw.driver.name ?? '').trim() || '—',
+                  phone: String(busRaw.driver.phone ?? '').trim(),
+                }
+              : null,
+        }
+      : null
+
+  const liveRaw = raw.live
+  const live =
+    liveRaw && typeof liveRaw === 'object'
+      ? {
+          lat: Number.isFinite(Number(liveRaw.lat ?? liveRaw.latitude))
+            ? Number(liveRaw.lat ?? liveRaw.latitude)
+            : null,
+          lng: Number.isFinite(Number(liveRaw.lng ?? liveRaw.longitude ?? liveRaw.lon))
+            ? Number(liveRaw.lng ?? liveRaw.longitude ?? liveRaw.lon)
+            : null,
+          speed: liveRaw.speed ?? null,
+          isRunning: liveRaw.isRunning === true || liveRaw.is_running === true,
+          recordedAt: liveRaw.recordedAt ?? liveRaw.recorded_at ?? null,
+          ageSeconds: liveRaw.ageSeconds ?? liveRaw.age_seconds ?? null,
+          distanceKm: liveRaw.distanceKm ?? liveRaw.distance_km ?? null,
+          estimatedMinutes: liveRaw.estimatedMinutes ?? liveRaw.estimated_minutes ?? null,
+          estimatedArrivalAt: liveRaw.estimatedArrivalAt ?? liveRaw.estimated_arrival_at ?? null,
+        }
+      : null
+
+  const tripRaw = raw.trip
+  const trip =
+    tripRaw && typeof tripRaw === 'object'
+      ? {
+          id: tripRaw.id,
+          routeId: tripRaw.routeId ?? tripRaw.route_id,
+          status: String(tripRaw.status ?? '').trim(),
+          startedAt: tripRaw.startedAt ?? tripRaw.started_at ?? null,
+        }
+      : null
+
+  const spRaw = raw.stopProgress ?? raw.stop_progress
+  const stopProgress =
+    spRaw && typeof spRaw === 'object'
+      ? {
+          yourStopOrder: spRaw.yourStopOrder ?? spRaw.your_stop_order ?? null,
+          yourStopStatus: String(spRaw.yourStopStatus ?? spRaw.your_stop_status ?? '').trim(),
+          currentStop:
+            spRaw.currentStop && typeof spRaw.currentStop === 'object'
+              ? {
+                  stopOrder: spRaw.currentStop.stopOrder ?? spRaw.currentStop.stop_order,
+                  location: String(spRaw.currentStop.location ?? '').trim() || '—',
+                  status: String(spRaw.currentStop.status ?? '').trim(),
+                }
+              : null,
+          stopsBeforeYou: spRaw.stopsBeforeYou ?? spRaw.stops_before_you ?? null,
+          stopsRemainingIncludingYours:
+            spRaw.stopsRemainingIncludingYours ?? spRaw.stops_remaining_including_yours ?? null,
+        }
+      : null
+
+  const alertsRaw = Array.isArray(raw.alerts) ? raw.alerts : []
+  const alerts = alertsRaw.map(mapParentBusLiveAlert).filter(Boolean)
+  const unreadAlertCount = Number(raw.unreadAlertCount ?? raw.unread_alert_count ?? 0) || 0
+
+  return {
+    studentId,
+    studentName,
+    pickupPoint,
+    bus,
+    live,
+    trip,
+    stopProgress,
+    alerts,
+    unreadAlertCount,
+  }
+}
+
+/**
+ * GET /api/parents/my-bus-live — live bus position, ETA, stop progress, alerts.
+ * @param {string} token
+ * @param {{ studentId?: number | string }} [options]
+ */
+export async function fetchParentMyBusLive(token, options = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', status: null, message: null, students: [] }
+  }
+  const params = new URLSearchParams()
+  if (options.studentId != null && String(options.studentId).trim() !== '') {
+    params.set('studentId', String(options.studentId))
+  }
+  const qs = params.toString()
+  const url = `${API_BASE_URL}/api/parents/my-bus-live${qs ? `?${qs}` : ''}`
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: true, status: 'empty', message: null, students: [] }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatParentBusLiveError(data, res.status),
+        status: null,
+        message: null,
+        students: [],
+      }
+    }
+    const studentsRaw = Array.isArray(data?.students)
+      ? data.students
+      : extractParentMyTransportStudents(data)
+    const students = studentsRaw.map(mapParentBusLiveStudent).filter(Boolean)
+    return {
+      ok: true,
+      status: data?.status ?? 'ok',
+      message: data?.message ?? null,
+      students,
+    }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, status: null, message: null, students: [] }
+  }
+}
+
+/**
+ * POST /api/parents/my-bus-live/alerts/read — mark bus alert(s) as read.
+ * @param {string} token
+ * @param {{ alertKey?: string, alertKeys?: string[], studentId?: number | string }} body
+ */
+export async function markParentBusLiveAlertsRead(token, body = {}) {
+  if (!token) {
+    return { ok: false, error: 'Not signed in', marked: [] }
+  }
+  const payload = {}
+  if (body.alertKey) payload.alertKey = body.alertKey
+  if (Array.isArray(body.alertKeys) && body.alertKeys.length) payload.alertKeys = body.alertKeys
+  if (body.studentId != null) payload.studentId = body.studentId
+  if (!payload.alertKey && !payload.alertKeys?.length) {
+    return { ok: false, error: 'No alert to mark', marked: [] }
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/parents/my-bus-live/alerts/read`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatParentBusLiveError(data, res.status), marked: [] }
+    }
+    const markedRaw = Array.isArray(data?.marked) ? data.marked : []
+    const marked = markedRaw
+      .map((m) =>
+        m && typeof m === 'object'
+          ? {
+              alertKey: m.alertKey ?? m.alert_key,
+              alertType: m.alertType ?? m.alert_type ?? m.type,
+              isRead: m.isRead === true || m.is_read === true,
+            }
+          : null,
+      )
+      .filter(Boolean)
+    return { ok: true, message: data?.message ?? 'Alert marked as read.', marked }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, marked: [] }
+  }
+}
+
 /**
  * GET /api/parents/my-driver/location — last known driver/bus position for this parent (Bearer).
  * @returns {Promise<{ ok: true, location: object | null } | { ok: false, error: string, location: null }>}

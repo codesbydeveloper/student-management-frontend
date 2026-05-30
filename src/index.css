@@ -45,6 +45,27 @@
   .app-table-head {
     @apply bg-slate-700 text-white;
   }
+  /** Shared admin/data tables — centered headers and cells app-wide. */
+  .app-data-table {
+    @apply min-w-full text-center text-sm;
+  }
+  .app-data-table thead th {
+    @apply text-center align-middle;
+  }
+  .app-data-table tbody td {
+    @apply text-center align-middle;
+  }
+  .app-data-table tbody td > div,
+  .app-data-table tbody td > span,
+  .app-data-table tbody td > p {
+    @apply mx-auto text-center;
+  }
+  .app-data-table tbody td .flex:not(.flex-col) {
+    @apply justify-center;
+  }
+  .app-data-table tbody td .flex.flex-col {
+    @apply items-center text-center;
+  }
 }
 
 @layer utilities {

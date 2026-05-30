@@ -134,7 +134,7 @@ export function NotificationForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit} noValidate>
       <div>
-        <Label htmlFor="nf-title">Title</Label>
+        <Label htmlFor="nf-title" required>Title</Label>
         <Input
           id="nf-title"
           value={title}
@@ -143,7 +143,7 @@ export function NotificationForm() {
         />
       </div>
       <div>
-        <Label htmlFor="nf-message">Message</Label>
+        <Label htmlFor="nf-message" required>Message</Label>
         <textarea
           id="nf-message"
           value={message}
@@ -173,7 +173,7 @@ export function NotificationForm() {
           </p>
         </div>
         <div>
-          <Label htmlFor="nf-target-type">Target type</Label>
+          <Label htmlFor="nf-target-type" required>Target type</Label>
           <Select
             id="nf-target-type"
             value={targetType}

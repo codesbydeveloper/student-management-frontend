@@ -247,7 +247,7 @@ export function TeacherDashboardOverview() {
             <p className="mt-4 text-sm text-slate-600">No recent PTM requests.</p>
           ) : (
             <div className="mt-3 overflow-x-auto rounded-xl border border-slate-100">
-              <table className="min-w-full text-left text-sm">
+              <table className="app-data-table">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-2">Family / student</th>

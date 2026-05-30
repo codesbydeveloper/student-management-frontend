@@ -349,7 +349,7 @@ export default function CreateBusesPage() {
 
         <div className="grid gap-5 md:grid-cols-2">
           <div>
-            <Label htmlFor="cb-name">Bus name</Label>
+            <Label htmlFor="cb-name" required>Bus name</Label>
             <Input
               id="cb-name"
               value={busName}
@@ -359,7 +359,7 @@ export default function CreateBusesPage() {
             />
           </div>
           <div>
-            <Label htmlFor="cb-plate">Number plate</Label>
+            <Label htmlFor="cb-plate" required>Number plate</Label>
             <Input
               id="cb-plate"
               value={numberPlate}
@@ -406,7 +406,7 @@ export default function CreateBusesPage() {
           ) : null}
 
           <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/90">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-data-table">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Sr no.</th>
@@ -537,7 +537,7 @@ export default function CreateBusesPage() {
               <>
                 <div className="mt-6 grid gap-5 md:grid-cols-2">
                   <div>
-                    <Label htmlFor="eb-name">Bus name</Label>
+                    <Label htmlFor="eb-name" required>Bus name</Label>
                     <Input
                       id="eb-name"
                       value={editName}
@@ -546,7 +546,7 @@ export default function CreateBusesPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="eb-plate">Number plate</Label>
+                    <Label htmlFor="eb-plate" required>Number plate</Label>
                     <Input
                       id="eb-plate"
                       value={editPlate}

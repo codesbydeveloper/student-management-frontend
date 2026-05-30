@@ -93,14 +93,14 @@ export function DataTable({
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-lg shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.02]">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+          <table className="app-data-table">
             <thead>
               <tr className="app-table-head">
                 {columns.map((col) => (
                   <th
                     key={col.key}
                     scope="col"
-                    className={`px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-100/95 ${col.thClassName || ''}`}
+                    className={`px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-indigo-100/95 ${col.thClassName || ''}`}
                   >
                     {col.header}
                   </th>
@@ -126,7 +126,7 @@ export function DataTable({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className={`whitespace-nowrap px-4 py-3.5 text-slate-800 ${col.tdClassName || ''}`}
+                        className={`px-4 py-3.5 text-center text-slate-800 ${col.tdClassName || ''}`}
                       >
                         {col.render ? col.render(row) : row[col.key]}
                       </td>

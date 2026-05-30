@@ -20,6 +20,7 @@ export function SearchableMultiSelect({
   optionsLoading = false,
   onSearchQueryChange,
   onOpenChange,
+  required = false,
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -67,7 +68,11 @@ export function SearchableMultiSelect({
 
   return (
     <div className="w-full space-y-2">
-      {label ? <Label htmlFor={triggerId}>{label}</Label> : null}
+      {label ? (
+        <Label htmlFor={triggerId} required={required}>
+          {label}
+        </Label>
+      ) : null}
       <button
         id={triggerId}
         type="button"

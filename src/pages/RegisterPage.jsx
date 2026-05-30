@@ -94,7 +94,7 @@ export default function RegisterPage() {
           </Select>
         </div>
         <div>
-          <Label htmlFor="reg-name">Full name</Label>
+          <Label htmlFor="reg-name" required>Full name</Label>
           <Input
             id="reg-name"
             autoComplete="name"
@@ -105,7 +105,7 @@ export default function RegisterPage() {
           {errors.fullName ? <p className="mt-1.5 text-xs font-medium text-red-600">{errors.fullName}</p> : null}
         </div>
         <div>
-          <Label htmlFor="reg-email">Email</Label>
+          <Label htmlFor="reg-email" required>Email</Label>
           <Input
             id="reg-email"
             type="email"
@@ -118,7 +118,7 @@ export default function RegisterPage() {
         </div>
         {isTeacher ? (
           <div>
-            <Label htmlFor="reg-subject">Subject focus</Label>
+            <Label htmlFor="reg-subject" required>Subject focus</Label>
             <Input
               id="reg-subject"
               value={form.subject}
@@ -130,7 +130,7 @@ export default function RegisterPage() {
           </div>
         ) : null}
         <div>
-          <Label htmlFor="reg-password">Password</Label>
+          <Label htmlFor="reg-password" required>Password</Label>
           <PasswordInput
             id="reg-password"
             autoComplete="new-password"
@@ -142,7 +142,7 @@ export default function RegisterPage() {
           <p className="mt-1.5 text-xs text-slate-500">At least 6 characters (match your server rules).</p>
         </div>
         <div>
-          <Label htmlFor="reg-confirm">Confirm password</Label>
+          <Label htmlFor="reg-confirm" required>Confirm password</Label>
           <PasswordInput
             id="reg-confirm"
             autoComplete="new-password"

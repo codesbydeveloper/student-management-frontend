@@ -166,7 +166,7 @@ export function VisitorViewEditModal({ open, onClose, visitorId, token, onSaved 
         editing ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Label htmlFor="visitor-edit-name">Visitor name</Label>
+              <Label htmlFor="visitor-edit-name" required>Visitor name</Label>
               <Input
                 id="visitor-edit-name"
                 className="mt-1"
@@ -176,7 +176,7 @@ export function VisitorViewEditModal({ open, onClose, visitorId, token, onSaved 
               />
             </div>
             <div>
-              <Label htmlFor="visitor-edit-phone">Phone</Label>
+              <Label htmlFor="visitor-edit-phone" required>Phone</Label>
               <PhoneInput
                 id="visitor-edit-phone"
                 className="mt-1"
@@ -186,7 +186,7 @@ export function VisitorViewEditModal({ open, onClose, visitorId, token, onSaved 
               />
             </div>
             <div>
-              <Label htmlFor="visitor-edit-visit">Visit date & time</Label>
+              <Label htmlFor="visitor-edit-visit" required>Visit date & time</Label>
               <DateTimeInput
                 id="visitor-edit-visit"
                 className="mt-1"
@@ -207,7 +207,7 @@ export function VisitorViewEditModal({ open, onClose, visitorId, token, onSaved 
               <p className="mt-1 text-xs text-slate-500">Optional — when the visitor left.</p>
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="visitor-edit-purpose">Purpose</Label>
+              <Label htmlFor="visitor-edit-purpose" required>Purpose</Label>
               <textarea
                 id="visitor-edit-purpose"
                 className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"

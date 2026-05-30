@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import { Card, CardHeader } from '../components/ui/Card'
+import { Label } from '../components/ui/Label'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/notifications/StatusBadge'
 import { NotificationDecisionBadge } from '../components/notifications/NotificationDecisionBadge'
@@ -504,11 +505,11 @@ export default function NoticeHistoryPage() {
 
         <div className="border-t border-slate-100 px-4 py-5 sm:px-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="grid w-full gap-4 sm:grid-cols-2 lg:max-w-3xl lg:flex-1">
+            <div className="grid w-full gap-4 sm:grid-cols-2 sm:items-end lg:max-w-3xl lg:flex-1">
               <div className="w-full min-w-0">
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <Label variant="compact" className="mb-2">
                   Category
-                </p>
+                </Label>
                 <div className="flex w-full min-w-[16rem] rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner sm:min-w-[18rem]">
                   <button
                     type="button"
@@ -561,20 +562,20 @@ export default function NoticeHistoryPage() {
 
           <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
             <div className="overflow-x-auto">
-              <table className="min-w-[72rem] w-full border-collapse text-sm">
+              <table className="app-data-table min-w-[72rem] w-full border-collapse">
                 <thead>
                   <tr className="app-table-head">
-                    <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">Title</th>
+                    <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Title</th>
                     <th className="w-36 px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Category
                     </th>
                     <th className="w-36 px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="max-w-[13rem] px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
+                    <th className="max-w-[13rem] px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
                       Targets
                     </th>
-                    <th className="max-w-[11rem] px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
+                    <th className="max-w-[11rem] px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
                       Submitted by
                     </th>
                     <th className="whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
@@ -622,7 +623,7 @@ export default function NoticeHistoryPage() {
                             idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/45'
                           }`}
                         >
-                          <td className="max-w-[16rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top">
+                          <td className="max-w-[16rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle">
                             <p
                               className="line-clamp-2 font-medium leading-snug text-slate-900"
                               title={row.title || ''}
@@ -636,7 +637,7 @@ export default function NoticeHistoryPage() {
                           <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top">
                             <StatusBadge status={row.status} variant="stack" />
                           </td>
-                          <td className="max-w-[13rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top text-slate-600">
+                          <td className="max-w-[13rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle text-slate-600">
                             <p
                               className="line-clamp-2 text-xs leading-relaxed"
                               title={targetSummary(row)}
@@ -644,7 +645,7 @@ export default function NoticeHistoryPage() {
                               {truncate(targetSummary(row), 160)}
                             </p>
                           </td>
-                          <td className="max-w-[11rem] border-b border-slate-100/80 px-4 py-3.5 text-left align-top text-slate-600">
+                          <td className="max-w-[11rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle text-slate-600">
                             {formatSubmittedBy(row.submitterName || row.createdByName)}
                           </td>
                           <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-xs tabular-nums text-slate-500">

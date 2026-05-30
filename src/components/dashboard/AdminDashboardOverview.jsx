@@ -314,7 +314,7 @@ export function AdminDashboardOverview() {
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-100">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-data-table">
               <thead>
                 <tr className="app-table-head">
                   <th className="px-3 py-2.5 font-semibold">Title</th>

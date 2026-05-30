@@ -931,7 +931,7 @@ export function TeachersModule() {
           return <span className="text-slate-400">—</span>
         }
         return (
-          <div className="min-w-[14rem] max-w-[18rem] text-xs leading-snug text-slate-700">
+          <div className="mx-auto min-w-[14rem] max-w-[18rem] text-center text-xs leading-snug text-slate-700">
             {login ? (
               <div className="tabular-nums" title={String(row.lastLoginAt ?? '')}>
                 <span className="font-semibold text-slate-500">Login:</span> {login}
@@ -958,10 +958,8 @@ export function TeachersModule() {
     {
       key: 'actions',
       header: '',
-      thClassName: 'text-right',
-      tdClassName: 'text-right',
       render: (row) => (
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           {manage ? (
             <Button
               type="button"
@@ -1341,7 +1339,7 @@ export function TeachersModule() {
         {manage || !editing ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Label htmlFor="t-name">Full name</Label>
+              <Label htmlFor="t-name" required>Full name</Label>
               <Input
                 id="t-name"
                 value={form.fullName}
@@ -1354,7 +1352,7 @@ export function TeachersModule() {
               ) : null}
             </div>
             <div>
-              <Label htmlFor="t-email">Email</Label>
+              <Label htmlFor="t-email" required>Email</Label>
               <Input
                 id="t-email"
                 type="email"
@@ -1378,7 +1376,9 @@ export function TeachersModule() {
             </div>
             {manage ? (
               <div className="sm:col-span-2">
-                <Label htmlFor="t-password">{editing ? 'New password' : 'Password'}</Label>
+                <Label htmlFor="t-password" required={!editing}>
+                  {editing ? 'New password' : 'Password'}
+                </Label>
                 <PasswordInput
                   id="t-password"
                   autoComplete={editing ? 'new-password' : 'new-password'}

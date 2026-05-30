@@ -58,7 +58,7 @@ export function NotificationTable({
       )}
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+          <table className="app-data-table">
             <thead>
               <tr className="app-table-head">
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Title</th>
@@ -95,8 +95,8 @@ export function NotificationTable({
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                       {NOTIFICATION_CATEGORY_LABELS[n.category] || n.category}
                     </td>
-                    <td className="max-w-xs min-w-[10rem] px-4 py-3.5 align-top">
-                      <div className="flex flex-col gap-1.5">
+                    <td className="max-w-xs min-w-[10rem] px-4 py-3.5 align-middle">
+                      <div className="mx-auto flex flex-col items-center gap-1.5 text-center">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">
                           {formatTargetTypeLabel(n.targetType)}
                         </span>

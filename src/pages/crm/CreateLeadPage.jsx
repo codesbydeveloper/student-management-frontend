@@ -9,6 +9,8 @@ import { PhoneInput } from '../../components/ui/PhoneInput'
 import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import { createLead, fetchMyLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
+import { Label } from '../../components/ui/Label'
+import { SearchableClassSelect } from '../../components/SearchableClassSelect'
 import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { ROLES } from '../../utils/constants'
 
@@ -188,8 +190,11 @@ export default function CreateLeadPage() {
         />
         <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Student name</label>
+            <Label variant="compact" htmlFor="create-lead-student" required>
+              Student name
+            </Label>
             <Input
+              id="create-lead-student"
               className="mt-1"
               value={studentName}
               onChange={(e) => setStudentName(e.target.value)}
@@ -198,8 +203,11 @@ export default function CreateLeadPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Parent / guardian</label>
+            <Label variant="compact" htmlFor="create-lead-parent" required>
+              Parent / guardian
+            </Label>
             <Input
+              id="create-lead-parent"
               className="mt-1"
               value={parentName}
               onChange={(e) => setParentName(e.target.value)}
@@ -208,8 +216,11 @@ export default function CreateLeadPage() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
+            <Label variant="compact" htmlFor="create-lead-phone" required>
+              Phone
+            </Label>
             <PhoneInput
+              id="create-lead-phone"
               className="mt-1"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -218,20 +229,14 @@ export default function CreateLeadPage() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Class</label>
-            <select
-              className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm disabled:opacity-60"
+            <SearchableClassSelect
+              id="create-lead-class"
               value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              disabled={submitting || classOpts === null}
-            >
-              <option value="">{classOpts === null ? 'Loading classes…' : 'No class'}</option>
-              {(classOpts || []).map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.subtext ? `${c.label} — ${c.subtext}` : c.label}
-                </option>
-              ))}
-            </select>
+              onChange={setClassId}
+              options={classOpts ?? []}
+              loading={classOpts === null}
+              disabled={submitting}
+            />
             {classOptsError ? <p className="mt-1 text-xs text-amber-700">{classOptsError}</p> : null}
           </div>
           <div className="sm:col-span-2">
@@ -245,76 +250,90 @@ export default function CreateLeadPage() {
       <Card>
         <CardHeader
           title="Leads history"
+          subtitleCompact
           subtitle="Your submissions from this account. Read-only list."
         />
         {mineError ? (
-          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
+          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-center text-sm text-amber-950">
             {mineError}
           </p>
         ) : null}
-        {mineLeads === null ? (
-          <p className="text-sm text-slate-600">Loading…</p>
-        ) : mineLeads.length === 0 ? (
-          <p className="text-sm text-slate-600">No leads yet.</p>
-        ) : (
-          <>
-            <div className="overflow-x-auto rounded-xl border border-slate-200/90">
-              <table className="min-w-[720px] w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200/90 bg-slate-50/90 text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <th className="px-3 py-2.5">Student</th>
-                    <th className="px-3 py-2.5">Parent / guardian</th>
-                    <th className="px-3 py-2.5">Phone</th>
-                    <th className="px-3 py-2.5">Class</th>
-                    <th className="px-3 py-2.5">Assigned teacher</th>
-                    <th className="px-3 py-2.5">Stage</th>
-                    <th className="px-3 py-2.5">Created</th>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200/90">
+          <table className="app-data-table min-w-[720px] w-full border-collapse">
+            <thead>
+              <tr className="app-table-head">
+                <th className="px-3 py-2.5">Student</th>
+                <th className="px-3 py-2.5">Parent / guardian</th>
+                <th className="px-3 py-2.5">Phone</th>
+                <th className="px-3 py-2.5">Class</th>
+                <th className="px-3 py-2.5">Assigned teacher</th>
+                <th className="px-3 py-2.5">Stage</th>
+                <th className="px-3 py-2.5">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mineLeads === null ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center text-sm text-slate-600">
+                    Loading…
+                  </td>
+                </tr>
+              ) : mineLeads.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center">
+                    <p className="text-sm font-medium text-slate-700">No leads yet.</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Create a lead above and it will appear in this table.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                mineLeads.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2.5 text-slate-800">{row.studentName || '—'}</td>
+                    <td className="px-3 py-2.5 text-slate-800">{row.parentName || '—'}</td>
+                    <td className="px-3 py-2.5 text-slate-800">{row.phone || '—'}</td>
+                    <td className="px-3 py-2.5 text-slate-800">{classCell(row)}</td>
+                    <td className="px-3 py-2.5 text-slate-800">{row.assignedTeacherName || '—'}</td>
+                    <td className="px-3 py-2.5 text-slate-800">
+                      {LEAD_STAGE_LABELS[row.stage] ?? row.stage ?? '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600">{fmtDate(row.createdAt)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {mineLeads.map((row) => (
-                    <tr key={row.id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2.5 text-slate-800">{row.studentName || '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-800">{row.parentName || '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-800">{row.phone || '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-800">{classCell(row)}</td>
-                      <td className="px-3 py-2.5 text-slate-800">{row.assignedTeacherName || '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-800">
-                        {LEAD_STAGE_LABELS[row.stage] ?? row.stage ?? '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-600">{fmtDate(row.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {mineLeads !== null && mineLeads.length > 0 && mineTotal > MINE_PAGE_LIMIT ? (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600 sm:justify-between">
+            <span>
+              Page {minePage} of {totalMinePages} · {mineTotal} total
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={minePage <= 1}
+                onClick={() => setMinePage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={minePage >= totalMinePages}
+                onClick={() => setMinePage((p) => p + 1)}
+              >
+                Next
+              </Button>
             </div>
-            {mineTotal > MINE_PAGE_LIMIT ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                <span>
-                  Page {minePage} of {totalMinePages} · {mineTotal} total
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={minePage <= 1}
-                  onClick={() => setMinePage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={minePage >= totalMinePages}
-                  onClick={() => setMinePage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
+          </div>
+        ) : null}
       </Card>
     </div>
   )

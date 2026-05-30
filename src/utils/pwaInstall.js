@@ -3,6 +3,64 @@ import { STORAGE_KEYS } from './constants'
 /** Fired when the sign-in page should refresh install prompt visibility. */
 export const PWA_INSTALL_LOGIN_PROMPT_EVENT = 'sm-pwa-install-login-prompt'
 
+/** Fired when the browser makes the native install prompt available. */
+export const PWA_INSTALL_PROMPT_READY_EVENT = 'sm-pwa-install-prompt-ready'
+
+/** @type {BeforeInstallPromptEvent | null} */
+let deferredInstallPrompt = null
+
+/**
+ * Capture beforeinstallprompt as early as possible (main.jsx) so login banner never misses it.
+ */
+export function installGlobalPwaCapture() {
+  if (typeof window === 'undefined') return
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    deferredInstallPrompt = e
+    window.dispatchEvent(new Event(PWA_INSTALL_PROMPT_READY_EVENT))
+    window.dispatchEvent(new Event(PWA_INSTALL_LOGIN_PROMPT_EVENT))
+  })
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null
+    markPwaInstallCompleted()
+    window.dispatchEvent(new Event(PWA_INSTALL_LOGIN_PROMPT_EVENT))
+  })
+}
+
+export function hasNativeInstallPrompt() {
+  return Boolean(deferredInstallPrompt && typeof deferredInstallPrompt.prompt === 'function')
+}
+
+/** @returns {Promise<{ ok: boolean, outcome?: string, reason?: string }>} */
+export async function triggerNativePwaInstall() {
+  const ev = deferredInstallPrompt
+  if (!ev || typeof ev.prompt !== 'function') {
+    return { ok: false, reason: 'no-prompt' }
+  }
+  try {
+    await ev.prompt()
+    const choice = await ev.userChoice
+    deferredInstallPrompt = null
+    if (choice?.outcome === 'accepted') {
+      markPwaInstallCompleted()
+      return { ok: true, outcome: 'accepted' }
+    }
+    return { ok: false, outcome: choice?.outcome || 'dismissed' }
+  } catch {
+    deferredInstallPrompt = null
+    return { ok: false, reason: 'prompt-failed' }
+  }
+}
+
+export function isChromiumDesktopBrowser() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (isLikelyMobileDevice()) return false
+  return /Chrome|Edg|Chromium/i.test(ua)
+}
+
 /** Local calendar date key (YYYY-MM-DD) for once-per-day dismiss. */
 function getLocalDateKey() {
   return new Date().toLocaleDateString('en-CA')

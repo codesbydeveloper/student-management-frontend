@@ -40,7 +40,7 @@ export function VisitorDeleteReasonModal({
           </p>
         ) : null}
         <div>
-          <Label htmlFor="visitor-delete-reason">Reason (required)</Label>
+          <Label htmlFor="visitor-delete-reason" required>Reason</Label>
           <textarea
             id="visitor-delete-reason"
             value={reason}

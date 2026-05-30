@@ -9,9 +9,12 @@ import { PhoneInput } from '../../components/ui/PhoneInput'
 import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
 import { LeadStageStepper } from '../../components/phase6/LeadStageStepper'
 import { formatApiTimestampShort12h } from '../../utils/notificationTimestamps'
+import { Label } from '../../components/ui/Label'
+import { SearchableClassSelect } from '../../components/SearchableClassSelect'
+import { SearchableStageUpdateSelect } from '../../components/SearchableStageSelect'
+import { SearchableTeacherSelect } from '../../components/SearchableTeacherSelect'
 import {
   LEAD_STAGE_LABELS,
-  LEAD_STAGE_UPDATE_OPTIONS,
   apiStageToUiStage,
   uiStageToApiStage,
 } from '../../data/phase6Constants'
@@ -467,10 +470,11 @@ export default function LeadDetailPage() {
           ) : (
             <form onSubmit={onSubmitEditLeadDetails} className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                <Label variant="compact" htmlFor="lead-edit-student" required>
                   Student name
-                </label>
+                </Label>
                 <Input
+                  id="lead-edit-student"
                   className="mt-1"
                   value={editForm.studentName}
                   onChange={(e) => setEditForm((f) => ({ ...f, studentName: e.target.value }))}
@@ -478,10 +482,11 @@ export default function LeadDetailPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                <Label variant="compact" htmlFor="lead-edit-parent" required>
                   Parent / guardian
-                </label>
+                </Label>
                 <Input
+                  id="lead-edit-parent"
                   className="mt-1"
                   value={editForm.parentName}
                   onChange={(e) => setEditForm((f) => ({ ...f, parentName: e.target.value }))}
@@ -489,8 +494,11 @@ export default function LeadDetailPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
+                <Label variant="compact" htmlFor="lead-edit-phone" required>
+                  Phone
+                </Label>
                 <PhoneInput
+                  id="lead-edit-phone"
                   className="mt-1"
                   value={editForm.phone}
                   onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
@@ -498,47 +506,27 @@ export default function LeadDetailPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Assign teacher
-                </label>
-                <select
-                  className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm disabled:opacity-60"
+                <SearchableTeacherSelect
+                  id="lead-detail-teacher"
                   value={editForm.assignedTeacherId}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, assignedTeacherId: e.target.value }))
-                  }
-                  disabled={savingEdit || teacherOpts === null}
-                >
-                  <option value="">
-                    {teacherOpts === null ? 'Loading teachers…' : 'Unassigned'}
-                  </option>
-                  {teacherPickOpts.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setEditForm((f) => ({ ...f, assignedTeacherId: val }))}
+                  options={teacherPickOpts}
+                  loading={teacherOpts === null}
+                  disabled={savingEdit}
+                />
                 {teacherOptsError ? (
                   <p className="mt-1 text-xs text-amber-700">{teacherOptsError}</p>
                 ) : null}
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Class</label>
-                <select
-                  className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm disabled:opacity-60"
+                <SearchableClassSelect
+                  id="lead-detail-class"
                   value={editForm.classId}
-                  onChange={(e) => setEditForm((f) => ({ ...f, classId: e.target.value }))}
-                  disabled={savingEdit || classOpts === null}
-                >
-                  <option value="">
-                    {classOpts === null ? 'Loading classes…' : 'No class'}
-                  </option>
-                  {classPickOpts.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.subtext ? `${c.label} — ${c.subtext}` : c.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setEditForm((f) => ({ ...f, classId: val }))}
+                  options={classPickOpts}
+                  loading={classOpts === null}
+                  disabled={savingEdit}
+                />
                 {classOptsError ? (
                   <p className="mt-1 text-xs text-amber-700">{classOptsError}</p>
                 ) : null}
@@ -625,18 +613,14 @@ export default function LeadDetailPage() {
           <Card>
             <CardHeader title="Update stage" subtitle="Optional note becomes part of the activity log." />
             <div className="flex flex-wrap items-end gap-2">
-              <select
-                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm"
-                value={stageDraft}
-                onChange={(e) => setStageDraft(e.target.value)}
-                disabled={savingStage}
-              >
-                {LEAD_STAGE_UPDATE_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {LEAD_STAGE_LABELS[s] ?? s}
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-48 flex-1 sm:max-w-xs">
+                <SearchableStageUpdateSelect
+                  id="lead-detail-stage"
+                  value={stageDraft}
+                  onChange={setStageDraft}
+                  disabled={savingStage}
+                />
+              </div>
               <Input
                 placeholder="Optional note (why this stage?)"
                 value={stageNote}

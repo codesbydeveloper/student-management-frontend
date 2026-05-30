@@ -424,7 +424,7 @@ export default function PickUpPointsPage() {
             </div>
 
             <div>
-              <Label htmlFor="pickup-time">Pick up time</Label>
+              <Label htmlFor="pickup-time" required>Pick up time</Label>
               <Input
                 id="pickup-time"
                 type="time"
@@ -436,7 +436,7 @@ export default function PickUpPointsPage() {
             </div>
 
             <div>
-              <Label htmlFor="drop-time">Drop time</Label>
+              <Label htmlFor="drop-time" required>Drop time</Label>
               <Input
                 id="drop-time"
                 type="time"
@@ -451,6 +451,7 @@ export default function PickUpPointsPage() {
               <SearchableMultiSelect
                 id="pickup-student"
                 label="Student"
+                required
                 options={studentOptions}
                 value={studentIds}
                 onChange={setStudentIds}
@@ -519,7 +520,7 @@ export default function PickUpPointsPage() {
           {points.length > 0 ? (
             <>
               <div className="overflow-x-auto rounded-xl border border-slate-200/90">
-                <table className="min-w-full text-left text-sm">
+                <table className="app-data-table">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
                       <th className="px-4 py-3">#</th>
@@ -652,7 +653,7 @@ export default function PickUpPointsPage() {
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="edit-pickup-time">Pick up time</Label>
+                    <Label htmlFor="edit-pickup-time" required>Pick up time</Label>
                     <Input
                       id="edit-pickup-time"
                       type="time"
@@ -663,7 +664,7 @@ export default function PickUpPointsPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-drop-time">Drop time</Label>
+                    <Label htmlFor="edit-drop-time" required>Drop time</Label>
                     <Input
                       id="edit-drop-time"
                       type="time"
@@ -677,6 +678,7 @@ export default function PickUpPointsPage() {
                 <SearchableMultiSelect
                   id="edit-pickup-student"
                   label="Student"
+                  required
                   options={studentOptions}
                   value={editStudentIds}
                   onChange={setEditStudentIds}

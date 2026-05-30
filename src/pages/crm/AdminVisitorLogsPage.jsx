@@ -6,6 +6,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { VisitorDeleteReasonModal } from '../../components/crm/VisitorDeleteReasonModal'
 import { VisitorViewEditModal } from '../../components/crm/VisitorViewEditModal'
 import { Button } from '../../components/ui/Button'
+import { Label } from '../../components/ui/Label'
 import { Input } from '../../components/ui/Input'
 import { DateTimeInput } from '../../components/ui/DateTimeInput'
 import { PhoneInput } from '../../components/ui/PhoneInput'
@@ -225,8 +226,11 @@ export default function AdminVisitorLogsPage() {
         <CardHeader title="Visitor log" />
         <form onSubmit={onAdd} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Visitor name</label>
+            <Label variant="compact" htmlFor="visitor-add-name" required>
+              Visitor name
+            </Label>
             <Input
+              id="visitor-add-name"
               className="mt-1"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -235,8 +239,11 @@ export default function AdminVisitorLogsPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
+            <Label variant="compact" htmlFor="visitor-add-phone" required>
+              Phone
+            </Label>
             <PhoneInput
+              id="visitor-add-phone"
               className="mt-1"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -245,8 +252,11 @@ export default function AdminVisitorLogsPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Visit date & time</label>
+            <Label variant="compact" htmlFor="visitor-add-visit" required>
+              Visit date & time
+            </Label>
             <DateTimeInput
+              id="visitor-add-visit"
               className="mt-1"
               value={visitAt}
               onChange={(e) => setVisitAt(e.target.value)}
@@ -255,8 +265,11 @@ export default function AdminVisitorLogsPage() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Leave date & time</label>
+            <Label variant="compact" htmlFor="visitor-add-leave">
+              Leave date & time
+            </Label>
             <DateTimeInput
+              id="visitor-add-leave"
               className="mt-1"
               value={leaveAt}
               onChange={(e) => setLeaveAt(e.target.value)}
@@ -265,8 +278,11 @@ export default function AdminVisitorLogsPage() {
             <p className="mt-1 text-xs text-slate-500">Optional — when the visitor left the premises.</p>
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Purpose</label>
+            <Label variant="compact" htmlFor="visitor-add-purpose" required>
+              Purpose
+            </Label>
             <textarea
+              id="visitor-add-purpose"
               className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
               rows={2}
               value={purpose}
@@ -300,7 +316,7 @@ export default function AdminVisitorLogsPage() {
         ) : null}
         {Array.isArray(visitors) && visitors.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-data-table">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Name</th>

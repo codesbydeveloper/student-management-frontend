@@ -583,7 +583,7 @@ export function DriversModule() {
             return <span className="text-slate-400">—</span>
           }
           return (
-            <div className="min-w-[14rem] max-w-[18rem] text-xs leading-snug text-slate-700">
+              <div className="mx-auto min-w-[14rem] max-w-[18rem] text-center text-xs leading-snug text-slate-700">
               {login ? (
                 <div className="tabular-nums" title={String(row.lastLoginAt ?? '')}>
                   <span className="font-semibold text-slate-500">Login:</span> {login}
@@ -616,11 +616,9 @@ export function DriversModule() {
       {
         key: 'actions',
         header: 'Actions',
-        thClassName: 'text-right',
-        tdClassName: 'text-right',
         render: (row) =>
           manage ? (
-            <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <Button
                 type="button"
                 variant="secondary"
@@ -805,7 +803,7 @@ export function DriversModule() {
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="drv-name">Full name</Label>
+            <Label htmlFor="drv-name" required>Full name</Label>
             <Input
               id="drv-name"
               value={form.fullName}
@@ -817,7 +815,7 @@ export function DriversModule() {
             ) : null}
           </div>
           <div>
-            <Label htmlFor="drv-email">Email</Label>
+            <Label htmlFor="drv-email" required>Email</Label>
             <Input
               id="drv-email"
               type="email"
@@ -830,7 +828,9 @@ export function DriversModule() {
             ) : null}
           </div>
           <div>
-            <Label htmlFor="drv-password">{editing ? 'New password' : 'Password'}</Label>
+            <Label htmlFor="drv-password" required={!editing}>
+              {editing ? 'New password' : 'Password'}
+            </Label>
             <PasswordInput
               id="drv-password"
               value={form.password}
@@ -845,7 +845,7 @@ export function DriversModule() {
             
           </div>
           <div>
-            <Label htmlFor="drv-phone">Phone</Label>
+            <Label htmlFor="drv-phone" required>Phone</Label>
             <PhoneInput
               id="drv-phone"
               value={form.phone}
@@ -857,7 +857,7 @@ export function DriversModule() {
             ) : null}
           </div>
           <div>
-            <Label htmlFor="drv-license">License number</Label>
+            <Label htmlFor="drv-license" required>License number</Label>
             <Input
               id="drv-license"
               value={form.licenseNumber}

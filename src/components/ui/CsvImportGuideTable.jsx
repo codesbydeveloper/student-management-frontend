@@ -40,13 +40,13 @@ export function CsvImportGuideTable({
       {footnote ? <p className="mt-1 text-xs leading-relaxed text-slate-600">{footnote}</p> : null}
 
       <div className="mt-3 max-w-full overflow-x-auto rounded-xl border border-slate-200/90 bg-white">
-        <table className="w-max min-w-full border-collapse text-xs">
+        <table className="w-max min-w-full border-collapse text-xs app-data-table">
           <thead>
             <tr className="bg-indigo-50/90">
               {headers.map((h) => (
                 <th
                   key={h}
-                  className="whitespace-nowrap border-b border-indigo-100 px-3 py-2.5 text-left align-middle text-xs font-semibold text-slate-800"
+                  className="whitespace-nowrap border-b border-indigo-100 px-3 py-2.5 text-center align-middle text-xs font-semibold text-slate-800"
                 >
                   <span className="inline-flex items-center gap-0.5">
                     <span>{h}</span>
@@ -70,7 +70,7 @@ export function CsvImportGuideTable({
                 return (
                   <td
                     key={h}
-                    className={`border-b border-slate-100 px-3 py-3 text-left align-middle text-slate-800 ${
+                    className={`border-b border-slate-100 px-3 py-3 text-center align-middle text-slate-800 ${
                       h === 'Email' ? 'max-w-[11rem]' : 'whitespace-nowrap'
                     }`}
                   >

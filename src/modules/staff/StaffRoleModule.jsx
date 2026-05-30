@@ -292,7 +292,7 @@ export function StaffRoleModule({ roleKey }) {
             return <span className="text-slate-400">—</span>
           }
           return (
-            <div className="min-w-[14rem] max-w-[18rem] text-xs leading-snug text-slate-700">
+            <div className="mx-auto min-w-[14rem] max-w-[18rem] text-center text-xs leading-snug text-slate-700">
               {login ? (
                 <div className="tabular-nums" title={String(row.lastLoginAt ?? '')}>
                   <span className="font-semibold text-slate-500">Login:</span> {login}
@@ -310,10 +310,8 @@ export function StaffRoleModule({ roleKey }) {
       {
         key: 'actions',
         header: '',
-        thClassName: 'text-right',
-        tdClassName: 'text-right',
         render: (row) => (
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
             {manage ? (
               <>
                 <Button
@@ -421,7 +419,7 @@ export function StaffRoleModule({ roleKey }) {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label htmlFor={`${roleKey}-name`}>Full name</Label>
+            <Label htmlFor={`${roleKey}-name`} required>Full name</Label>
             <Input
               id={`${roleKey}-name`}
               value={form.fullName}
@@ -454,7 +452,7 @@ export function StaffRoleModule({ roleKey }) {
           </div>
           {(!editing && canCreate) || (editing && manage) ? (
             <div className="sm:col-span-2">
-              <Label htmlFor={`${roleKey}-password`}>
+              <Label htmlFor={`${roleKey}-password`} required={!editing}>
                 {editing ? 'New password (leave blank to keep)' : 'Password'}
               </Label>
               <PasswordInput

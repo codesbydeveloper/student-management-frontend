@@ -260,7 +260,7 @@ export default function CreateCategoryPage() {
         />
         <form className="border-t border-slate-100 px-4 py-6 sm:px-6" onSubmit={onSubmit} noValidate>
           <div className="max-w-md">
-            <Label htmlFor="category-name">Category name</Label>
+            <Label htmlFor="category-name" required>Category name</Label>
             <Input
               id="category-name"
               value={categoryName}
@@ -308,11 +308,11 @@ export default function CreateCategoryPage() {
           {categories.length > 0 ? (
             <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
               <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="app-data-table">
                   <thead>
                     <tr className="app-table-head">
                       <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Category name</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -336,7 +336,7 @@ export default function CreateCategoryPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 align-middle">
-                            <div className="flex flex-wrap justify-end gap-2">
+                            <div className="flex flex-wrap justify-center gap-2">
                               {editing ? (
                                 <>
                                   <Button

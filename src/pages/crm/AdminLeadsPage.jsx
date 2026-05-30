@@ -7,7 +7,11 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { PhoneInput } from '../../components/ui/PhoneInput'
 import { isPhone10Digits, sanitizePhoneDigits } from '../../utils/phoneInput'
-import { LEAD_STAGES, LEAD_STAGE_LABELS } from '../../data/phase6Constants'
+import { Label } from '../../components/ui/Label'
+import { SearchableClassSelect } from '../../components/SearchableClassSelect'
+import { SearchableStageFilterSelect } from '../../components/SearchableStageSelect'
+import { SearchableTeacherSelect } from '../../components/SearchableTeacherSelect'
+import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { createLead, fetchLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
 import { fetchTeachersPicker } from '../../api/teachersApi'
@@ -206,8 +210,11 @@ export default function AdminLeadsPage() {
         />
         <form onSubmit={onCreate} className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Student name</label>
+            <Label variant="compact" htmlFor="admin-lead-student" required>
+              Student name
+            </Label>
             <Input
+              id="admin-lead-student"
               className="mt-1"
               value={studentName}
               onChange={(e) => setStudentName(e.target.value)}
@@ -216,8 +223,11 @@ export default function AdminLeadsPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Parent / guardian</label>
+            <Label variant="compact" htmlFor="admin-lead-parent" required>
+              Parent / guardian
+            </Label>
             <Input
+              id="admin-lead-parent"
               className="mt-1"
               value={parentName}
               onChange={(e) => setParentName(e.target.value)}
@@ -226,8 +236,11 @@ export default function AdminLeadsPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
+            <Label variant="compact" htmlFor="admin-lead-phone" required>
+              Phone
+            </Label>
             <PhoneInput
+              id="admin-lead-phone"
               className="mt-1"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -236,43 +249,27 @@ export default function AdminLeadsPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Assign teacher</label>
-            <select
-              className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm disabled:opacity-60"
+            <SearchableTeacherSelect
+              id="admin-lead-teacher"
               value={assignId}
-              onChange={(e) => setAssignId(e.target.value)}
-              disabled={submitting || teacherOpts === null}
-            >
-              <option value="">
-                {teacherOpts === null ? 'Loading teachers…' : 'Unassigned'}
-              </option>
-              {(teacherOpts || []).map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+              onChange={setAssignId}
+              options={teacherOpts ?? []}
+              loading={teacherOpts === null}
+              disabled={submitting}
+            />
             {teacherOptsError ? (
               <p className="mt-1 text-xs text-amber-700">{teacherOptsError}</p>
             ) : null}
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Class</label>
-            <select
-              className="mt-1 w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm disabled:opacity-60"
+            <SearchableClassSelect
+              id="admin-lead-class"
               value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              disabled={submitting || classOpts === null}
-            >
-              <option value="">
-                {classOpts === null ? 'Loading classes…' : 'No class'}
-              </option>
-              {(classOpts || []).map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.subtext ? `${c.label} — ${c.subtext}` : c.label}
-                </option>
-              ))}
-            </select>
+              onChange={setClassId}
+              options={classOpts ?? []}
+              loading={classOpts === null}
+              disabled={submitting}
+            />
             {classOptsError ? (
               <p className="mt-1 text-xs text-amber-700">{classOptsError}</p>
             ) : null}
@@ -296,19 +293,11 @@ export default function AdminLeadsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select
-            className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-900"
+          <SearchableStageFilterSelect
+            id="admin-leads-stage-filter"
             value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            aria-label="Filter by stage"
-          >
-            <option value="">All stages</option>
-            {LEAD_STAGES.map((s) => (
-              <option key={s} value={s}>
-                {LEAD_STAGE_LABELS[s] ?? s}
-              </option>
-            ))}
-          </select>
+            onChange={setStageFilter}
+          />
         </div>
 
         {leads === null ? (
@@ -331,7 +320,7 @@ export default function AdminLeadsPage() {
 
         {Array.isArray(leads) && leads.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-data-table">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Student</th>

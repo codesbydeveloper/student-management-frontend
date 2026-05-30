@@ -244,7 +244,7 @@ export function NotificationReadReportModal({
 
         <div className="overflow-hidden rounded-lg border border-slate-200">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-data-table">
               <thead>
                 <tr className="app-table-head">
                   <th className="px-3 py-2.5 font-semibold">Parent name</th>

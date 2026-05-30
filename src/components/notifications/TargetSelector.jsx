@@ -51,6 +51,7 @@ export function TargetSelector({ targetType, value, onChange, disabled, classes,
         <SearchableMultiSelect
           id="target-class"
           label="Target classes"
+          required
           options={classOptions}
           value={value}
           onChange={onChange}
@@ -69,6 +70,7 @@ export function TargetSelector({ targetType, value, onChange, disabled, classes,
         <SearchableMultiSelect
           id="target-section"
           label="Target sections"
+          required
           options={sectionOptions}
           value={value}
           onChange={onChange}
@@ -87,6 +89,7 @@ export function TargetSelector({ targetType, value, onChange, disabled, classes,
         <SearchableMultiSelect
           id="target-student"
           label="Target students"
+          required
           options={studentOptions}
           value={value}
           onChange={onChange}

@@ -37,7 +37,7 @@ export function PtmRequestsTable({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="app-data-table">
           <thead>
             <tr className="app-table-head">
               <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Student</th>
@@ -59,7 +59,7 @@ export function PtmRequestsTable({
               {showApprovedBy ? (
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Approved by</th>
               ) : null}
-              <th className="min-w-[7rem] px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">
+              <th className="min-w-[7rem] px-4 py-3 text-xs font-bold uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -92,8 +92,8 @@ export function PtmRequestsTable({
                   {showApprovedBy ? (
                     <td className="max-w-[10rem] px-4 py-3 text-slate-600">{approvedBy || '—'}</td>
                   ) : null}
-                  <td className="whitespace-nowrap px-4 py-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <div className="flex flex-wrap justify-center gap-2">
                       <Button type="button" size="sm" variant="secondary" onClick={() => onView(r)}>
                         View
                       </Button>

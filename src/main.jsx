@@ -9,24 +9,18 @@ import { AppDataProvider } from './context/AppDataContext'
 import { NotificationProvider } from './context/NotificationContext'
 import { ConfirmProvider } from './context/ConfirmContext'
 import { LoadingProvider } from './context/LoadingContext'
+import { installGlobalPwaCapture } from './utils/pwaInstall'
+
+installGlobalPwaCapture()
 
 /**
- * PWA service worker — production only.
- * - Dev: unregister any stale SW (e.g. after testing a prod build on localhost) to avoid
- *   infinite refresh / HMR fights (vite-plugin-pwa + dev SW is a known footgun).
- * - Prod: register with no auto-reload on update; users keep working until they hard-refresh
- *   or we add an explicit “Update available” UI later.
+ * PWA service worker — dev + production.
+ * Install prompt needs a registered service worker; dev used to unregister SW which broke "Yes".
  */
-if (import.meta.env.DEV && 'serviceWorker' in navigator) {
-  void navigator.serviceWorker.getRegistrations().then((regs) => {
-    for (const reg of regs) void reg.unregister()
-  })
-}
-
-if (import.meta.env.PROD) {
+if ('serviceWorker' in navigator) {
   void import('virtual:pwa-register').then(({ registerSW }) => {
     registerSW({
-      immediate: false,
+      immediate: true,
       onNeedRefresh() {
         /* Do not auto-reload — prevents loops with Webpushr SW + DevTools “Update on reload”. */
       },

@@ -1171,10 +1171,8 @@ export function StudentsModule() {
           {
             key: 'actions',
             header: '',
-            thClassName: 'text-right',
-            tdClassName: 'text-right',
             render: (row) => (
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 {manage ? (
                   <>
                     <Button
@@ -1630,7 +1628,7 @@ export function StudentsModule() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label htmlFor="st-name">Full name</Label>
+            <Label htmlFor="st-name" required>Full name</Label>
             <Input
               id="st-name"
               value={form.fullName}

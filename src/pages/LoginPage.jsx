@@ -200,7 +200,7 @@ export default function LoginPage() {
       <p className="mt-1.5 text-sm text-slate-600">Use the email and password for your school account.</p>
       <form className="mt-6 space-y-5" onSubmit={onSubmit} noValidate>
         <div>
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" required>Email</Label>
           <Input
             id="email"
             type="email"
@@ -212,7 +212,7 @@ export default function LoginPage() {
           {errors.email ? <p className="mt-1.5 text-xs font-medium text-red-600">{errors.email}</p> : null}
         </div>
         <div>
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password" required>Password</Label>
           <PasswordInput
             id="password"
             autoComplete="current-password"
@@ -279,7 +279,7 @@ export default function LoginPage() {
                 whether or not the account exists).
               </p>
               <div>
-                <Label htmlFor="forgot-email">Email</Label>
+                <Label htmlFor="forgot-email" required>Email</Label>
                 <Input
                   id="forgot-email"
                   type="email"
@@ -311,7 +311,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="forgot-otp">4-digit code</Label>
+                <Label htmlFor="forgot-otp" required>4-digit code</Label>
                 <Input
                   id="forgot-otp"
                   type="text"
@@ -346,7 +346,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="forgot-new-password">New password</Label>
+                <Label htmlFor="forgot-new-password" required>New password</Label>
                 <PasswordInput
                   id="forgot-new-password"
                   autoComplete="new-password"
@@ -360,7 +360,7 @@ export default function LoginPage() {
                 ) : null}
               </div>
               <div>
-                <Label htmlFor="forgot-confirm-password">Confirm new password</Label>
+                <Label htmlFor="forgot-confirm-password" required>Confirm new password</Label>
                 <PasswordInput
                   id="forgot-confirm-password"
                   autoComplete="new-password"

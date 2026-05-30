@@ -20,6 +20,7 @@ export function SearchableSingleSelect({
   searchPlaceholder = 'Search…',
   emptyText = 'No matches.',
   error,
+  required = false,
   /** Tailwind max-height utility for the popup panel. Override to make the list shorter or taller. */
   panelMaxHeightClass = 'max-h-[min(50vh,22rem)]',
   /** Render dropdown in document.body so it is not clipped by overflow containers (e.g. modals). */
@@ -173,7 +174,11 @@ export function SearchableSingleSelect({
 
   return (
     <div className="w-full min-w-0 space-y-2">
-      {label ? <Label htmlFor={triggerId}>{label}</Label> : null}
+      {label ? (
+        <Label htmlFor={triggerId} required={required}>
+          {label}
+        </Label>
+      ) : null}
       <div className="relative w-full min-w-0">
         <button
           ref={triggerRef}
