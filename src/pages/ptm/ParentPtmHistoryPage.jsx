@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
+import { ListPagination } from '../../components/ui/ListPagination'
 import { Button } from '../../components/ui/Button'
 import { PtmRequestDetailModal } from '../../components/ptm/PtmRequestDetailModal'
 import { PtmRequestsTable } from '../../components/ptm/PtmRequestsTable'
@@ -122,40 +123,20 @@ export default function ParentPtmHistoryPage() {
           </div>
         ) : null}
 
-        {apiRows !== null && total > PAGE_LIMIT ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 text-xs text-slate-500 sm:px-6">
-            <span>
-              Page {page} of {totalPages} · {total} total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasPrev}
-                onClick={() => {
-                  if (!hasPrev) return
-                  setApiRows(null)
-                  void load(page - 1)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasNext}
-                onClick={() => {
-                  if (!hasNext) return
-                  setApiRows(null)
-                  void load(page + 1)
-                }}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {apiRows !== null && total > 0 ? (
+          <ListPagination
+            page={page}
+            total={total}
+            pageSize={PAGE_LIMIT}
+            onPrev={() => {
+              setApiRows(null)
+              void load(page - 1)
+            }}
+            onNext={() => {
+              setApiRows(null)
+              void load(page + 1)
+            }}
+          />
         ) : null}
       </Card>
 

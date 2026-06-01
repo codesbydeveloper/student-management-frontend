@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-toastify'
 import { Modal } from '../Modal'
 import { Button } from '../ui/Button'
+import { ListPagination } from '../ui/ListPagination'
 import { Badge } from '../ui/Badge'
 import {
   fetchNotificationReadReport,
@@ -304,32 +305,19 @@ export function NotificationReadReportModal({
         </div>
 
         {parents.length > 0 || page > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <span>
-              Page {page}
-              {totalPages > 1 ? ` of ${totalPages}` : ''}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={loading || page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={loading || (!hasNext && page >= totalPages)}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <ListPagination
+            borderTop={false}
+            className="pt-2"
+            page={page}
+            totalPages={totalPages}
+            total={summary.total ?? 0}
+            pageSize={REPORT_PAGE_SIZE}
+            hasNext={hasNext}
+            loading={loading}
+            showRange={false}
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         ) : null}
       </div>
     </Modal>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from './ui/Button'
 import { Input } from './ui/Input'
+import { ListPagination } from './ui/ListPagination'
 import { filterRowsByTableSearch } from '../utils/tableQuery'
 
 /**
@@ -137,56 +137,28 @@ export function DataTable({
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-indigo-50/20 px-4 py-3.5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-medium">
-            Showing{' '}
-            <span className="text-slate-900">
-              {serverPagination
-                ? serverTotal === 0
-                  ? '0'
-                  : `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, serverTotal)}`
-                : filtered.length === 0
-                  ? '0'
-                  : `${(Math.min(page, totalPages) - 1) * pageSize + 1}–${Math.min(Math.min(page, totalPages) * pageSize, filtered.length)}`}
-            </span>{' '}
-            of <span className="text-slate-900">{serverPagination ? serverTotal : filtered.length}</span>
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={currentPage <= 1}
-              onClick={() => {
-                if (serverPagination) {
-                  onServerPageChange?.(Math.max(1, currentPage - 1))
-                } else {
-                  setPage((p) => Math.max(1, p - 1))
-                }
-              }}
-            >
-              Previous
-            </Button>
-            <span className="rounded-lg bg-white/80 px-2.5 py-1 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100">
-              {currentPage} / {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={currentPage >= totalPages}
-              onClick={() => {
-                if (serverPagination) {
-                  onServerPageChange?.(Math.min(totalPages, currentPage + 1))
-                } else {
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
-              }}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <ListPagination
+          borderTop
+          className="!mt-0 rounded-b-2xl"
+          page={currentPage}
+          totalPages={totalPages}
+          total={serverPagination ? serverTotal : filtered.length}
+          pageSize={pageSize}
+          onPrev={() => {
+            if (serverPagination) {
+              onServerPageChange?.(Math.max(1, currentPage - 1))
+            } else {
+              setPage((p) => Math.max(1, p - 1))
+            }
+          }}
+          onNext={() => {
+            if (serverPagination) {
+              onServerPageChange?.(Math.min(totalPages, currentPage + 1))
+            } else {
+              setPage((p) => Math.min(totalPages, p + 1))
+            }
+          }}
+        />
       </div>
     </div>
   )

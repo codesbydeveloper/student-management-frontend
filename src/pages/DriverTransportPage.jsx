@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Card, CardHeader } from '../components/ui/Card'
+import { ListPagination } from '../components/ui/ListPagination'
 import { Button } from '../components/ui/Button'
 import { LiveTripMap } from '../components/transport/LiveTripMap'
 import { DRIVER_MY_ROUTE_PAGE_SIZE, useDriverTripState } from '../modules/transport/useDriverTripState'
@@ -96,34 +97,16 @@ export default function DriverTransportPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-indigo-50/20 px-4 py-3.5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-medium">
-                    Showing{' '}
-                    <span className="text-slate-900">
-                      {myRouteTotal === 0
-                        ? '0'
-                        : `${(myRouteSafePage - 1) * DRIVER_MY_ROUTE_PAGE_SIZE + 1}–${Math.min(myRouteSafePage * DRIVER_MY_ROUTE_PAGE_SIZE, myRouteTotal)}`}
-                    </span>{' '}
-                    of <span className="text-slate-900">{myRouteTotal}</span>
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="secondary" size="sm" disabled={myRouteSafePage <= 1} onClick={goMyRoutePrev}>
-                      Previous
-                    </Button>
-                    <span className="rounded-lg bg-white/80 px-2.5 py-1 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100">
-                      {myRouteSafePage} / {myRouteTotalPages}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={myRouteSafePage >= myRouteTotalPages}
-                      onClick={goMyRouteNext}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
+                <ListPagination
+                  borderTop
+                  className="!mt-0 rounded-b-xl"
+                  page={myRouteSafePage}
+                  totalPages={myRouteTotalPages}
+                  total={myRouteTotal}
+                  pageSize={DRIVER_MY_ROUTE_PAGE_SIZE}
+                  onPrev={goMyRoutePrev}
+                  onNext={goMyRouteNext}
+                />
               </div>
             ) : null}
           </div>

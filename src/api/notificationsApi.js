@@ -1507,15 +1507,12 @@ export async function patchNotificationReject(token, notificationId, opts = {}) 
 const TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT = 10
 
 /**
- * GET /api/notifications/mine?page=&limit= — teacher’s submitted notifications (Bearer).
- * @returns {Promise<
- *   | { ok: true, notifications: object[], total: number, page: number, limit: number }
- *   | { ok: false, error: string, useClient?: boolean, notifications: [], total: 0 }
- * >}
+ * @param {string} token
+ * @param {{ page?: number, limit?: number, dateRange?: string, scope?: 'my' | 'all' }} opts
  */
-export async function fetchTeacherNotificationsMine(
+async function fetchTeacherNotificationList(
   token,
-  { page = 1, limit = TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT, dateRange } = {},
+  { page = 1, limit = TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT, dateRange, scope } = {},
 ) {
   if (!token) {
     return { ok: false, error: 'Not signed in', useClient: true, notifications: [], total: 0 }
@@ -1523,6 +1520,10 @@ export async function fetchTeacherNotificationsMine(
   const p = Math.max(1, Number(page) || 1)
   const lim = Math.min(100, Math.max(1, Number(limit) || TEACHER_NOTIFICATIONS_MINE_DEFAULT_LIMIT))
   const params = new URLSearchParams({ page: String(p), limit: String(lim) })
+  const scopeNorm = String(scope || '').trim().toLowerCase()
+  if (scopeNorm === 'my' || scopeNorm === 'all') {
+    params.set('scope', scopeNorm)
+  }
   appendDateRangeToSearchParams(params, dateRange)
   try {
     const res = await fetch(`${API_BASE_URL}/api/notifications/mine?${params}`, {
@@ -1552,6 +1553,22 @@ export async function fetchTeacherNotificationsMine(
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, useClient: true, notifications: [], total: 0 }
   }
+}
+
+/**
+ * GET /api/notifications/mine?page=&limit=&scope=my|all — teacher notification list (Bearer).
+ * @returns {Promise<
+ *   | { ok: true, notifications: object[], total: number, page: number, limit: number }
+ *   | { ok: false, error: string, useClient?: boolean, notifications: [], total: 0 }
+ * >}
+ */
+export async function fetchTeacherNotificationsMine(token, opts = {}) {
+  return fetchTeacherNotificationList(token, { ...opts, scope: 'my' })
+}
+
+/** Same endpoint as mine; `scope=all` returns all notices visible to the teacher. */
+export async function fetchTeacherNotificationsAll(token, opts = {}) {
+  return fetchTeacherNotificationList(token, { ...opts, scope: 'all' })
 }
 
 function extractNotificationPreferenceEnabled(data) {

@@ -35,10 +35,14 @@ function scheduledTimeForOption(option, routeType) {
   return ''
 }
 
+const GENERIC_PICKUP_LABEL = /^Pick up point #\d+$/i
+
 function locationLabelFromOption(option) {
   if (!option) return '—'
+  const locationName = String(option.locationName || '').trim()
+  if (locationName) return locationName
   const label = String(option.label || '').trim()
-  if (!label) return '—'
+  if (!label || GENERIC_PICKUP_LABEL.test(label)) return '—'
   const dash = label.indexOf(' - ')
   if (dash > 0) return label.slice(0, dash).trim()
   return label
@@ -67,6 +71,16 @@ function OrderedPickupPointsList({ items, disabled, onReorder, onRemove }) {
         <span className="text-sm font-semibold text-slate-800">Selected stops</span>
         <span className="text-xs text-slate-500">Drag rows or use arrows to set stop order</span>
       </div>
+      {items.length > 0 ? (
+        <div
+          className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:px-4"
+          aria-hidden
+        >
+          <span className="text-center">Sr. no</span>
+          <span>Location</span>
+          <span className="text-right">Actions</span>
+        </div>
+      ) : null}
       <ul className="divide-y divide-slate-100">
         {items.map((item, index) => {
           const isDragging = dragIndex === index
@@ -93,13 +107,13 @@ function OrderedPickupPointsList({ items, disabled, onReorder, onRemove }) {
                 setDragIndex(null)
                 setDragOverIndex(null)
               }}
-              className={`flex items-center gap-2 px-3 py-3 transition sm:gap-3 sm:px-4 ${
+              className={`grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 transition sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-4 ${
                 isDragging ? 'opacity-50' : ''
               } ${isOver ? 'bg-indigo-50/70' : 'bg-white hover:bg-slate-50/80'}`}
             >
               <span
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold tabular-nums text-slate-600"
-                aria-hidden
+                className="flex h-8 w-8 shrink-0 items-center justify-center justify-self-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold tabular-nums text-slate-600"
+                aria-label={`Sr. no ${index + 1}`}
               >
                 {index + 1}
               </span>
@@ -169,6 +183,7 @@ export function PickupPointsRouteField({
   disabled,
   pickerError,
   onRetryPicker,
+  pointLabels = {},
   ...pickerProps
 }) {
   const optionsByValue = useMemo(() => new Map(options.map((o) => [o.value, o])), [options])
@@ -176,9 +191,18 @@ export function PickupPointsRouteField({
   const orderedItems = useMemo(() => {
     return (value || []).map((pointId, index) => {
       const opt = optionsByValue.get(pointId)
+      const resolvedName = String(pointLabels[pointId] || '').trim()
       const timeLabel = scheduledTimeForOption(opt, routeType)
-      const locationLabel = locationLabelFromOption(opt)
-      const fullLabel = opt?.label || `Pick up point #${pointId}`
+      let locationLabel = locationLabelFromOption(opt)
+      if ((!locationLabel || locationLabel === '—') && resolvedName) {
+        locationLabel = resolvedName
+      }
+      const fullLabel =
+        resolvedName ||
+        (opt?.label && !GENERIC_PICKUP_LABEL.test(opt.label) ? opt.label : '') ||
+        locationLabel !== '—'
+          ? locationLabel
+          : `Pick up point #${pointId}`
       const detail =
         opt?.subtext ||
         (fullLabel !== locationLabel ? fullLabel.replace(`${locationLabel} - `, '').trim() : '')
@@ -190,7 +214,7 @@ export function PickupPointsRouteField({
         detail: detail && detail !== locationLabel ? detail : '',
       }
     })
-  }, [value, optionsByValue, routeType])
+  }, [value, optionsByValue, routeType, pointLabels])
 
   const handleSelectChange = (nextIds) => {
     onChange(mergePickupPointOrder(value, nextIds))

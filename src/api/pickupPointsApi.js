@@ -214,19 +214,35 @@ function extractPickupPointsPickerList(data) {
   return []
 }
 
-/** Option shape for route pickers — uses API `label` when provided. */
+/** Primary display name for a pick up point (location is the stored name in API). */
+export function pickupPointDisplayNameFromRaw(raw) {
+  if (!raw || typeof raw !== 'object') return ''
+  const row = mapPickupPointRow(raw)
+  const location = String(raw.location ?? raw.locationName ?? raw.address ?? '').trim()
+  if (location) return location
+  if (row?.location && row.location !== '—') return row.location
+  if (row?.name && row.name !== '—') return row.name
+  const apiLabel = String(raw.label ?? '').trim()
+  if (apiLabel && !/^Pick up point #\d+$/i.test(apiLabel)) return apiLabel
+  return ''
+}
+
+/** Option shape for route pickers — label is the pick up point location/name. */
 export function mapPickupPointToPickerOption(raw) {
   if (!raw || typeof raw !== 'object') return null
   const id = raw.id ?? raw._id ?? raw.pickupPointId
   if (id == null) return null
 
   const row = mapPickupPointRow(raw)
+  const pointName = pickupPointDisplayNameFromRaw(raw)
   const apiLabel = String(raw.label ?? '').trim()
-  const displayName = row?.name && row.name !== '—' ? row.name : apiLabel
-  if (apiLabel || (displayName && displayName !== '—')) {
+  const primaryName = pointName || (apiLabel && !/^Pick up point #\d+$/i.test(apiLabel) ? apiLabel : '')
+
+  if (primaryName) {
     return {
       value: String(id),
-      label: displayName && displayName !== '—' ? displayName : apiLabel,
+      label: primaryName,
+      locationName: primaryName,
       pickupTime: row?.pickupTime,
       dropTime: row?.dropTime,
       subtext:
@@ -250,9 +266,15 @@ export function mapPickupPointToPickerOption(raw) {
   if (row.pickupTime) timeParts.push(`Pick ${row.pickupTime}`)
   if (row.dropTime) timeParts.push(`Drop ${row.dropTime}`)
   const subtext = timeParts.length ? timeParts.join(' · ') : undefined
+  const fallbackLabel = displayLabel !== '—' ? displayLabel : row.studentLabel
+  const locationName =
+    row.location && row.location !== '—'
+      ? row.location
+      : name || (fallbackLabel !== '—' ? String(fallbackLabel).split(' - ')[0].trim() : '')
   return {
     value: row.id,
-    label: displayLabel !== '—' ? displayLabel : row.studentLabel,
+    label: locationName || fallbackLabel,
+    locationName: locationName || undefined,
     subtext,
     pickupTime: row.pickupTime,
     dropTime: row.dropTime,

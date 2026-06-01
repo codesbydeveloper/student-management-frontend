@@ -35,7 +35,7 @@ import {
   NOTICE_HISTORY_PAGE_SIZE,
   NOTICE_HISTORY_PAGE_SIZE_OPTIONS,
 } from '../utils/listDateRange'
-import { buildPageNumberList } from '../utils/listPagination'
+import { ListPagination } from '../components/ui/ListPagination'
 
 const TABLE_COL_COUNT = 9
 
@@ -135,28 +135,20 @@ function NoticeHistoryPagination({
 }) {
   const lim = Math.max(1, Number(pageSize) || NOTICE_HISTORY_PAGE_SIZE)
   const totalPages = Math.max(1, Math.ceil((total || 0) / lim))
-  const canPrev = page > 1
   const canNext = hasNext || page < totalPages
-  const rangeStart = total === 0 ? 0 : (page - 1) * lim + 1
-  const rangeEnd = total === 0 ? 0 : Math.min(page * lim, total)
-  const pageNumbers = buildPageNumberList(page, totalPages)
-
-  const goToPage = (nextPage) => {
-    onPageChange(Math.min(Math.max(1, nextPage), totalPages))
-  }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600">
-      <div className="flex flex-wrap items-center gap-3">
-        <span>
-          {total > 0 ? (
-            <>
-              Showing {rangeStart}–{rangeEnd} of {total}
-            </>
-          ) : (
-            <>No notices on this page</>
-          )}
-        </span>
+    <ListPagination
+      className="mt-4"
+      page={page}
+      total={total}
+      pageSize={lim}
+      hasNext={canNext}
+      loading={loading}
+      onPrev={() => onPageChange(Math.max(1, page - 1))}
+      onNext={() => onPageChange(Math.min(totalPages, page + 1))}
+      emptyLabel="No notices on this page"
+      leftExtra={
         <div className="flex items-center gap-2">
           <label htmlFor="notice-history-page-size" className="text-xs font-semibold text-slate-500">
             Show
@@ -175,35 +167,8 @@ function NoticeHistoryPagination({
             ))}
           </Select>
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-1">
-        <Button type="button" variant="secondary" size="sm" disabled={!canPrev || loading} onClick={() => goToPage(page - 1)}>
-          Previous
-        </Button>
-        {pageNumbers.map((n, idx) =>
-          n === '…' ? (
-            <span key={`ellipsis-${idx}`} className="px-1 text-xs text-slate-400">
-              …
-            </span>
-          ) : (
-            <Button
-              key={n}
-              type="button"
-              variant={n === page ? 'primary' : 'secondary'}
-              size="sm"
-              className="min-w-9 px-2"
-              disabled={loading || n === page}
-              onClick={() => goToPage(n)}
-            >
-              {n}
-            </Button>
-          ),
-        )}
-        <Button type="button" variant="secondary" size="sm" disabled={!canNext || loading} onClick={() => goToPage(page + 1)}>
-          Next
-        </Button>
-      </div>
-    </div>
+      }
+    />
   )
 }
 

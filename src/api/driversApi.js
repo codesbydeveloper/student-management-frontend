@@ -547,10 +547,94 @@ function extractDriverMyTransportRoutesList(data) {
   return []
 }
 
+function mapDriverTransportStopStudent(raw, idx) {
+  if (!raw || typeof raw !== 'object') return null
+  const parent =
+    raw.parent && typeof raw.parent === 'object'
+      ? raw.parent
+      : raw.guardian && typeof raw.guardian === 'object'
+        ? raw.guardian
+        : null
+  const studentObj =
+    raw.student && typeof raw.student === 'object'
+      ? raw.student
+      : raw.child && typeof raw.child === 'object'
+        ? raw.child
+        : null
+
+  const sid = raw.id ?? raw.studentId ?? raw.student_id ?? studentObj?.id ?? studentObj?.studentId
+  const sname = String(
+    raw.fullName ??
+      raw.studentName ??
+      raw.student_name ??
+      raw.name ??
+      studentObj?.fullName ??
+      studentObj?.name ??
+      '',
+  ).trim()
+  if (!sid && !sname) return null
+
+  const parentName = String(
+    raw.parentName ??
+      raw.parent_name ??
+      parent?.fullName ??
+      parent?.name ??
+      '',
+  ).trim()
+  const parentPhone = String(
+    raw.parentPhone ??
+      raw.parent_phone ??
+      raw.phone ??
+      raw.mobile ??
+      parent?.phone ??
+      parent?.mobile ??
+      '',
+  ).trim()
+
+  return {
+    id: sid != null ? String(sid) : `student-${idx}-${sname}`,
+    name: sname || `Student ${idx + 1}`,
+    parentName: parentName || '—',
+    parentPhone: parentPhone || '—',
+    status: String(
+      raw.status ??
+        raw.studentStatus ??
+        raw.student_status ??
+        raw.pickupStatus ??
+        raw.pickup_status ??
+        raw.boardingStatus ??
+        raw.boarding_status ??
+        'pending',
+    ),
+  }
+}
+
 function mapDriverTransportStopRow(raw, routeType) {
   if (!raw || typeof raw !== 'object') return null
-  const id = raw.id ?? raw.stopId ?? raw.pickupPointId
-  const studentsList = Array.isArray(raw.students) ? raw.students : []
+  const pickupPointId = raw.pickupPointId ?? raw.pickup_point_id
+  const order = Number(raw.order ?? raw.sequence ?? raw.stopOrder ?? raw.sortOrder) || 0
+  const routeStopId = raw.stopId ?? raw.stop_id ?? raw.routeStopId ?? raw.route_stop_id
+  /** Trip / PATCH URLs — often pickup-point or route-stop row id from API. */
+  const id = raw.id ?? routeStopId ?? pickupPointId
+  /**
+   * GET /my-transport-routes/:routeId/stops/:stopId — backend usually expects stop order (1, 2, 3),
+   * not pickupPointId (e.g. 10). Prefer explicit route stop id, then sequence order.
+   */
+  const apiStopId =
+    routeStopId != null
+      ? String(routeStopId)
+      : order > 0
+        ? String(order)
+        : id != null
+          ? String(id)
+          : ''
+  const studentsList = Array.isArray(raw.students)
+    ? raw.students
+    : Array.isArray(raw.assignedStudents)
+      ? raw.assignedStudents
+      : Array.isArray(raw.assigned_students)
+        ? raw.assigned_students
+        : []
   const student =
     raw.student && typeof raw.student === 'object'
       ? raw.student
@@ -580,26 +664,15 @@ function mapDriverTransportStopRow(raw, routeType) {
   )
   const studentCount = Number.isFinite(studentCountRaw) && studentCountRaw >= 0 ? studentCountRaw : 0
   const resolvedStudentNames = studentNames.length ? studentNames : studentName ? [studentName] : []
-  const students = studentsList
-    .map((s, idx) => {
-      const sid = s?.id ?? s?.studentId ?? s?.student_id
-      const sname = String(
-        s?.fullName ?? s?.studentName ?? s?.student_name ?? s?.name ?? '',
-      ).trim()
-      if (!sid && !sname) return null
-      return {
-        id: sid != null ? String(sid) : `student-${idx}-${sname}`,
-        name: sname || `Student ${idx + 1}`,
-        status: String(s?.status ?? 'pending'),
-      }
-    })
-    .filter(Boolean)
+  const students = studentsList.map((s, idx) => mapDriverTransportStopStudent(s, idx)).filter(Boolean)
   const resolvedStudents =
     students.length > 0
       ? students
       : resolvedStudentNames.map((name, idx) => ({
           id: `student-${idx}-${name}`,
           name,
+          parentName: '—',
+          parentPhone: '—',
           status: 'pending',
         }))
   const studentLabel =
@@ -616,6 +689,7 @@ function mapDriverTransportStopRow(raw, routeType) {
 
   return {
     id: id != null ? String(id) : `${location}-${studentName}`,
+    apiStopId: apiStopId || (id != null ? String(id) : ''),
     location: location || label || '—',
     studentName: studentLabel,
     studentNames: resolvedStudentNames,
@@ -625,8 +699,38 @@ function mapDriverTransportStopRow(raw, routeType) {
     pickupTime: pickupTime || '—',
     dropTime: dropTime || '—',
     timeForType: timeForType || '—',
-    order: Number(raw.order ?? raw.sequence ?? raw.stopOrder ?? raw.sortOrder) || 0,
+    order,
+    pickupPointId: pickupPointId != null ? String(pickupPointId) : undefined,
   }
+}
+
+/** How many students are assigned at this route stop. */
+export function stopAssignedStudentCount(stop) {
+  if (!stop || typeof stop !== 'object') return 0
+  const listed = Array.isArray(stop.students) ? stop.students.length : 0
+  const names = Array.isArray(stop.studentNames) ? stop.studentNames.filter(Boolean).length : 0
+  const raw = Number(stop.studentCount ?? stop.studentsCount ?? stop.students_count)
+  const fromField = Number.isFinite(raw) && raw >= 0 ? raw : 0
+  return Math.max(fromField, listed, names)
+}
+
+/** Table label for assigned student count at a stop. */
+export function formatStopAssignedStudentLabel(stop) {
+  const n = stopAssignedStudentCount(stop)
+  if (n <= 0) return '—'
+  return n === 1 ? '1 student' : `${n} students`
+}
+
+export function stopAssignedStudentNamesTitle(stop) {
+  const names = Array.isArray(stop?.studentNames) ? stop.studentNames.filter(Boolean) : []
+  if (names.length) return names.join(', ')
+  if (Array.isArray(stop?.students)) {
+    return stop.students
+      .map((s) => String(s?.name ?? '').trim())
+      .filter(Boolean)
+      .join(', ')
+  }
+  return ''
 }
 
 /**
@@ -708,6 +812,72 @@ export async function fetchDriverMyTransportRoutes(token) {
   }
 }
 
+function extractDriverRouteStopPayload(data) {
+  if (!data || typeof data !== 'object') return null
+  if (data.stop && typeof data.stop === 'object') return data.stop
+  if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    if (data.data.stop && typeof data.data.stop === 'object') return data.data.stop
+    return data.data
+  }
+  if (data.id != null || data.stopId != null || data.pickupPointId != null) return data
+  return null
+}
+
+/**
+ * GET /api/drivers/my-transport-routes/:routeId/stops/:stopId — students assigned at one stop.
+ * @param {string} token
+ * @param {string|number} routeId
+ * @param {string|number} stopId
+ * @param {{ routeType?: string }} [options]
+ */
+export async function fetchDriverTransportRouteStop(token, routeId, stopId, options = {}) {
+  if (!token) return { ok: false, error: 'Not signed in', stop: null }
+  const rid = encodeURIComponent(String(routeId ?? '').trim())
+  const sid = encodeURIComponent(String(stopId ?? '').trim())
+  if (!rid || !sid) return { ok: false, error: 'Missing route or stop id', stop: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-transport-routes/${rid}/stops/${sid}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+    const data = await res.json().catch(() => null)
+    if (res.status === 404) {
+      return { ok: false, error: 'Stop not found', stop: null }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: formatMyRouteError(data, res.status),
+        stop: null,
+      }
+    }
+    const raw = extractDriverRouteStopPayload(data)
+    if (!raw) {
+      return { ok: false, error: 'Invalid stop response from server', stop: null }
+    }
+    const routeType =
+      options.routeType ??
+      data?.routeType ??
+      data?.route_type ??
+      raw.routeType ??
+      raw.route_type ??
+      ''
+    const stop = mapDriverTransportStopRow(raw, routeType)
+    if (!stop) {
+      return { ok: false, error: 'Could not read stop details', stop: null }
+    }
+    return { ok: true, stop }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, stop: null }
+  }
+}
+
 function formatTripFlowError(data, status) {
   if (data == null) return `Trip request failed (${status})`
   if (typeof data === 'string' && data) return data
@@ -720,22 +890,119 @@ function formatTripFlowError(data, status) {
 
 function mapTripStudentRow(raw) {
   if (!raw || typeof raw !== 'object') return null
+  const parent =
+    raw.parent && typeof raw.parent === 'object'
+      ? raw.parent
+      : raw.guardian && typeof raw.guardian === 'object'
+        ? raw.guardian
+        : null
   const id = raw.id ?? raw.studentId ?? raw.student_id ?? raw.userId
   const name = String(raw.fullName ?? raw.studentName ?? raw.student_name ?? raw.name ?? '').trim() || '—'
-  const status = String(raw.status ?? raw.tripStatus ?? raw.trip_status ?? raw.pickupStatus ?? '').trim()
+  const status = String(
+    raw.status ??
+      raw.studentStatus ??
+      raw.student_status ??
+      raw.tripStatus ??
+      raw.trip_status ??
+      raw.pickupStatus ??
+      '',
+  ).trim()
+  const parentName = String(
+    raw.parentName ?? raw.parent_name ?? parent?.fullName ?? parent?.name ?? '',
+  ).trim()
+  const parentPhone = String(
+    raw.parentPhone ??
+      raw.parent_phone ??
+      raw.phone ??
+      raw.mobile ??
+      parent?.phone ??
+      parent?.mobile ??
+      '',
+  ).trim()
   return {
     id: id != null ? String(id) : `${name}-${Math.random().toString(36).slice(2, 7)}`,
     name,
+    parentName: parentName || '—',
+    parentPhone: parentPhone || '—',
     status: status || 'pending',
   }
 }
 
-function mapTripStopRow(raw, fallbackOrder = 0) {
+function tripStudentStatusKey(status) {
+  const s = String(status ?? 'pending')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_')
+  if (['pending', 'picked_up', 'dropped_off', 'absent'].includes(s)) return s
+  return 'pending'
+}
+
+/** Build per-student rows from mark/complete payloads (studentIds + pendingStudents). */
+function mapTripStopStudentsFromSummary(raw, defaultHandledStatus = 'picked_up') {
+  const ids = Array.isArray(raw.studentIds) ? raw.studentIds : []
+  if (!ids.length) return null
+  const names = Array.isArray(raw.studentNames) ? raw.studentNames : []
+  const pendingList = Array.isArray(raw.pendingStudents) ? raw.pendingStudents : []
+  const pendingIds = new Set(
+    pendingList.map((p) => String(p.studentId ?? p.id ?? '')).filter(Boolean),
+  )
+  const pendingById = new Map(
+    pendingList.map((p) => [String(p.studentId ?? p.id ?? ''), p]),
+  )
+  const doneStatus =
+    tripStudentStatusKey(defaultHandledStatus) === 'dropped_off' ? 'dropped_off' : 'picked_up'
+
+  return ids.map((id, idx) => {
+    const sid = String(id)
+    const pendingRow = pendingById.get(sid)
+    const name = String(
+      names[idx] ?? pendingRow?.studentName ?? pendingRow?.student_name ?? '',
+    ).trim()
+    const status = pendingIds.has(sid) ? 'pending' : doneStatus
+    return {
+      id: sid,
+      name: name || `Student ${idx + 1}`,
+      parentName: '—',
+      parentPhone: '—',
+      status,
+    }
+  })
+}
+
+function mergeTripStudentRows(existing, summary) {
+  if (!summary) return existing
+  if (!existing) return summary
+  const sk = tripStudentStatusKey(existing.status)
+  const fk = tripStudentStatusKey(summary.status)
+  const status = sk !== 'pending' ? existing.status : fk !== 'pending' ? summary.status : 'pending'
+  return {
+    ...summary,
+    ...existing,
+    name: existing.name || summary.name,
+    parentName: existing.parentName && existing.parentName !== '—' ? existing.parentName : summary.parentName,
+    parentPhone:
+      existing.parentPhone && existing.parentPhone !== '—' ? existing.parentPhone : summary.parentPhone,
+    status,
+  }
+}
+
+function mapTripStopRow(raw, fallbackOrder = 0, options = {}) {
   if (!raw || typeof raw !== 'object') return null
   const id = raw.id ?? raw.stopId ?? raw.stop_id ?? raw.pickupPointId
   let studentsRaw = raw.students ?? raw.studentList ?? raw.children ?? raw.passengers ?? []
   if (!Array.isArray(studentsRaw)) studentsRaw = []
-  const students = studentsRaw.map(mapTripStudentRow).filter(Boolean)
+  let students = studentsRaw.map(mapTripStudentRow).filter(Boolean)
+  const summaryStudents = mapTripStopStudentsFromSummary(raw, options.defaultHandledStatus)
+  if (summaryStudents?.length) {
+    students = summaryStudents.map((sumSt) => {
+      const existing = students.find(
+        (e) =>
+          String(e.id) === String(sumSt.id) ||
+          (e.name && sumSt.name && String(e.name).trim() === String(sumSt.name).trim()),
+      )
+      return mergeTripStudentRows(existing, sumSt)
+    })
+  }
   const location = String(
     raw.location ?? raw.locationName ?? raw.stopName ?? raw.name ?? raw.address ?? raw.label ?? '',
   ).trim()
@@ -750,6 +1017,7 @@ function mapTripStopRow(raw, fallbackOrder = 0) {
           status: 'pending',
         }))
       : students
+  const resolvedStudents = students.length > 0 ? students : fallbackStudents
   const status = String(raw.status ?? '').trim().toLowerCase()
   const done =
     Boolean(raw.done ?? raw.isDone ?? raw.completed ?? raw.isCompleted) ||
@@ -760,7 +1028,40 @@ function mapTripStopRow(raw, fallbackOrder = 0) {
     location: location || '—',
     order,
     done,
-    students: fallbackStudents,
+    students: resolvedStudents,
+  }
+}
+
+/** Apply a stop patch from mark/complete API onto existing trip progress. */
+export function patchDriverTripProgressStop(progress, updatedStop) {
+  if (!progress || !updatedStop) return progress
+  const matches = (a, b) => {
+    if (!a || !b) return false
+    if (String(a.id) === String(b.id)) return true
+    const orderA = Number(a.order)
+    const orderB = Number(b.order)
+    if (orderA > 0 && orderB > 0 && orderA === orderB) return true
+    const la = String(a.location ?? '')
+      .trim()
+      .toLowerCase()
+    const lb = String(b.location ?? '')
+      .trim()
+      .toLowerCase()
+    return Boolean(la && lb && la === lb)
+  }
+  const patch = (stop) =>
+    stop && matches(stop, updatedStop)
+      ? {
+          ...stop,
+          ...updatedStop,
+          students: updatedStop.students?.length ? updatedStop.students : stop.students,
+        }
+      : stop
+  return {
+    ...progress,
+    currentStop: patch(progress.currentStop),
+    nextStop: patch(progress.nextStop),
+    stops: Array.isArray(progress.stops) ? progress.stops.map(patch) : progress.stops,
   }
 }
 
@@ -938,7 +1239,43 @@ export async function markDriverTripStudentStatus(token, { tripId, stopId, stude
     )
     const data = await res.json().catch(() => null)
     if (!res.ok) return { ok: false, error: formatTripFlowError(data, res.status), progress: null }
-    return { ok: true, progress: mapDriverTripProgress(data) }
+    const markedStatus = String(data?.status ?? statusVal).trim()
+    let progress = mapDriverTripProgress(data)
+    const handledDefault = markedStatus === 'dropped_off' ? 'dropped_off' : 'picked_up'
+    let stopUpdate =
+      data?.stop && typeof data.stop === 'object'
+        ? mapTripStopRow(data.stop, Number(data.stop.stopOrder ?? data.stop.order) || 0, {
+            defaultHandledStatus: handledDefault,
+          })
+        : null
+    if (stopUpdate?.students?.length && markedStatus) {
+      stopUpdate = {
+        ...stopUpdate,
+        students: stopUpdate.students.map((s) =>
+          String(s.id) === String(studentId) ? { ...s, status: markedStatus } : s,
+        ),
+      }
+    }
+    if (stopUpdate) {
+      progress = progress
+        ? patchDriverTripProgressStop(progress, stopUpdate)
+        : {
+            tripId: String(data.stop.tripId ?? data.tripId ?? '').trim(),
+            routeId: '',
+            routeName: '',
+            active: true,
+            currentStop: stopUpdate,
+            nextStop: null,
+            stops: [stopUpdate],
+          }
+    }
+    return {
+      ok: true,
+      progress,
+      stopUpdate,
+      markedStudentId: String(studentId),
+      markedStatus,
+    }
   } catch (e) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
@@ -969,6 +1306,38 @@ export async function completeDriverTripStop(token, { tripId, stopId }) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, progress: null }
+  }
+}
+
+/**
+ * POST /api/drivers/my-trips/:tripId/end — end today's trip on the server (parents see Inactive).
+ * @param {string} token
+ * @param {string|number} tripId
+ */
+export async function endDriverTrip(token, tripId) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const tid = encodeURIComponent(String(tripId ?? '').trim())
+  if (!tid) return { ok: false, error: 'Missing trip id' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/my-trips/${tid}/end`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (res.ok) {
+      return { ok: true, message: data?.message ?? 'Trip ended.' }
+    }
+    if (res.status === 404 || res.status === 405) {
+      return { ok: true, skipped: true }
+    }
+    return { ok: false, error: formatTripFlowError(data, res.status) }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
   }
 }
 

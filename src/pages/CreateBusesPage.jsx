@@ -6,6 +6,7 @@ import { useConfirm } from '../context/ConfirmContext'
 import { fetchDriversPicker } from '../api/driversApi'
 import { createBus, deleteBus, fetchBus, fetchBuses, updateBus } from '../api/busesApi'
 import { Card, CardHeader } from '../components/ui/Card'
+import { ListPagination } from '../components/ui/ListPagination'
 import { Button } from '../components/ui/Button'
 import { Label } from '../components/ui/Label'
 import { Input } from '../components/ui/Input'
@@ -483,32 +484,16 @@ export default function CreateBusesPage() {
           </div>
 
           {token && meta.total > 0 ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-              <span>
-                Page {page} of {Math.max(1, meta.totalPages || Math.ceil(meta.total / PAGE_LIMIT))} ·{' '}
-                {meta.total} total
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={!meta.hasPrevPage}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={!meta.hasNextPage}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <ListPagination
+              className="mt-4 rounded-b-xl"
+              page={page}
+              totalPages={Math.max(1, meta.totalPages || Math.ceil(meta.total / PAGE_LIMIT))}
+              total={meta.total}
+              pageSize={PAGE_LIMIT}
+              hasNext={meta.hasNextPage}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
           ) : null}
         </div>
       </Card>

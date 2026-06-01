@@ -13,6 +13,7 @@ import { Label } from '../../components/ui/Label'
 import { SearchableClassSelect } from '../../components/SearchableClassSelect'
 import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { ROLES } from '../../utils/constants'
+import { ListPagination } from '../../components/ui/ListPagination'
 
 const MINE_PAGE_LIMIT = 10
 
@@ -307,32 +308,15 @@ export default function CreateLeadPage() {
           </table>
         </div>
 
-        {mineLeads !== null && mineLeads.length > 0 && mineTotal > MINE_PAGE_LIMIT ? (
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600 sm:justify-between">
-            <span>
-              Page {minePage} of {totalMinePages} · {mineTotal} total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={minePage <= 1}
-                onClick={() => setMinePage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={minePage >= totalMinePages}
-                onClick={() => setMinePage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {mineLeads !== null && mineTotal > 0 ? (
+          <ListPagination
+            className="mt-3 rounded-b-xl"
+            page={minePage}
+            total={mineTotal}
+            pageSize={MINE_PAGE_LIMIT}
+            onPrev={() => setMinePage((p) => Math.max(1, p - 1))}
+            onNext={() => setMinePage((p) => Math.min(totalMinePages, p + 1))}
+          />
         ) : null}
       </Card>
     </div>

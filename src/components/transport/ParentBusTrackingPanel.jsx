@@ -9,6 +9,12 @@ import { useTransportAssignmentRevision } from '../../modules/transport/useTrans
 import { isSocketTransportEnabled } from '../../modules/transport/transportSocketConfig'
 import { useParentBusLiveMap } from '../../modules/transport/useParentBusLiveMap'
 import { useParentBusLiveStatus } from '../../modules/transport/useParentBusLiveStatus'
+import {
+  isParentBusTripEnded,
+  isParentBusTripStarted,
+  parentHasTransportAssignment,
+} from '../../modules/transport/parentTripLive'
+import { ParentTripStatusBadge } from './ParentTripStatusBadge'
 import { ROLES } from '../../utils/constants'
 
 function parseBusNumericIdForSocket(busKey) {
@@ -58,18 +64,42 @@ function formatArrivalTime(iso) {
   return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(d)
 }
 
+function isPickupDoneForParent(studentStatus, stopStatus) {
+  const student = String(studentStatus ?? '').trim().toLowerCase()
+  if (student === 'picked_up' || student === 'absent' || student === 'dropped_off') return true
+  const stop = String(stopStatus ?? '').trim().toLowerCase()
+  return stop === 'completed'
+}
+
 function parentStatusMessage({
   tripLive,
   stopStatus,
+  studentStatus,
+  childName,
   pickupLabel,
   etaMinutes,
   stopsRemaining,
   hasMap,
 }) {
+  const student = String(studentStatus ?? '').trim().toLowerCase()
+  const who = childName ? childName : 'Your child'
+
+  if (student === 'picked_up') {
+    return `${who} was picked up safely.`
+  }
+  if (student === 'absent') {
+    return `${who} was marked absent for this trip.`
+  }
+  if (student === 'dropped_off') {
+    return `${who} was dropped off safely.`
+  }
+
   const status = String(stopStatus ?? '').trim().toLowerCase()
 
   if (status === 'completed') {
-    return 'Pick-up at your stop is finished.'
+    return childName
+      ? `${childName} was picked up safely.`
+      : 'Pick-up at your stop is finished.'
   }
   if (status === 'in_progress') {
     return `The bus is at ${pickupLabel || 'your pick-up point'} now.`
@@ -124,6 +154,8 @@ export function ParentBusTrackingPanel({
   const {
     pickupStudents,
     liveStudents,
+    pickupAssigned,
+    liveStatus,
     loading: liveLoading,
     error: liveError,
     refresh: refreshLive,
@@ -311,12 +343,17 @@ export function ParentBusTrackingPanel({
     return markers
   }, [pickupStudents, selectedLive, activeStudentId, childOptions.length])
 
+  const pickupDone = isPickupDoneForParent(
+    selectedLive?.studentStatus,
+    selectedLive?.stopProgress?.yourStopStatus,
+  )
+
   const visibleAlerts = useMemo(() => {
-    if (!selectedLive?.alerts?.length) return []
+    if (!selectedLive?.alerts?.length || pickupDone) return []
     return selectedLive.alerts.filter(
       (a) => !a.isRead && !dismissedAlerts.has(a.alertKey),
     )
-  }, [selectedLive, dismissedAlerts])
+  }, [selectedLive, dismissedAlerts, pickupDone])
 
   const onDismissAlert = useCallback(
     async (alert) => {
@@ -330,11 +367,33 @@ export function ParentBusTrackingPanel({
     [token, selectedLive?.studentId],
   )
 
-  const tripLooksLive = Boolean(
-    selectedLive?.live?.isRunning ||
-      selectedLive?.trip?.status === 'running' ||
-      socketDriverLive,
+  const hasTransport = parentHasTransportAssignment({
+    pickupAssigned,
+    pickupStudents,
+    liveStudents,
+    selectedLive,
+  })
+
+  const tripEnded = isParentBusTripEnded(
+    selectedLive?.trip,
+    selectedLive?.live,
+    liveStatus,
+    selectedLive?.tripActive,
   )
+  const tripStarted = isParentBusTripStarted(
+    selectedLive?.trip,
+    liveStatus,
+    selectedLive?.live,
+    selectedLive?.tripActive,
+  )
+
+  const tripLooksLive =
+    tripStarted &&
+    Boolean(
+      selectedLive?.live?.isRunning ||
+        socketDriverLive ||
+        selectedLive?.stopProgress?.yourStopStatus,
+    )
 
   const pickupPointLabel =
     selectedLive?.pickupPoint?.location ??
@@ -350,9 +409,13 @@ export function ParentBusTrackingPanel({
   const arrivalLabel = formatArrivalTime(selectedLive?.live?.estimatedArrivalAt)
   const distanceKm = saneDistanceKm(selectedLive?.live?.distanceKm)
 
-  const statusMessage = parentStatusMessage({
-    tripLive: tripLooksLive,
+  const statusMessage = tripEnded
+    ? 'Today’s bus trip has ended. You will see updates here when the driver starts the next trip.'
+    : parentStatusMessage({
+    tripLive: tripStarted,
     stopStatus: selectedLive?.stopProgress?.yourStopStatus,
+    studentStatus: selectedLive?.studentStatus,
+    childName: selectedChildName,
     pickupLabel: pickupPointLabel,
     etaMinutes: selectedLive?.live?.estimatedMinutes,
     stopsRemaining: selectedLive?.stopProgress?.stopsRemainingIncludingYours,
@@ -381,6 +444,14 @@ export function ParentBusTrackingPanel({
           </div>
         </div>
       ) : null}
+
+      {hasTransport ? (
+        <ParentTripStatusBadge active={tripStarted} />
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No bus route is linked to your child yet. Contact the school if you expected transport here.
+        </p>
+      )}
 
       {visibleAlerts.map((alert) => (
         <div
@@ -412,13 +483,18 @@ export function ParentBusTrackingPanel({
           {statusMessage}
         </p>
 
-        {tripLooksLive && etaLabel ? (
+        {pickupDone ? (
+          <p className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200/80">
+            Picked up safely
+          </p>
+        ) : null}
+        {!pickupDone && tripLooksLive && etaLabel ? (
           <p className="mt-2 text-lg font-bold text-teal-800">{etaLabel}</p>
         ) : null}
-        {tripLooksLive && arrivalLabel && etaLabel ? (
+        {!pickupDone && tripLooksLive && arrivalLabel && etaLabel ? (
           <p className="mt-0.5 text-sm text-slate-600">Expected around {arrivalLabel}</p>
         ) : null}
-        {tripLooksLive && distanceKm != null ? (
+        {!pickupDone && tripLooksLive && distanceKm != null ? (
           <p className="mt-0.5 text-sm text-slate-600">{distanceKm.toFixed(1)} km away</p>
         ) : null}
 
@@ -444,7 +520,15 @@ export function ParentBusTrackingPanel({
           <div>
             <dt className="text-slate-500">Trip</dt>
             <dd className="font-medium text-slate-900">
-              {tripLooksLive ? 'Bus is running' : 'Not started yet'}
+              {!hasTransport ? (
+                'Not assigned'
+              ) : tripEnded ? (
+                <span className="text-slate-700">Ended — driver finished today’s trip</span>
+              ) : tripStarted ? (
+                <span className="text-emerald-800">Active — driver started the trip</span>
+              ) : (
+                <span className="text-red-800">Inactive — waiting for driver to start</span>
+              )}
             </dd>
           </div>
         </dl>

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { fetchDriverMyTransportRoutes } from '../api/driversApi'
+import {
+  fetchDriverMyTransportRoutes,
+  formatStopAssignedStudentLabel,
+  stopAssignedStudentNamesTitle,
+} from '../api/driversApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ROLES } from '../utils/constants'
@@ -115,22 +119,24 @@ function RouteSummaryBox({ kind, stats, vehicleLabel }) {
           <table className="app-data-table">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-2.5">#</th>
+                <th className="w-14 px-4 py-2.5 text-center">Sr. no</th>
                 <th className="px-4 py-2.5">Location</th>
-                <th className="px-4 py-2.5">Student</th>
+                <th className="px-4 py-2.5">Students</th>
                 <th className="px-4 py-2.5">{timeCol}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {stats.stops.map((stop, idx) => (
                 <tr key={`${stop.id}-${idx}`} className="text-slate-800">
-                  <td className="px-4 py-3 tabular-nums text-slate-600">{idx + 1}</td>
+                  <td className="px-4 py-3 text-center tabular-nums text-slate-600">{idx + 1}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{stop.location}</td>
                   <td className="px-4 py-3">
-                    <p>{stop.studentName}</p>
-                    {Array.isArray(stop.studentNames) && stop.studentNames.length > 1 ? (
-                      <p className="text-xs text-slate-500">{stop.studentNames.join(', ')}</p>
-                    ) : null}
+                    <span
+                      className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-800"
+                      title={stopAssignedStudentNamesTitle(stop) || undefined}
+                    >
+                      {formatStopAssignedStudentLabel(stop)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 font-medium text-indigo-900">{stop.timeForType}</td>
                 </tr>

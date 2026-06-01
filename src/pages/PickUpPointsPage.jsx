@@ -523,7 +523,7 @@ export default function PickUpPointsPage() {
                 <table className="app-data-table">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
-                      <th className="px-4 py-3">#</th>
+                      <th className="w-14 px-4 py-3 text-center">Sr. no</th>
                       <th className="px-4 py-3">Name</th>
                       <th className="px-4 py-3">Pick up</th>
                       <th className="px-4 py-3">Drop</th>
@@ -534,7 +534,7 @@ export default function PickUpPointsPage() {
                   <tbody className="divide-y divide-slate-100">
                     {points.map((row, idx) => (
                       <tr key={row.id} className="text-slate-800">
-                        <td className="px-4 py-3 tabular-nums text-slate-600">
+                        <td className="px-4 py-3 text-center tabular-nums text-slate-600">
                           {(page - 1) * PAGE_LIMIT + idx + 1}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-700">{row.location}</td>

@@ -64,6 +64,11 @@ export function SearchableMultiSelect({
     onChange(has ? value.filter((x) => x !== val) : [...value, val])
   }
 
+  const closePanel = () => {
+    setOpen(false)
+    setQuery('')
+  }
+
   const triggerId = id ? `${id}-trigger` : 'searchable-multi-trigger'
 
   return (
@@ -81,8 +86,8 @@ export function SearchableMultiSelect({
         aria-haspopup="listbox"
         onClick={() => {
           if (!disabled) {
-            setOpen((v) => !v)
-            if (open) setQuery('')
+            if (open) closePanel()
+            else setOpen(true)
           }
         }}
         className={`flex w-full min-h-[2.75rem] items-center justify-between gap-2 rounded-xl border bg-white px-3.5 py-2.5 text-left text-sm shadow-inner shadow-slate-900/[0.03] transition ${
@@ -156,6 +161,15 @@ export function SearchableMultiSelect({
                 })}
               </ul>
             )}
+          </div>
+          <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 p-2">
+            <button
+              type="button"
+              onClick={closePanel}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       ) : null}

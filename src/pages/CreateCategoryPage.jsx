@@ -18,6 +18,7 @@ import {
   patchNoticeCategory,
   postNoticeCategory,
 } from '../api/notificationsApi'
+import { ListPagination } from '../components/ui/ListPagination'
 
 const PAGE_LIMIT = 10
 
@@ -209,9 +210,6 @@ export default function CreateCategoryPage() {
         ? 'POST uses `{ categoryName, categoryKind: \"academic\" }`. PATCH uses `{ name }` per API. DELETE removes by id.'
         : ''
 
-  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_LIMIT + 1
-  const rangeEnd = total === 0 ? 0 : Math.min(page * PAGE_LIMIT, total)
-
   return (
     <div className="space-y-6">
       <Card>
@@ -391,40 +389,17 @@ export default function CreateCategoryPage() {
           ) : null}
 
           {total > 0 || categories.length > 0 ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600">
-              <span>
-                {total > 0 ? (
-                  <>
-                    Showing {rangeStart}–{rangeEnd} of {total}
-                  </>
-                ) : (
-                  <>Showing {categories.length} on this page</>
-                )}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canPrev || listLoading}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <span className="flex items-center px-2 text-xs text-slate-500">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canNext || listLoading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <ListPagination
+              className="mt-4"
+              page={page}
+              total={total > 0 ? total : categories.length}
+              pageSize={PAGE_LIMIT}
+              hasNext={canNext}
+              loading={listLoading}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+              emptyLabel={`Showing ${categories.length} on this page`}
+            />
           ) : null}
         </div>
       </Card>

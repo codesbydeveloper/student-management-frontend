@@ -5,12 +5,17 @@ import { fetchParentMyDriver } from '../api/parentsApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ParentBusLiveMap } from '../components/transport/ParentBusLiveMap'
+import { ParentTripStatusBadge } from '../components/transport/ParentTripStatusBadge'
 import { getParentAssignedBusId } from '../modules/transport/transportAssignmentStore'
 import { useTransportAssignmentRevision } from '../modules/transport/useTransportAssignmentRevision'
 import { isSocketTransportEnabled } from '../modules/transport/transportSocketConfig'
 import { useParentBusLiveMap } from '../modules/transport/useParentBusLiveMap'
+import { useParentBusLiveStatus } from '../modules/transport/useParentBusLiveStatus'
+import {
+  isParentBusTripStarted,
+  parentHasTransportAssignment,
+} from '../modules/transport/parentTripLive'
 import { ROLES } from '../utils/constants'
-import { IoCheckmarkCircle, IoCloseCircle } from 'react-icons/io5'
 
 function parseBusNumericIdForSocket(busKey) {
   const s = String(busKey ?? '').trim()
@@ -49,6 +54,16 @@ export default function ParentBusTrackingPage() {
     else setApiDriverRows([])
   }, [token, user?.role])
 
+  const {
+    pickupStudents,
+    liveStudents,
+    pickupAssigned,
+    liveStatus,
+    refresh: refreshLive,
+  } = useParentBusLiveStatus(token, {
+    enabled: user?.role === ROLES.PARENT,
+  })
+
   useEffect(() => {
     void loadApiDriverRows()
   }, [loadApiDriverRows])
@@ -58,13 +73,13 @@ export default function ParentBusTrackingPage() {
     refreshInFlight.current = true
     setRefreshBusy(true)
     try {
-      await loadApiDriverRows()
+      await Promise.all([loadApiDriverRows(), refreshLive()])
       setRefreshNonce((n) => n + 1)
     } finally {
       refreshInFlight.current = false
       setRefreshBusy(false)
     }
-  }, [token, user?.role, loadApiDriverRows])
+  }, [token, user?.role, loadApiDriverRows, refreshLive])
 
   const apiDriverRow = useMemo(() => {
     if (!apiDriverRows.length) return null
@@ -127,7 +142,29 @@ export default function ParentBusTrackingPage() {
     return null
   }, [socketPoint])
 
-  const tripLooksLive = Boolean(isDriverLive)
+  const selectedLive = useMemo(() => {
+    if (!liveStudents.length) return null
+    const byDriver = liveStudents.find(
+      (s) => String(s?.bus?.id ?? s?.bus?.number ?? '') === String(socketBusId),
+    )
+    return byDriver ?? liveStudents[0]
+  }, [liveStudents, socketBusId])
+
+  const hasTransport = parentHasTransportAssignment({
+    pickupAssigned,
+    pickupStudents,
+    liveStudents,
+    selectedLive,
+  })
+
+  const tripStarted = isParentBusTripStarted(
+    selectedLive?.trip,
+    liveStatus,
+    selectedLive?.live,
+    selectedLive?.tripActive,
+  )
+
+  const mapLiveIndicator = Boolean(tripStarted && isDriverLive)
 
   return (
     <div className="space-y-6">
@@ -175,22 +212,12 @@ export default function ParentBusTrackingPage() {
             </div>
           </div>
 
-          {tripLooksLive ? (
-            <div
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-800 shadow-sm"
-              role="status"
-            >
-              <IoCheckmarkCircle className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
-              Active
-            </div>
+          {hasTransport ? (
+            <ParentTripStatusBadge active={tripStarted} />
           ) : (
-            <div
-              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-sm font-bold text-red-800 shadow-sm"
-              role="status"
-            >
-              <IoCloseCircle className="h-5 w-5 shrink-0 text-red-600" aria-hidden />
-              Inactive
-            </div>
+            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              No bus route is linked to your child yet. Contact the school if you expected transport here.
+            </p>
           )}
 
           {socketMode && connError ? (
@@ -215,7 +242,7 @@ export default function ParentBusTrackingPage() {
           ) : null}
 
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            {tripLooksLive ? (
+            {mapLiveIndicator ? (
               <>
                 <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
                   <span

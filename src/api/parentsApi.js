@@ -1616,6 +1616,19 @@ function mapParentBusLiveStudent(raw) {
       : null
 
   const liveRaw = raw.live
+  const liveIsRunningExplicit =
+    liveRaw && typeof liveRaw === 'object' && ('isRunning' in liveRaw || 'is_running' in liveRaw)
+  const liveIsRunning =
+    liveRaw && typeof liveRaw === 'object'
+      ? liveRaw.isRunning === true || liveRaw.is_running === true
+      : false
+  const liveTripActiveExplicit =
+    liveRaw && typeof liveRaw === 'object' && ('tripActive' in liveRaw || 'trip_active' in liveRaw)
+  const liveTripActive =
+    liveRaw && typeof liveRaw === 'object'
+      ? liveRaw.tripActive === true || liveRaw.trip_active === true
+      : undefined
+
   const live =
     liveRaw && typeof liveRaw === 'object'
       ? {
@@ -1626,7 +1639,9 @@ function mapParentBusLiveStudent(raw) {
             ? Number(liveRaw.lng ?? liveRaw.longitude ?? liveRaw.lon)
             : null,
           speed: liveRaw.speed ?? null,
-          isRunning: liveRaw.isRunning === true || liveRaw.is_running === true,
+          isRunning: liveIsRunning,
+          isRunningExplicit: liveIsRunningExplicit,
+          tripActive: liveTripActiveExplicit ? liveTripActive : undefined,
           recordedAt: liveRaw.recordedAt ?? liveRaw.recorded_at ?? null,
           ageSeconds: liveRaw.ageSeconds ?? liveRaw.age_seconds ?? null,
           distanceKm: liveRaw.distanceKm ?? liveRaw.distance_km ?? null,
@@ -1636,6 +1651,7 @@ function mapParentBusLiveStudent(raw) {
       : null
 
   const tripRaw = raw.trip
+  const tripIsActiveRaw = tripRaw?.isActive ?? tripRaw?.is_active ?? tripRaw?.active
   const trip =
     tripRaw && typeof tripRaw === 'object'
       ? {
@@ -1643,8 +1659,23 @@ function mapParentBusLiveStudent(raw) {
           routeId: tripRaw.routeId ?? tripRaw.route_id,
           status: String(tripRaw.status ?? '').trim(),
           startedAt: tripRaw.startedAt ?? tripRaw.started_at ?? null,
+          endedAt:
+            tripRaw.endedAt ??
+            tripRaw.ended_at ??
+            tripRaw.completedAt ??
+            tripRaw.completed_at ??
+            null,
+          completedAt: tripRaw.completedAt ?? tripRaw.completed_at ?? null,
+          isActive: tripIsActiveRaw === false ? false : tripIsActiveRaw === true ? true : undefined,
         }
       : null
+
+  const studentTripActive =
+    raw.tripActive === false || raw.trip_active === false
+      ? false
+      : raw.tripActive === true || raw.trip_active === true
+        ? true
+        : undefined
 
   const spRaw = raw.stopProgress ?? raw.stop_progress
   const stopProgress =
@@ -1670,13 +1701,33 @@ function mapParentBusLiveStudent(raw) {
   const alerts = alertsRaw.map(mapParentBusLiveAlert).filter(Boolean)
   const unreadAlertCount = Number(raw.unreadAlertCount ?? raw.unread_alert_count ?? 0) || 0
 
+  const studentStatus = String(
+    raw.studentStatus ??
+      raw.student_status ??
+      raw.pickupStatus ??
+      raw.pickup_status ??
+      raw.todayPickupStatus ??
+      raw.today_pickup_status ??
+      raw.boardingStatus ??
+      raw.boarding_status ??
+      '',
+  )
+    .trim()
+    .toLowerCase()
+
+  if (live && studentTripActive === false) {
+    live.tripActive = false
+  }
+
   return {
     studentId,
     studentName,
+    studentStatus,
     pickupPoint,
     bus,
     live,
     trip,
+    tripActive: studentTripActive,
     stopProgress,
     alerts,
     unreadAlertCount,

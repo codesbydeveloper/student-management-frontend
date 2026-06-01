@@ -18,6 +18,7 @@ import {
   fetchVisitors,
 } from '../../api/visitorsApi'
 import { notificationDisplayTime } from '../../utils/notificationTimestamps'
+import { ListPagination } from '../../components/ui/ListPagination'
 
 const PAGE_LIMIT = 10
 
@@ -370,38 +371,22 @@ export default function AdminVisitorLogsPage() {
           </div>
         ) : null}
 
-        {totalPages > 1 ? (
-          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              Page {page} of {totalPages} · {total} total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasPrev || visitors === null}
-                onClick={() => {
-                  setVisitors(null)
-                  void loadVisitors(page - 1)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasNext || visitors === null}
-                onClick={() => {
-                  setVisitors(null)
-                  void loadVisitors(page + 1)
-                }}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {total > 0 ? (
+          <ListPagination
+            className="mt-4 rounded-b-xl"
+            page={page}
+            total={total}
+            pageSize={PAGE_LIMIT}
+            loading={visitors === null}
+            onPrev={() => {
+              setVisitors(null)
+              void loadVisitors(page - 1)
+            }}
+            onNext={() => {
+              setVisitors(null)
+              void loadVisitors(page + 1)
+            }}
+          />
         ) : null}
       </Card>
 
@@ -418,7 +403,28 @@ export default function AdminVisitorLogsPage() {
           </p>
         ) : null}
         {audit !== null && audit.length === 0 && !auditError ? (
-          <p className="text-sm text-slate-600">No deletions yet.</p>
+          <div
+            className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-14 text-center"
+            role="status"
+          >
+            <div
+              className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200/80"
+              aria-hidden
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-slate-700">No deletions recorded yet</p>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-500">
+              When you remove a visitor from Visitor history, the reason, who deleted it, and when it happened will
+              appear here for your records.
+            </p>
+          </div>
         ) : null}
         {Array.isArray(audit) && audit.length > 0 ? (
           <ul className="space-y-2 text-sm">
@@ -440,32 +446,15 @@ export default function AdminVisitorLogsPage() {
           </ul>
         ) : null}
 
-        {audit !== null && Array.isArray(audit) && audit.length > PAGE_LIMIT ? (
-          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              Page {auditPage} of {auditTotalPages} · {audit.length} total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!auditHasPrev}
-                onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!auditHasNext}
-                onClick={() => setAuditPage((p) => Math.min(auditTotalPages, p + 1))}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {audit !== null && Array.isArray(audit) && audit.length > 0 ? (
+          <ListPagination
+            className="mt-4"
+            page={auditPage}
+            total={audit.length}
+            pageSize={PAGE_LIMIT}
+            onPrev={() => setAuditPage((p) => Math.max(1, p - 1))}
+            onNext={() => setAuditPage((p) => Math.min(auditTotalPages, p + 1))}
+          />
         ) : null}
       </Card>
 

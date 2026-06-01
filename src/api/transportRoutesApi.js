@@ -87,20 +87,61 @@ function extractPickupPointIds(raw) {
   return []
 }
 
+function pickupPointLabelFromObject(p) {
+  if (!p || typeof p !== 'object') return ''
+  return pickText(p.location) || pickText(p.name) || pickText(p.label) || pickText(p.pickupPointName)
+}
+
 function extractPickupPointLabels(raw) {
   if (!raw || typeof raw !== 'object') return []
+  if (Array.isArray(raw.pickupPoints)) {
+    return raw.pickupPoints.map((p) => pickupPointLabelFromObject(p)).filter(Boolean)
+  }
   if (Array.isArray(raw.pickupPointLabels)) {
     return raw.pickupPointLabels.map((l) => String(l).trim()).filter(Boolean)
   }
-  if (Array.isArray(raw.pickupPoints)) {
-    return raw.pickupPoints
-      .map((p) => {
-        if (!p || typeof p !== 'object') return ''
-        return pickText(p.label) || pickText(p.name) || pickText(p.location) || ''
-      })
-      .filter(Boolean)
-  }
   return []
+}
+
+function extractPickupPointCount(raw) {
+  if (!raw || typeof raw !== 'object') return 0
+  const ids = extractPickupPointIds(raw)
+  if (ids.length) return ids.length
+  const numeric = Number(
+    raw.pickupPointCount ??
+      raw.pickup_point_count ??
+      raw.pickupPointsCount ??
+      raw.pickup_points_count ??
+      raw.stopsCount ??
+      raw.stop_count ??
+      raw.stopCount,
+  )
+  if (Number.isFinite(numeric) && numeric >= 0) return numeric
+  if (typeof raw.pickupPoints === 'number' && Number.isFinite(raw.pickupPoints)) {
+    return Math.max(0, raw.pickupPoints)
+  }
+  if (Array.isArray(raw.pickupPoints)) return raw.pickupPoints.length
+  if (Array.isArray(raw.pickupPointLabels)) return raw.pickupPointLabels.length
+  return 0
+}
+
+function extractPickupPointLabelById(raw) {
+  const map = {}
+  if (!raw || typeof raw !== 'object') return map
+  if (Array.isArray(raw.pickupPoints)) {
+    raw.pickupPoints.forEach((p) => {
+      const id = p?.id ?? p?.pickupPointId ?? p?.pickup_point_id
+      const label = pickupPointLabelFromObject(p)
+      if (id != null && label) map[String(id)] = label
+    })
+  }
+  const ids = extractPickupPointIds(raw)
+  const labels = extractPickupPointLabels(raw)
+  ids.forEach((id, i) => {
+    const label = labels[i]
+    if (label && !map[id]) map[id] = label
+  })
+  return map
 }
 
 export const ROUTE_TYPE_LABELS = {
@@ -134,6 +175,12 @@ export function mapTransportRouteRow(raw) {
   const routeType = String(raw.routeType ?? raw.route_type ?? 'pick_up').trim() || 'pick_up'
   const pickupPointIds = extractPickupPointIds(raw)
   const pickupPointLabels = extractPickupPointLabels(raw)
+  const pickupPointLabelById = extractPickupPointLabelById(raw)
+  const pickupPointCount = Math.max(
+    pickupPointIds.length,
+    pickupPointLabels.length,
+    extractPickupPointCount(raw),
+  )
 
   return {
     id: String(id),
@@ -143,9 +190,11 @@ export function mapTransportRouteRow(raw) {
     routeType,
     routeTypeLabel: ROUTE_TYPE_LABELS[routeType] || routeType,
     pickupPointIds,
+    pickupPointCount,
     vehicleLabel,
     driverLabel,
     pickupPointLabels,
+    pickupPointLabelById,
   }
 }
 
@@ -266,6 +315,33 @@ export async function fetchTransportRouteById(token, id) {
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg, route: null }
   }
+}
+
+/** Fill stop count/ids when the list endpoint omits pickup point fields. */
+export async function enrichRoutesWithPickupStops(token, routes) {
+  if (!token || !routes.length) return routes
+  const needsDetail = routes.filter((r) => !r.pickupPointIds?.length && !(r.pickupPointCount > 0))
+  if (!needsDetail.length) return routes
+
+  const detailResults = await Promise.all(
+    needsDetail.map((route) => fetchTransportRouteById(token, route.id)),
+  )
+  const fullById = new Map()
+  detailResults.forEach((res, index) => {
+    if (res.ok && res.route) fullById.set(needsDetail[index].id, res.route)
+  })
+
+  return routes.map((route) => {
+    const full = fullById.get(route.id)
+    if (!full) return route
+    return {
+      ...route,
+      pickupPointIds: full.pickupPointIds,
+      pickupPointLabels: full.pickupPointLabels,
+      pickupPointLabelById: full.pickupPointLabelById,
+      pickupPointCount: full.pickupPointCount,
+    }
+  })
 }
 
 /**

@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input'
 import { SearchableStageFilterSelect } from '../../components/SearchableStageSelect'
 import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { fetchTeacherLeads } from '../../api/leadsApi'
+import { ListPagination } from '../../components/ui/ListPagination'
 
 const PAGE_LIMIT = 20
 
@@ -73,10 +74,6 @@ export default function TeacherAssignedLeadsPage() {
       if (abortRef.current) abortRef.current.abort()
     }
   }, [])
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_LIMIT)), [total])
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
 
   return (
     <div className="space-y-6">
@@ -205,38 +202,22 @@ export default function TeacherAssignedLeadsPage() {
           </div>
         ) : null}
 
-        {total > PAGE_LIMIT ? (
-          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              Page {page} of {totalPages} · {total} total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasPrev || leads === null}
-                onClick={() => {
-                  setLeads(null)
-                  void load(page - 1, q, stage)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasNext || leads === null}
-                onClick={() => {
-                  setLeads(null)
-                  void load(page + 1, q, stage)
-                }}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {total > 0 ? (
+          <ListPagination
+            className="mt-4 rounded-b-xl"
+            page={page}
+            total={total}
+            pageSize={PAGE_LIMIT}
+            loading={leads === null}
+            onPrev={() => {
+              setLeads(null)
+              void load(page - 1, q, stage)
+            }}
+            onNext={() => {
+              setLeads(null)
+              void load(page + 1, q, stage)
+            }}
+          />
         ) : null}
       </Card>
     </div>

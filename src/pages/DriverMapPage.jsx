@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import {
   completeDriverTripStop,
+  endDriverTrip,
   fetchDriverMyTransportRoutes,
+  fetchDriverTransportRouteStop,
   fetchDriverTripProgress,
   markDriverTripStudentStatus,
+  patchDriverTripProgressStop,
   startDriverTrip,
+  formatStopAssignedStudentLabel,
+  stopAssignedStudentCount,
+  stopAssignedStudentNamesTitle,
 } from '../api/driversApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Modal } from '../components/Modal'
@@ -102,21 +108,205 @@ function enrichTripProgressWithRouteStops(progress, routeStops) {
   return { ...progress, currentStop, nextStop, stops }
 }
 
+function preferMergedStudentStatus(a, b) {
+  const ak = studentStatusKey(a)
+  const bk = studentStatusKey(b)
+  if (ak !== 'pending') return a
+  if (bk !== 'pending') return b
+  return a ?? b ?? 'pending'
+}
+
+function mergeStopStudentDetails(primary, fallback) {
+  if (!fallback) return primary
+  if (!primary) return fallback
+  const parentName =
+    primary.parentName && primary.parentName !== '—' ? primary.parentName : fallback.parentName
+  const parentPhone =
+    primary.parentPhone && primary.parentPhone !== '—' ? primary.parentPhone : fallback.parentPhone
+  return {
+    ...fallback,
+    ...primary,
+    name: primary.name || fallback.name,
+    parentName: parentName || '—',
+    parentPhone: parentPhone || '—',
+    status: preferMergedStudentStatus(primary.status, fallback.status),
+  }
+}
+
 function studentsAtStop(targetStop, routeStops) {
   if (!targetStop) return []
-  if (Array.isArray(targetStop.students) && targetStop.students.length) return targetStop.students
   const routeStop = (routeStops || []).find(
     (s) =>
       String(s.id) === String(targetStop.id) ||
       (s.location && targetStop.location && s.location === targetStop.location),
   )
+  if (Array.isArray(targetStop.students) && targetStop.students.length) {
+    const routeStudents = routeStop?.students ?? []
+    return targetStop.students.map((st, idx) => {
+      const match =
+        routeStudents.find(
+          (r) =>
+            String(r.id) === String(st.id) ||
+            (r.name && st.name && String(r.name).trim() === String(st.name).trim()),
+        ) ?? routeStudents[idx]
+      return mergeStopStudentDetails(st, match)
+    })
+  }
   if (routeStop?.students?.length) return routeStop.students
   const names = routeStop?.studentNames?.length ? routeStop.studentNames : []
   return names.map((name, idx) => ({
     id: `route-${routeStop?.id ?? idx}-s${idx}`,
     name,
+    parentName: '—',
+    parentPhone: '—',
     status: 'pending',
   }))
+}
+
+/** Pick-up: picked up or absent counts as done. Drop: dropped off or absent. */
+function isStudentHandledForRoute(status, routeType) {
+  const key = studentStatusKey(status)
+  const type = normalizeRouteType(routeType)
+  if (type === 'drop') return key === 'dropped_off' || key === 'absent'
+  return key === 'picked_up' || key === 'absent'
+}
+
+function allStudentsHandledAtStop(students, routeType) {
+  if (!Array.isArray(students) || students.length === 0) return false
+  return students.every((s) => isStudentHandledForRoute(s.status, routeType))
+}
+
+function primaryActionForRoute(routeType) {
+  const isDrop = normalizeRouteType(routeType) === 'drop'
+  return isDrop
+    ? { label: 'Dropped off', status: 'dropped_off' }
+    : { label: 'Picked up', status: 'picked_up' }
+}
+
+/** Same stop on route list vs trip progress (ids may differ). */
+function driverStopsMatchForMarking(a, b) {
+  if (!a || !b) return false
+  if (String(a.id) === String(b.id)) return true
+  const apiA = String(a.apiStopId ?? '').trim()
+  const apiB = String(b.apiStopId ?? '').trim()
+  if (apiA && apiB && apiA === apiB) return true
+  const orderA = Number(a.order)
+  const orderB = Number(b.order)
+  if (orderA > 0 && orderB > 0 && orderA === orderB) return true
+  const locA = String(a.location ?? '')
+    .trim()
+    .toLowerCase()
+  const locB = String(b.location ?? '')
+    .trim()
+    .toLowerCase()
+  return Boolean(locA && locB && locA === locB)
+}
+
+/** Table "detail" only — driver sees info, cannot mark here. */
+function DriverStopStudentDetailRow({ student }) {
+  const parentName = String(student.parentName ?? '').trim()
+  const parentPhone = String(student.parentPhone ?? '').trim()
+  const displayParentName = parentName && parentName !== '—' ? parentName : '—'
+  const displayParentPhone = parentPhone && parentPhone !== '—' ? parentPhone : '—'
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3">
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Student name</dt>
+          <dd className="mt-0.5 text-sm font-semibold text-slate-900">{student.name || '—'}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Parent name</dt>
+          <dd className="mt-0.5 text-sm text-slate-900">{displayParentName}</dd>
+        </div>
+        <div className="min-w-0 sm:col-span-2">
+          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Parent number</dt>
+          <dd className="mt-0.5 text-sm text-slate-900">
+            {displayParentPhone !== '—' ? (
+              <a
+                href={`tel:${displayParentPhone.replace(/\s/g, '')}`}
+                className="font-medium text-indigo-700 hover:underline"
+              >
+                {displayParentPhone}
+              </a>
+            ) : (
+              '—'
+            )}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
+function DriverStopStudentRow({ student, routeType, actionLoadingKey, onMark }) {
+  const handled = isStudentHandledForRoute(student.status, routeType)
+  const primary = primaryActionForRoute(routeType)
+  const rowLoading = Boolean(
+    actionLoadingKey &&
+      actionLoadingKey.startsWith('student:') &&
+      actionLoadingKey.includes(`:${student.id}:`),
+  )
+  const parentName = String(student.parentName ?? '').trim()
+  const parentPhone = String(student.parentPhone ?? '').trim()
+  const hasParent = parentName && parentName !== '—'
+  const hasPhone = parentPhone && parentPhone !== '—'
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-3 ${
+        handled ? 'border-emerald-200/90 bg-emerald-50/60' : 'border-slate-200 bg-slate-50/80'
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-slate-900">{student.name}</p>
+        {hasParent || hasPhone ? (
+          <p className="mt-1 text-xs text-slate-600">
+            {hasParent ? <span>{parentName}</span> : null}
+            {hasParent && hasPhone ? <span> · </span> : null}
+            {hasPhone ? (
+              <a href={`tel:${parentPhone.replace(/\s/g, '')}`} className="text-indigo-700 hover:underline">
+                {parentPhone}
+              </a>
+            ) : null}
+          </p>
+        ) : null}
+        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+          <span
+            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${STUDENT_STATUS_BADGE[studentStatusKey(student.status)]}`}
+          >
+            {studentStatusLabel(student.status)}
+          </span>
+        </p>
+      </div>
+      {onMark ? (
+        handled ? (
+          <p className="text-xs font-semibold text-emerald-800">Done for this stop</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={Boolean(actionLoadingKey)}
+              onClick={() => onMark(student.id, primary.status)}
+            >
+              {rowLoading ? 'Saving…' : primary.label}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={Boolean(actionLoadingKey)}
+              onClick={() => onMark(student.id, 'absent')}
+            >
+              Absent
+            </Button>
+          </div>
+        )
+      ) : null}
+    </div>
+  )
 }
 
 /**
@@ -147,6 +337,14 @@ export default function DriverMapPage() {
   const [tripId, setTripId] = useState('')
   const [actionLoadingKey, setActionLoadingKey] = useState('')
   const [viewStudentsOpen, setViewStudentsOpen] = useState(false)
+  /** 'mark' = Next stop View (pick up / absent). 'readonly' = table detail (info only). */
+  const [studentModalMode, setStudentModalMode] = useState('mark')
+  const [viewingStop, setViewingStop] = useState(null)
+  const [modalStopDetail, setModalStopDetail] = useState(null)
+  const [modalStopLoading, setModalStopLoading] = useState(false)
+  const [modalStopError, setModalStopError] = useState('')
+  const stopDetailRequestRef = useRef(0)
+  const autoCompletingRef = useRef(false)
 
   const loadRoutes = useCallback(async () => {
     if (!token) {
@@ -203,6 +401,143 @@ export default function DriverMapPage() {
     () => studentsAtStop(activeTargetStop, stops),
     [activeTargetStop, stops],
   )
+
+  const activeStopPendingCount = useMemo(() => {
+    if (!activeStopStudents.length) return 0
+    return activeStopStudents.filter((s) => !isStudentHandledForRoute(s.status, activeType)).length
+  }, [activeStopStudents, activeType])
+
+  const openStopModal = useCallback(
+    (stop, rowIndex, mode) => {
+      const routeId = String(activeRouteId ?? '').trim()
+      const stopId = String(
+        stop?.apiStopId ??
+          (stop?.order > 0 ? stop.order : '') ??
+          (rowIndex != null && rowIndex >= 0 ? rowIndex + 1 : '') ??
+          stop?.id ??
+          '',
+      ).trim()
+      setStudentModalMode(mode === 'readonly' ? 'readonly' : 'mark')
+      setViewingStop(stop ?? null)
+      setViewStudentsOpen(true)
+      setModalStopDetail(null)
+      setModalStopError('')
+
+      if (!token || !routeId || !stopId) return
+
+      const requestId = ++stopDetailRequestRef.current
+      setModalStopLoading(true)
+      void (async () => {
+        const res = await fetchDriverTransportRouteStop(token, routeId, stopId, {
+          routeType: activeRoute?.routeType ?? activeType,
+        })
+        if (requestId !== stopDetailRequestRef.current) return
+        setModalStopLoading(false)
+        if (res.ok && res.stop) {
+          setModalStopDetail(res.stop)
+          return
+        }
+        setModalStopError(res.error || 'Could not load students for this stop.')
+      })()
+    },
+    [token, activeRouteId, activeRoute?.routeType, activeType],
+  )
+
+  const openNextStopView = useCallback(() => {
+    openStopModal(activeTargetStop, undefined, 'mark')
+  }, [openStopModal, activeTargetStop])
+
+  const openTableStopDetail = useCallback(
+    (stop, rowIndex) => {
+      openStopModal(stop, rowIndex, 'readonly')
+    },
+    [openStopModal],
+  )
+
+  const closeStudentView = useCallback(() => {
+    stopDetailRequestRef.current += 1
+    setViewStudentsOpen(false)
+    setStudentModalMode('mark')
+    setViewingStop(null)
+    setModalStopDetail(null)
+    setModalStopLoading(false)
+    setModalStopError('')
+  }, [])
+
+  const modalStop = useMemo(() => {
+    if (!viewStudentsOpen) return null
+    const base = modalStopDetail || viewingStop || activeTargetStop
+    if (!base) return null
+    const tripStops = displayProgress?.stops
+    const tripMatch = Array.isArray(tripStops)
+      ? tripStops.find(
+          (s) =>
+            String(s.id) === String(base.id) ||
+            (s.location && base.location && s.location === base.location) ||
+            (base.order > 0 && s.order === base.order),
+        )
+      : null
+    if (!tripMatch) return base
+
+    const detailStudents = Array.isArray(base.students) ? base.students : []
+    const tripStudents = Array.isArray(tripMatch.students) ? tripMatch.students : []
+    if (!detailStudents.length) return { ...base, ...tripMatch }
+
+    const mergedStudents = detailStudents.map((detailSt, idx) => {
+      const tripSt =
+        tripStudents.find(
+          (t) =>
+            String(t.id) === String(detailSt.id) ||
+            (t.name &&
+              detailSt.name &&
+              String(t.name).trim().toLowerCase() === String(detailSt.name).trim().toLowerCase()),
+        ) ?? tripStudents[idx]
+      return tripSt ? mergeStopStudentDetails(tripSt, detailSt) : detailSt
+    })
+    return {
+      ...base,
+      ...tripMatch,
+      location: base.location || tripMatch.location,
+      students: mergedStudents,
+    }
+  }, [viewStudentsOpen, modalStopDetail, viewingStop, activeTargetStop, displayProgress])
+
+  const modalStudents = useMemo(() => {
+    const list = studentsAtStop(modalStop, stops)
+    const detailStudents = modalStopDetail?.students
+    if (!Array.isArray(detailStudents) || detailStudents.length === 0) return list
+    if (!list.length) return detailStudents
+    return detailStudents.map((detailSt, idx) => {
+      const live =
+        list.find(
+          (t) =>
+            String(t.id) === String(detailSt.id) ||
+            (t.name &&
+              detailSt.name &&
+              String(t.name).trim().toLowerCase() === String(detailSt.name).trim().toLowerCase()),
+        ) ?? list[idx]
+      return live ? mergeStopStudentDetails(live, detailSt) : detailSt
+    })
+  }, [modalStop, stops, modalStopDetail])
+
+  const modalStopPendingCount = useMemo(() => {
+    if (!modalStudents.length) return 0
+    return modalStudents.filter((s) => !isStudentHandledForRoute(s.status, activeType)).length
+  }, [modalStudents, activeType])
+
+  const tripActiveForMarking = Boolean(tripId && (trip?.active || gpsTripActive))
+
+  const canMarkStudentsInModal = Boolean(
+    studentModalMode === 'mark' &&
+      tripActiveForMarking &&
+      modalStop &&
+      activeTargetStop &&
+      driverStopsMatchForMarking(modalStop, activeTargetStop),
+  )
+
+  const isReadOnlyDetailModal = studentModalMode === 'readonly'
+
+  const markStopIdForApi = String(activeTargetStop?.id ?? modalStop?.id ?? '').trim()
 
   const persistBackendTrip = useCallback(
     (id, routeId) => {
@@ -274,45 +609,55 @@ export default function DriverMapPage() {
     toast.success('Trip route started. Move to current stop.')
   }, [activeRoute?.id, onStart, token, trip?.active, persistBackendTrip])
 
-  const onEndTrip = useCallback(() => {
+  const onEndTrip = useCallback(async () => {
+    const tid = String(tripId ?? '').trim()
+    if (token && tid) {
+      const res = await endDriverTrip(token, tid)
+      if (!res.ok && !res.skipped) {
+        toast.error(res.error || 'Could not end trip on server.')
+      }
+    }
     onStop()
     if (driverUserId) clearDriverBackendTrip(driverUserId)
     setTripId('')
     setTripProgress(null)
     setTripProgressError('')
-  }, [onStop, driverUserId])
+  }, [onStop, driverUserId, token, tripId])
 
-  const onMarkStudent = useCallback(
-    async (studentId, status) => {
-      if (!tripId || !activeTargetStop?.id) return
-      const key = `student:${activeTargetStop.id}:${studentId}:${status}`
-      setActionLoadingKey(key)
-      const res = await markDriverTripStudentStatus(token, {
-        tripId,
-        stopId: activeTargetStop.id,
-        studentId,
-        status,
-      })
+  const tryAutoCompleteStop = useCallback(
+    async (progressSnapshot, stopId) => {
+      const sid = String(stopId ?? '').trim()
+      if (!token || !tripId || !sid || autoCompletingRef.current) return
+
+      const enriched = enrichTripProgressWithRouteStops(progressSnapshot, stops)
+      const target =
+        enriched?.currentStop?.id === sid
+          ? enriched.currentStop
+          : enriched?.nextStop?.id === sid
+            ? enriched.nextStop
+            : enriched?.currentStop || enriched?.nextStop
+
+      if (!target?.id || target.done) return
+      const list = studentsAtStop(target, stops)
+      if (!allStudentsHandledAtStop(list, activeType)) return
+
+      autoCompletingRef.current = true
+      setActionLoadingKey('complete-stop')
+      const res = await completeDriverTripStop(token, { tripId, stopId: sid })
+      autoCompletingRef.current = false
       setActionLoadingKey('')
+
       if (!res.ok) {
-        toast.error(res.error || 'Could not update student status.')
+        const msg = String(res.error || '').toLowerCase()
+        if (msg.includes('already') || msg.includes('completed')) {
+          if (res.progress) setTripProgress(res.progress)
+          else await loadTripProgress(tripId)
+          return
+        }
+        toast.error(res.error || 'Could not move to the next stop.')
         return
       }
-      if (res.progress) setTripProgress(res.progress)
-      else await loadTripProgress(tripId)
-    },
-    [token, tripId, activeTargetStop?.id, loadTripProgress],
-  )
 
-  const onCompleteCurrentStop = useCallback(async () => {
-    if (!tripId || !activeTargetStop?.id) return
-    setActionLoadingKey('complete-stop')
-    const res = await completeDriverTripStop(token, { tripId, stopId: activeTargetStop.id })
-    setActionLoadingKey('')
-    if (!res.ok) {
-      toast.error(res.error || 'Could not mark stop complete.')
-      return
-    }
       if (res.progress) {
         setTripProgress(res.progress)
         const resolvedId = String(res.progress?.tripId || tripId)
@@ -321,8 +666,90 @@ export default function DriverMapPage() {
       } else {
         await loadTripProgress(tripId)
       }
-    toast.success('Stop marked done. Next stop loaded.')
-  }, [token, tripId, activeTargetStop?.id, loadTripProgress, persistBackendTrip, activeRouteId])
+      toast.success('All students done — moving to the next stop.')
+    },
+    [token, tripId, stops, activeType, loadTripProgress, persistBackendTrip, activeRouteId],
+  )
+
+  const onMarkStudent = useCallback(
+    async (studentId, status) => {
+      if (!tripId || !markStopIdForApi || !canMarkStudentsInModal) return
+      const stopId = markStopIdForApi
+      const key = `student:${stopId}:${studentId}:${status}`
+      setActionLoadingKey(key)
+      const res = await markDriverTripStudentStatus(token, {
+        tripId,
+        stopId,
+        studentId,
+        status,
+      })
+      setActionLoadingKey('')
+      if (!res.ok) {
+        toast.error(res.error || 'Could not update student status.')
+        return
+      }
+      const markedStatus = res.markedStatus ?? status
+      setModalStopDetail((prev) => {
+        if (!prev?.students?.length) return prev
+        return {
+          ...prev,
+          students: prev.students.map((s) => {
+            const tripMatch = res.stopUpdate?.students?.find(
+              (t) =>
+                String(t.id) === String(s.id) ||
+                (t.name &&
+                  s.name &&
+                  String(t.name).trim().toLowerCase() === String(s.name).trim().toLowerCase()),
+            )
+            if (String(s.id) === String(studentId)) {
+              return { ...s, status: markedStatus }
+            }
+            if (tripMatch) {
+              return mergeStopStudentDetails(tripMatch, s)
+            }
+            return s
+          }),
+        }
+      })
+      let progressForCheck = res.progress || null
+      if (!progressForCheck) {
+        const freshRes = await fetchDriverTripProgress(token, tripId)
+        if (freshRes.ok && freshRes.progress) {
+          progressForCheck = freshRes.progress
+        }
+      }
+      if (progressForCheck && res.stopUpdate) {
+        progressForCheck = patchDriverTripProgressStop(progressForCheck, res.stopUpdate)
+      } else if (!progressForCheck && res.stopUpdate) {
+        setTripProgress((prev) =>
+          prev ? patchDriverTripProgressStop(prev, res.stopUpdate) : null,
+        )
+      }
+      if (progressForCheck) {
+        setTripProgress(progressForCheck)
+        const enriched = enrichTripProgressWithRouteStops(progressForCheck, stops)
+        const target = enriched?.currentStop || enriched?.nextStop
+        const list = studentsAtStop(target, stops)
+        if (allStudentsHandledAtStop(list, activeType)) {
+          closeStudentView()
+        }
+        await tryAutoCompleteStop(progressForCheck, stopId)
+      } else if (!res.stopUpdate) {
+        await loadTripProgress(tripId)
+      }
+    },
+    [
+      token,
+      tripId,
+      markStopIdForApi,
+      canMarkStudentsInModal,
+      stops,
+      activeType,
+      loadTripProgress,
+      tryAutoCompleteStop,
+      closeStudentView,
+    ],
+  )
 
   return (
     <div className="space-y-6">
@@ -400,8 +827,18 @@ export default function DriverMapPage() {
                     : 'Start trip to see next stop'}
                 </p>
                 {tripId || tripProgressLoading ? (
-                  <p className="mt-2 text-sm font-medium text-indigo-800">
-                    Students at this stop: {activeStopStudents.length}
+                  <p className="mt-2 text-sm text-indigo-900/90">
+                    {activeStopStudents.length === 0
+                      ? 'Open View to see students for this stop.'
+                      : activeStopPendingCount === 0
+                        ? 'All students marked — moving to the next stop…'
+                        : `${activeStopStudents.length} student${activeStopStudents.length === 1 ? '' : 's'} · ${activeStopPendingCount} still to mark`}
+                  </p>
+                ) : null}
+                {tripId || tripProgressLoading ? (
+                  <p className="mt-1 text-xs text-slate-600">
+                    Use View to mark each student picked up or absent. The stop finishes on its own when
+                    everyone is done.
                   </p>
                 ) : null}
               </div>
@@ -415,19 +852,11 @@ export default function DriverMapPage() {
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => void onCompleteCurrentStop()}
-                    disabled={!activeTargetStop?.id || actionLoadingKey === 'complete-stop'}
-                  >
-                    {actionLoadingKey === 'complete-stop' ? 'Completing…' : 'Mark as done'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
                     variant="secondary"
-                    onClick={() => setViewStudentsOpen(true)}
+                    onClick={() => openNextStopView()}
                     disabled={!activeTargetStop?.id || activeStopStudents.length === 0}
                   >
-                    View
+                    {actionLoadingKey === 'complete-stop' ? 'Updating stop…' : 'View'}
                   </Button>
                 </div>
               ) : null}
@@ -496,24 +925,38 @@ export default function DriverMapPage() {
                     <table className="app-data-table">
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                          <th className="px-3 py-2">#</th>
+                          <th className="w-14 px-3 py-2 text-center">Sr. no</th>
                           <th className="px-3 py-2">Location</th>
-                          <th className="px-3 py-2">Student</th>
+                          <th className="px-3 py-2">Students</th>
                           <th className="px-3 py-2">{activeType === 'pick_up' ? 'Pick up' : 'Drop'}</th>
+                          <th className="px-3 py-2 text-right">View</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {stops.map((s, idx) => (
                           <tr key={`${s.id}-${idx}`}>
-                            <td className="px-3 py-2 text-slate-700">{idx + 1}</td>
+                            <td className="px-3 py-2 text-center tabular-nums text-slate-600">{idx + 1}</td>
                             <td className="px-3 py-2 font-medium text-slate-900">{s.location}</td>
                             <td className="px-3 py-2 text-slate-700">
-                              <p>{s.studentName}</p>
-                              {Array.isArray(s.studentNames) && s.studentNames.length > 1 ? (
-                                <p className="text-xs text-slate-500">{s.studentNames.join(', ')}</p>
-                              ) : null}
+                              <span
+                                className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-800"
+                                title={stopAssignedStudentNamesTitle(s) || undefined}
+                              >
+                                {formatStopAssignedStudentLabel(s)}
+                              </span>
                             </td>
                             <td className="px-3 py-2 text-slate-700">{s.timeForType}</td>
+                            <td className="px-3 py-2 text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                disabled={stopAssignedStudentCount(s) === 0}
+                                onClick={() => openTableStopDetail(s, idx)}
+                              >
+                                detail
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -557,70 +1000,84 @@ export default function DriverMapPage() {
 
       <Modal
         open={viewStudentsOpen}
-        onClose={() => setViewStudentsOpen(false)}
-        title={activeTargetStop?.location ? `Students — ${activeTargetStop.location}` : 'Students'}
-        size="lg"
-        hideCloseButton
-        closeOnBackdrop={false}
-        footer={
-          <Button type="button" size="sm" onClick={() => setViewStudentsOpen(false)}>
-            Done
-          </Button>
+        onClose={closeStudentView}
+        title={
+          isReadOnlyDetailModal
+            ? modalStop?.location
+              ? `Stop detail — ${modalStop.location}`
+              : 'Stop detail'
+            : modalStop?.location
+              ? `Students — ${modalStop.location}`
+              : 'Students'
         }
+        size="lg"
       >
-        {activeStopStudents.length === 0 ? (
+        {modalStopLoading ? (
+          <p className="text-sm text-slate-600">Loading students…</p>
+        ) : null}
+        {!modalStopLoading && modalStopError ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {modalStopError}
+            {modalStudents.length > 0
+              ? ' Showing students from the route list below.'
+              : ''}
+          </p>
+        ) : null}
+        {!modalStopLoading && modalStudents.length === 0 ? (
           <p className="text-sm text-slate-600">No students at this stop.</p>
-        ) : (
-          <div className="space-y-2">
-            {activeStopStudents.map((student) => (
-              <div
-                key={student.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{student.name}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                    <span>Status:</span>
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${STUDENT_STATUS_BADGE[studentStatusKey(student.status)]}`}
-                    >
-                      {studentStatusLabel(student.status)}
-                    </span>
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={Boolean(actionLoadingKey)}
-                    onClick={() => void onMarkStudent(student.id, 'picked_up')}
-                  >
-                    Pick up
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={Boolean(actionLoadingKey)}
-                    onClick={() => void onMarkStudent(student.id, 'dropped_off')}
-                  >
-                    Drop
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={Boolean(actionLoadingKey)}
-                    onClick={() => void onMarkStudent(student.id, 'absent')}
-                  >
-                    Absent
-                  </Button>
-                </div>
-              </div>
-            ))}
+        ) : null}
+        {!modalStopLoading && modalStudents.length > 0 ? (
+          <div className="space-y-4">
+            {isReadOnlyDetailModal ? (
+              <p className="text-sm text-slate-600">
+                View only — student name, parent name, and parent number. To mark students, use{' '}
+                <span className="font-semibold">View</span> in the Next stop box above.
+              </p>
+            ) : canMarkStudentsInModal ? (
+              <p className="text-sm text-slate-600">
+                {normalizeRouteType(activeType) === 'drop'
+                  ? 'Mark each student dropped off or absent. When everyone is marked, this stop closes and the next one opens.'
+                  : 'Mark each student picked up or absent. When everyone is marked, this stop closes and the next one opens.'}
+              </p>
+            ) : (
+              <p className="text-sm text-slate-600">
+                {tripId
+                  ? 'Start marking at the current stop shown in Next stop.'
+                  : 'Start the trip, then use View on the current stop to mark pickup or drop-off.'}
+              </p>
+            )}
+            {!isReadOnlyDetailModal && canMarkStudentsInModal ? (
+              <p className="text-xs font-semibold text-indigo-800">
+                {modalStudents.length - modalStopPendingCount} of {modalStudents.length} students marked
+                {modalStopPendingCount === 0 ? ' — finishing this stop…' : ''}
+              </p>
+            ) : null}
+            {!isReadOnlyDetailModal && !canMarkStudentsInModal ? (
+              <p className="text-xs font-semibold text-slate-600">
+                {formatStopAssignedStudentLabel(modalStop)} assigned
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              {modalStudents.map((student) =>
+                isReadOnlyDetailModal ? (
+                  <DriverStopStudentDetailRow key={student.id} student={student} />
+                ) : (
+                  <DriverStopStudentRow
+                    key={student.id}
+                    student={student}
+                    routeType={activeType}
+                    actionLoadingKey={canMarkStudentsInModal ? actionLoadingKey : null}
+                    onMark={
+                      canMarkStudentsInModal
+                        ? (id, status) => void onMarkStudent(id, status)
+                        : null
+                    }
+                  />
+                ),
+              )}
+            </div>
           </div>
-        )}
+        ) : null}
       </Modal>
     </div>
   )

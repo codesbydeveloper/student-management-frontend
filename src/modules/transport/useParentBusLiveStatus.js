@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchParentMyBusLive, fetchParentMyPickupPoints } from '../../api/parentsApi'
 
-/** Only my-bus-live is polled — pickup points do not change during a trip. */
-const LIVE_POLL_MS = 30_000
+/** Poll my-bus-live during a trip so pickup status reaches parents quickly. */
+const LIVE_POLL_MS = 15_000
 
 /**
  * Pick-up points: once per page visit.

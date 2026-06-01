@@ -20,6 +20,8 @@ export function NotificationTable({
   showReadReportColumn = false,
   onReadReport,
   readReportDisabled = false,
+  showSubmittedByColumn = false,
+  emptyMessage,
 }) {
   const { classes, students } = useAppData()
   const [internalQuery, setInternalQuery] = useState('')
@@ -66,6 +68,11 @@ export function NotificationTable({
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Target</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Submitted</th>
+                {showSubmittedByColumn ? (
+                  <th className="min-w-[8rem] px-4 py-3 text-xs font-bold uppercase tracking-wider">
+                    Submitted by
+                  </th>
+                ) : null}
                 {showViewColumn ? (
                   <th className="min-w-[5.5rem] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
                     View
@@ -82,10 +89,15 @@ export function NotificationTable({
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5 + (showViewColumn ? 1 : 0) + (showReadReportColumn ? 1 : 0)}
+                    colSpan={
+                      5 +
+                      (showSubmittedByColumn ? 1 : 0) +
+                      (showViewColumn ? 1 : 0) +
+                      (showReadReportColumn ? 1 : 0)
+                    }
                     className="px-4 py-12 text-center text-sm font-medium text-slate-500"
                   >
-                    No notifications yet. Create one to see it here.
+                    {emptyMessage || 'No notifications yet. Create one to see it here.'}
                   </td>
                 </tr>
               ) : (
@@ -111,6 +123,11 @@ export function NotificationTable({
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                       {notificationDisplayTime(n.submittedAtDisplay, n.createdAt)}
                     </td>
+                    {showSubmittedByColumn ? (
+                      <td className="max-w-[10rem] px-4 py-3 text-sm text-slate-700">
+                        {n.createdByName && n.createdByName !== '—' ? n.createdByName : '—'}
+                      </td>
+                    ) : null}
                     {showViewColumn ? (
                       <td className="min-w-[5.5rem] whitespace-nowrap px-4 py-3 text-center align-middle">
                         <Button

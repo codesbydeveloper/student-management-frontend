@@ -15,6 +15,7 @@ import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { createLead, fetchLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
 import { fetchTeachersPicker } from '../../api/teachersApi'
+import { ListPagination } from '../../components/ui/ListPagination'
 
 const PAGE_LIMIT = 10
 
@@ -177,10 +178,6 @@ export default function AdminLeadsPage() {
       setSubmitting(false)
     }
   }
-
-  const totalPages = total > 0 ? Math.max(1, Math.ceil(total / PAGE_LIMIT)) : 1
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
 
   return (
     <div className="space-y-6">
@@ -361,38 +358,22 @@ export default function AdminLeadsPage() {
           </div>
         ) : null}
 
-        {totalPages > 1 ? (
-          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              Page {page} of {totalPages} · {total} total
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasPrev || leads === null}
-                onClick={() => {
-                  setLeads(null)
-                  void load(page - 1, q, stageFilter)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!hasNext || leads === null}
-                onClick={() => {
-                  setLeads(null)
-                  void load(page + 1, q, stageFilter)
-                }}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {total > 0 ? (
+          <ListPagination
+            className="mt-4 rounded-b-xl"
+            page={page}
+            total={total}
+            pageSize={PAGE_LIMIT}
+            loading={leads === null}
+            onPrev={() => {
+              setLeads(null)
+              void load(page - 1, q, stageFilter)
+            }}
+            onNext={() => {
+              setLeads(null)
+              void load(page + 1, q, stageFilter)
+            }}
+          />
         ) : null}
       </Card>
     </div>

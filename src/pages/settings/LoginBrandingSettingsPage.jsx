@@ -198,7 +198,7 @@ export default function LoginBrandingSettingsPage() {
       <Card>
         <CardHeader
           title="Login page appearance"
-          subtitle="Choosing a file uploads it to POST /api/login-appearance/logo (Bearer) and refreshes the preview from the server. Title and subtitle still use Save. Without a session, file choice is preview-only in this browser."
+            
         />
         <div className="space-y-6">
           <div>

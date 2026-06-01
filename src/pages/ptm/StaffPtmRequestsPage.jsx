@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
+import { ListPagination } from '../../components/ui/ListPagination'
 import { Button } from '../../components/ui/Button'
 import { PtmRequestDetailModal } from '../../components/ptm/PtmRequestDetailModal'
 import { PtmRequestsTable } from '../../components/ptm/PtmRequestsTable'
@@ -205,33 +206,15 @@ export default function StaffPtmRequestsPage() {
           </div>
         ) : null}
 
-        {apiRows !== null && meta.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 text-sm text-slate-600 sm:px-6">
-            <span>
-              Page {page} of {meta.totalPages}
-              {meta.total ? ` · ${meta.total} total` : null}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!meta.hasPrevPage}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!meta.hasNextPage}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {apiRows !== null && meta.total > 0 ? (
+          <ListPagination
+            page={page}
+            total={meta.total}
+            pageSize={PAGE_LIMIT}
+            hasNext={meta.hasNextPage}
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         ) : null}
       </Card>
 

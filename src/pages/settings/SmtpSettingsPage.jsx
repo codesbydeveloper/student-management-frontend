@@ -122,7 +122,7 @@ export default function SmtpSettingsPage() {
       <Card>
         <CardHeader
           title="Email (SMTP)"
-          subtitle="Outgoing mail for school notifications. Use a Gmail app password or your provider’s SMTP credentials."
+          
         />
 
         {loading ? (
@@ -200,9 +200,7 @@ export default function SmtpSettingsPage() {
 
             <div className="border-t border-slate-200/90 pt-6">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Test delivery</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Save SMTP settings first, then send a test email to see if mail goes through.
-              </p>
+            
               <div className="mt-3">
                 <Label variant="compact" htmlFor="smtp-test-to" required>
                   Send test to

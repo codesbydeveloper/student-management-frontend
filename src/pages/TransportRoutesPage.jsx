@@ -8,6 +8,7 @@ import { fetchPickupPointsPicker } from '../api/pickupPointsApi'
 import {
   createTransportRoute,
   deleteTransportRoute,
+  enrichRoutesWithPickupStops,
   fetchTransportRouteById,
   fetchTransportRoutesList,
   updateTransportRoute,
@@ -30,15 +31,62 @@ const PAGE_LIMIT = 10
 
 function pickupLabelsFromRoute(route) {
   if (route.pickupPointLabels?.length) return route.pickupPointLabels
+  if (route.pickupPointLabelById && route.pickupPointIds?.length) {
+    return route.pickupPointIds
+      .map((id) => route.pickupPointLabelById[id])
+      .filter(Boolean)
+  }
   return []
 }
 
-function buildPickupLabelMap(ids, labels) {
-  const map = {}
+function routePickupPointCount(route) {
+  if (route.pickupPointCount != null && route.pickupPointCount > 0) return route.pickupPointCount
+  if (route.pickupPointIds?.length) return route.pickupPointIds.length
+  return pickupLabelsFromRoute(route).length
+}
+
+function routePickupPointsSummary(route) {
+  const count = routePickupPointCount(route)
+  if (!count) return null
+  const labels = pickupLabelsFromRoute(route)
+  const countText = `${count} stop${count === 1 ? '' : 's'}`
+  if (!labels.length) return { countText, title: `${count} pick up point${count === 1 ? '' : 's'} on this route` }
+  const title = labels.join(', ')
+  if (labels.length <= 2) return { countText, detail: labels.join(', '), title }
+  return {
+    countText,
+    detail: `${labels.slice(0, 2).join(', ')} +${labels.length - 2} more`,
+    title,
+  }
+}
+
+function buildPickupLabelMap(ids, labels, labelById = {}) {
+  const map = { ...labelById }
   ids.forEach((id, i) => {
-    if (labels[i]) map[id] = labels[i]
+    if (labels[i] && !map[id]) map[id] = labels[i]
+    if (labelById[id]) map[id] = labelById[id]
   })
   return map
+}
+
+function mergePickupOptionsWithIds(options, ids, labels) {
+  const byId = new Map(options.map((o) => [o.value, o]))
+  ids.forEach((id) => {
+    const name = labels[id]
+    const existing = byId.get(id)
+    if (existing) {
+      if (name && (!existing.label || /^Pick up point #\d+$/i.test(existing.label))) {
+        byId.set(id, { ...existing, label: name, locationName: name })
+      }
+      return
+    }
+    if (name) {
+      byId.set(id, { value: id, label: name, locationName: name })
+    } else {
+      byId.set(id, { value: id, label: `Pick up point #${id}` })
+    }
+  })
+  return [...byId.values()]
 }
 
 /**
@@ -211,15 +259,17 @@ export default function TransportRoutesPage() {
     setListLoading(true)
     setListError(null)
     const res = await fetchTransportRoutesList(token, { page, limit: PAGE_LIMIT })
-    setListLoading(false)
     if (!res.ok) {
+      setListLoading(false)
       setRoutes([])
       setTotal(0)
       setHasNext(false)
       setListError(res.error || 'Could not load routes.')
       return
     }
-    setRoutes(res.routes)
+    const routesWithStops = await enrichRoutesWithPickupStops(token, res.routes)
+    setListLoading(false)
+    setRoutes(routesWithStops)
     setTotal(res.total)
     setHasNext(res.hasNextPage)
     setPage(res.page)
@@ -260,31 +310,15 @@ export default function TransportRoutesPage() {
     [drivers],
   )
 
-  const mergedPickupPointOptions = useMemo(() => {
-    const byId = new Map(pickupPointOptions.map((o) => [o.value, o]))
-    pickupPointIds.forEach((id) => {
-      if (!byId.has(id)) {
-        byId.set(id, {
-          value: id,
-          label: pickupPointLabels[id] || `Pick up point #${id}`,
-        })
-      }
-    })
-    return [...byId.values()]
-  }, [pickupPointOptions, pickupPointIds, pickupPointLabels])
+  const mergedPickupPointOptions = useMemo(
+    () => mergePickupOptionsWithIds(pickupPointOptions, pickupPointIds, pickupPointLabels),
+    [pickupPointOptions, pickupPointIds, pickupPointLabels],
+  )
 
-  const mergedEditPickupPointOptions = useMemo(() => {
-    const byId = new Map(editPickupPointOptions.map((o) => [o.value, o]))
-    editPickupPointIds.forEach((id) => {
-      if (!byId.has(id)) {
-        byId.set(id, {
-          value: id,
-          label: editPickupPointLabels[id] || `Pick up point #${id}`,
-        })
-      }
-    })
-    return [...byId.values()]
-  }, [editPickupPointOptions, editPickupPointIds, editPickupPointLabels])
+  const mergedEditPickupPointOptions = useMemo(
+    () => mergePickupOptionsWithIds(editPickupPointOptions, editPickupPointIds, editPickupPointLabels),
+    [editPickupPointOptions, editPickupPointIds, editPickupPointLabels],
+  )
 
   const syncPickupLabels = useCallback((ids, options, setLabels) => {
     setLabels((prev) => {
@@ -391,13 +425,14 @@ export default function TransportRoutesPage() {
     setEditDriverUserId(route.driverUserId || '')
     setEditPickupPointIds(route.pickupPointIds || [])
     setEditRouteType(route.routeType || 'pick_up')
-    const labels = buildPickupLabelMap(route.pickupPointIds, route.pickupPointLabels)
-    setEditPickupPointLabels(labels)
-    setEditPickupPointOptions(
-      (route.pickupPointIds || []).map((id) => ({
-        value: id,
-        label: labels[id] || `Pick up point #${id}`,
-      })),
+    const labels = buildPickupLabelMap(
+      route.pickupPointIds,
+      route.pickupPointLabels,
+      route.pickupPointLabelById || {},
+    )
+    setEditPickupPointLabels((prev) => ({ ...prev, ...labels }))
+    setEditPickupPointOptions((prev) =>
+      mergePickupOptionsWithIds(prev, route.pickupPointIds || [], { ...labels }),
     )
   }
 
@@ -407,12 +442,15 @@ export default function TransportRoutesPage() {
     setEditId(row.id)
     applyRouteToEditForm(row)
     setEditLoading(true)
-    const res = await fetchTransportRouteById(token, row.id)
+    const [routeRes] = await Promise.all([
+      fetchTransportRouteById(token, row.id),
+      loadPickupPointsPicker('', { forEdit: true }),
+    ])
     setEditLoading(false)
-    if (res.ok && res.route) {
-      applyRouteToEditForm(res.route)
-    } else if (!res.ok) {
-      toast.error(res.error || 'Could not load route.')
+    if (routeRes.ok && routeRes.route) {
+      applyRouteToEditForm(routeRes.route)
+    } else if (!routeRes.ok) {
+      toast.error(routeRes.error || 'Could not load route.')
     }
   }
 
@@ -567,6 +605,7 @@ export default function TransportRoutesPage() {
               <PickupPointsRouteField
                 id="route-pickup-points"
                 options={mergedPickupPointOptions}
+                pointLabels={pickupPointLabels}
                 value={pickupPointIds}
                 onChange={onPickupPointIdsChange}
                 routeType={routeType}
@@ -591,7 +630,7 @@ export default function TransportRoutesPage() {
               {creating ? 'Saving…' : 'Add route'}
             </Button>
             <Button type="button" variant="secondary" onClick={resetForm} disabled={formDisabled}>
-              Clear form
+              Cancel
             </Button>
           </div>
         </form>
@@ -634,6 +673,7 @@ export default function TransportRoutesPage() {
                 <table className="app-data-table">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
+                      <th className="w-14 px-4 py-3 text-center">Sr. no</th>
                       <th className="px-4 py-3">Route name</th>
                       <th className="px-4 py-3">Vehicle</th>
                       <th className="px-4 py-3">Driver</th>
@@ -643,8 +683,11 @@ export default function TransportRoutesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {routes.map((row) => (
+                    {routes.map((row, idx) => (
                       <tr key={row.id} className="text-slate-800">
+                        <td className="px-4 py-3 text-center tabular-nums text-slate-600">
+                          {(page - 1) * PAGE_LIMIT + idx + 1}
+                        </td>
                         <td className="px-4 py-3 font-medium">{row.routeName}</td>
                         <td className="px-4 py-3">{row.vehicleLabel}</td>
                         <td className="px-4 py-3">{row.driverLabel}</td>
@@ -654,7 +697,22 @@ export default function TransportRoutesPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-600">
-                          {pickupLabelsFromRoute(row).join(', ') || '—'}
+                          {(() => {
+                            const summary = routePickupPointsSummary(row)
+                            if (!summary) return '—'
+                            return (
+                              <span title={summary.title}>
+                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-800">
+                                  {summary.countText}
+                                </span>
+                                {summary.detail ? (
+                                  <span className="mt-1 block max-w-[14rem] truncate text-xs text-slate-500">
+                                    {summary.detail}
+                                  </span>
+                                ) : null}
+                              </span>
+                            )
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-wrap justify-end gap-2">
@@ -712,11 +770,35 @@ export default function TransportRoutesPage() {
             aria-modal="true"
             aria-labelledby="edit-route-title"
           >
-            <h2 id="edit-route-title" className="text-lg font-bold text-slate-900">
-              Edit route
-            </h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="edit-route-title" className="text-lg font-bold text-slate-900">
+                Edit route
+              </h2>
+              <button
+                type="button"
+                aria-label="Close edit dialog"
+                className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={editSaving}
+                onClick={closeEdit}
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
             {editLoading ? (
-              <p className="mt-4 text-sm text-slate-500">Loading route details…</p>
+              <>
+                <p className="mt-4 text-sm text-slate-500">Loading route details…</p>
+                <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-100 pt-4">
+                  <Button type="button" variant="secondary" onClick={closeEdit}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
             ) : (
               <form onSubmit={onSaveEdit} className="mt-4 space-y-4">
                 <div>
@@ -780,6 +862,7 @@ export default function TransportRoutesPage() {
                   <PickupPointsRouteField
                     id="edit-route-pickup-points"
                     options={mergedEditPickupPointOptions}
+                    pointLabels={editPickupPointLabels}
                     value={editPickupPointIds}
                     onChange={onEditPickupPointIdsChange}
                     routeType={editRouteType}

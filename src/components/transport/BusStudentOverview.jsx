@@ -17,6 +17,7 @@ import {
   downloadBusAssignmentsCsv,
 } from '../../utils/busAssignmentExport'
 import { Card, CardHeader } from '../ui/Card'
+import { ListPagination } from '../ui/ListPagination'
 import { Button } from '../ui/Button'
 import { Label } from '../ui/Label'
 import { Select } from '../ui/Select'
@@ -485,32 +486,17 @@ export function BusStudentOverview({
             </div>
 
             {summaryMeta.total > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-                <span>
-                  Page {summaryPage} of {Math.max(1, summaryMeta.totalPages || 1)} · {summaryMeta.total}{' '}
-                  total
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={!summaryMeta.hasPrevPage || summaryLoading}
-                    onClick={() => setSummaryPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={!summaryMeta.hasNextPage || summaryLoading}
-                    onClick={() => setSummaryPage((p) => p + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <ListPagination
+                className="mt-2 rounded-b-xl"
+                page={summaryPage}
+                totalPages={Math.max(1, summaryMeta.totalPages || 1)}
+                total={summaryMeta.total}
+                pageSize={SUMMARY_PAGE_SIZE}
+                hasNext={summaryMeta.hasNextPage}
+                loading={summaryLoading}
+                onPrev={() => setSummaryPage((p) => Math.max(1, p - 1))}
+                onNext={() => setSummaryPage((p) => p + 1)}
+              />
             ) : null}
           </div>
         )}

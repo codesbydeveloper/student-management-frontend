@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
-import { fetchTeacherNotificationsMine } from '../api/notificationsApi'
+import {
+  fetchTeacherNotificationsAll,
+  fetchTeacherNotificationsMine,
+} from '../api/notificationsApi'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -10,14 +12,18 @@ import { NotificationTable } from '../components/notifications/NotificationTable
 import { ParentMessageDetailModal } from '../components/parent/ParentMessageDetailModal'
 import { NotificationReadReportModal } from '../components/notifications/NotificationReadReportModal'
 import { DateRangeSelect } from '../components/ui/DateRangeSelect'
+import { ListPagination } from '../components/ui/ListPagination'
 import { useNotificationDetailViewer } from '../hooks/useNotificationDetailViewer'
 import { ROLES } from '../utils/constants'
 
 const MINE_PAGE_LIMIT = 10
 
+/** @typedef {'mine' | 'all'} TeacherNotificationScope */
+
 export default function NotificationsPage() {
   const { token, user } = useAuth()
 
+  const [listScope, setListScope] = useState(/** @type {TeacherNotificationScope} */ ('mine'))
   const [page, setPage] = useState(1)
   const [dateRange, setDateRange] = useState('all')
   const [total, setTotal] = useState(0)
@@ -46,11 +52,18 @@ export default function NotificationsPage() {
       return
     }
     setLoading(true)
-    const res = await fetchTeacherNotificationsMine(token, {
-      page,
-      limit: MINE_PAGE_LIMIT,
-      dateRange,
-    })
+    const res =
+      listScope === 'all'
+        ? await fetchTeacherNotificationsAll(token, {
+            page,
+            limit: MINE_PAGE_LIMIT,
+            dateRange,
+          })
+        : await fetchTeacherNotificationsMine(token, {
+            page,
+            limit: MINE_PAGE_LIMIT,
+            dateRange,
+          })
     setLoading(false)
     if (res.ok) {
       setServerRows(res.notifications)
@@ -64,7 +77,7 @@ export default function NotificationsPage() {
     if (!res.useClient) {
       toast.error(res.error)
     }
-  }, [token, user?.role, page, dateRange])
+  }, [token, user?.role, page, dateRange, listScope])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -77,15 +90,51 @@ export default function NotificationsPage() {
     Boolean(token && user?.role === ROLES.TEACHER) && loading && !serverOk
   const rows = awaitingFirstTeacherFetch ? [] : serverOk ? serverRows : []
 
-  const totalPages = Math.max(1, Math.ceil(total / MINE_PAGE_LIMIT))
-  const canPrev = page > 1
-  const canNext = page < totalPages
+  const emptyMessage =
+    listScope === 'all'
+      ? 'No school notices to show for this period.'
+      : 'You have not submitted any notices yet. Use Create notice to send one.'
 
   return (
     <div className="space-y-6">
       <Card>
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="shrink-0 text-lg font-semibold text-slate-900">Notifications</h2>
+        <div className="mb-5 flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="shrink-0 text-lg font-semibold text-slate-900">Notifications</h2>
+            {token && user?.role === ROLES.TEACHER ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={listScope === 'mine' ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    setListScope('mine')
+                    setPage(1)
+                  }}
+                >
+                  My notifications
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={listScope === 'all' ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    setListScope('all')
+                    setPage(1)
+                  }}
+                >
+                  All notifications
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          <p className="text-sm text-slate-600">
+            {listScope === 'mine'
+              ? 'Notices you created and their approval status.'
+              : 'All school notices you can view, including ones from other staff.'}
+          </p>
+
           {token && user?.role === ROLES.TEACHER ? (
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 lg:gap-3">
               <Input
@@ -142,36 +191,20 @@ export default function NotificationsPage() {
               onReadReport={(n) =>
                 setReadReport({ open: true, id: n.id, title: n.title || '' })
               }
+              showSubmittedByColumn={listScope === 'all'}
+              emptyMessage={emptyMessage}
             />
-            {serverOk && total > MINE_PAGE_LIMIT ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-4 text-sm text-slate-600">
-                <span className="font-medium">
-                  Showing {(page - 1) * MINE_PAGE_LIMIT + 1}–{Math.min(page * MINE_PAGE_LIMIT, total)} of {total}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={!canPrev || loading}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                    {page} / {totalPages}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={!canNext || loading}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+            {serverOk && total > 0 ? (
+              <ListPagination
+                className="mt-0 rounded-b-xl"
+                page={page}
+                total={total}
+                pageSize={MINE_PAGE_LIMIT}
+                loading={loading}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => p + 1)}
+                emptyLabel="No notifications on this page."
+              />
             ) : null}
           </>
         )}
@@ -183,7 +216,7 @@ export default function NotificationsPage() {
         loading={viewLoading}
         error={viewError}
         item={viewDetail}
-        modalTitle="Your notice"
+        modalTitle={listScope === 'mine' ? 'Your notice' : 'Notice details'}
       />
 
       <NotificationReadReportModal
