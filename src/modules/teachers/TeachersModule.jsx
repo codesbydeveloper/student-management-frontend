@@ -1009,7 +1009,7 @@ export function TeachersModule() {
           title="Teachers"
           subtitle={
             manage
-              ? ''
+              ? 'View and manage all teachers in your school.'
               : 'School staff directory — browse all teachers; editing is limited to admin or principal.'
           }
           action={

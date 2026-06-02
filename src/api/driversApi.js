@@ -118,13 +118,22 @@ function extractPickerDriversList(data) {
   return []
 }
 
+function resolvePickerAssetUrl(value) {
+  const s = String(value ?? '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  if (s.startsWith('/')) return `${API_BASE_URL}${s}`
+  return s
+}
+
 /**
  * One row from GET /api/drivers/picker. `vehicleId` may be empty when the driver has no bus assigned yet
  * (still valid for Create bus → driverUserId).
- * @returns {{ userId: string, vehicleId: string, fullName: string, busId: string } | null}
+ * @returns {{ userId: string, vehicleId: string, fullName: string, busId: string, email: string, phone: string, profileImage: string } | null}
  */
 export function mapPickerDriverRow(raw) {
   if (!raw || typeof raw !== 'object') return null
+  const userObj = raw.user && typeof raw.user === 'object' ? raw.user : null
   /** Picker often returns `id` as login users.id (same as curl / transport), not only `userId`. */
   const userId = String(
     raw.userId ??
@@ -151,14 +160,44 @@ export function mapPickerDriverRow(raw) {
       '',
   ).trim()
   const fromUser =
-    raw.user && typeof raw.user === 'object'
-      ? raw.user.fullName ?? raw.user.name ?? raw.user.driverName
-      : null
+    userObj?.fullName ?? userObj?.name ?? userObj?.driverName ?? null
   const combined = [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim()
   const fullName = String(
     raw.driverName ?? raw.fullName ?? raw.name ?? combined ?? fromUser ?? '',
   ).trim()
-  return { userId, vehicleId, fullName, busId: vehicleId }
+  const email = String(
+    raw.email ?? raw.driverEmail ?? raw.driver_email ?? userObj?.email ?? '',
+  )
+    .trim()
+    .toLowerCase()
+  const phone = String(
+    raw.phone ??
+      raw.mobile ??
+      raw.phoneNumber ??
+      raw.phone_number ??
+      raw.contactNumber ??
+      raw.contact_number ??
+      userObj?.phone ??
+      userObj?.mobile ??
+      '',
+  ).trim()
+  const profileImage = resolvePickerAssetUrl(
+    raw.profileImage ??
+      raw.profile_image ??
+      raw.profilePhotoUrl ??
+      raw.profile_photo_url ??
+      raw.photoUrl ??
+      raw.photo_url ??
+      raw.avatar ??
+      raw.avatarUrl ??
+      raw.avatar_url ??
+      userObj?.profileImage ??
+      userObj?.profile_image ??
+      userObj?.profilePhotoUrl ??
+      userObj?.profile_photo_url ??
+      '',
+  )
+  return { userId, vehicleId, fullName, busId: vehicleId, email, phone, profileImage }
 }
 
 /**

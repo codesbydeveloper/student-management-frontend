@@ -9,18 +9,25 @@ import {
   createTransportRoute,
   deleteTransportRoute,
   enrichRoutesWithPickupStops,
+  exportTransportRoutesCsv,
+  exportTransportRoutesSelectedCsv,
   fetchTransportRouteById,
   fetchTransportRoutesList,
   updateTransportRoute,
 } from '../api/transportRoutesApi'
 import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
 import { PickupPointsRouteField } from '../components/PickupPointsRouteField'
+import {
+  ROUTE_EXPORT_ALL_SCOPES,
+  RouteExportToolbar,
+} from '../components/transport/RouteExportActions'
 import { SearchableSingleSelect } from '../components/SearchableSingleSelect'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { Select } from '../components/ui/Select'
+import { downloadBlobFile } from '../utils/busAssignmentExport'
 
 const ROUTE_TYPE_OPTIONS = [
   { value: 'pick_up', label: 'Pick up' },
@@ -28,6 +35,13 @@ const ROUTE_TYPE_OPTIONS = [
 ]
 
 const PAGE_LIMIT = 10
+
+function driverPickerSubtext(driver) {
+  const parts = []
+  if (driver.email) parts.push(driver.email)
+  if (driver.phone) parts.push(driver.phone)
+  return parts.length ? parts.join(' · ') : undefined
+}
 
 function pickupLabelsFromRoute(route) {
   if (route.pickupPointLabels?.length) return route.pickupPointLabels
@@ -120,6 +134,8 @@ export default function TransportRoutesPage() {
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [selectedRouteIds, setSelectedRouteIds] = useState(() => new Set())
+  const [exportBusy, setExportBusy] = useState(false)
 
   const [editOpen, setEditOpen] = useState(false)
   const [editId, setEditId] = useState(null)
@@ -137,6 +153,7 @@ export default function TransportRoutesPage() {
 
   const pickupSearchTimerRef = useRef(null)
   const editPickupSearchTimerRef = useRef(null)
+  const selectAllRoutesRef = useRef(null)
 
   const loadPickupPointsPicker = useCallback(
     async (q, { forEdit = false } = {}) => {
@@ -305,7 +322,8 @@ export default function TransportRoutesPage() {
       drivers.map((d) => ({
         value: d.userId,
         label: d.fullName || `Driver #${d.userId}`,
-        subtext: d.email || undefined,
+        subtext: driverPickerSubtext(d),
+        imageUrl: d.profileImage || undefined,
       })),
     [drivers],
   )
@@ -519,6 +537,76 @@ export default function TransportRoutesPage() {
 
   const formDisabled = optionsLoading || !token || creating
 
+  const pageRouteIds = useMemo(() => routes.map((r) => r.id), [routes])
+  const allOnPageSelected =
+    pageRouteIds.length > 0 && pageRouteIds.every((id) => selectedRouteIds.has(id))
+  const someOnPageSelected = pageRouteIds.some((id) => selectedRouteIds.has(id))
+
+  useEffect(() => {
+    setSelectedRouteIds(new Set())
+  }, [page])
+
+  useEffect(() => {
+    const el = selectAllRoutesRef.current
+    if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected
+  }, [someOnPageSelected, allOnPageSelected])
+
+  const toggleRouteSelected = (id) => {
+    setSelectedRouteIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllOnPage = () => {
+    setSelectedRouteIds((prev) => {
+      const next = new Set(prev)
+      if (allOnPageSelected) {
+        pageRouteIds.forEach((id) => next.delete(id))
+      } else {
+        pageRouteIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }
+
+  const clearRouteSelection = () => setSelectedRouteIds(new Set())
+
+  const onExportSelectedRoutes = async () => {
+    const ids = [...selectedRouteIds]
+    if (!ids.length) {
+      toast.warning('Select at least one route to export.')
+      return
+    }
+    if (!token || exportBusy) return
+    setExportBusy(true)
+    const res = await exportTransportRoutesSelectedCsv(token, ids)
+    setExportBusy(false)
+    if (!res.ok) {
+      toast.error(res.error || 'Could not export selected routes.')
+      return
+    }
+    downloadBlobFile(res.blob, res.filename)
+    toast.success('Routes CSV downloaded.')
+  }
+
+  const onExportAllRoutes = async (scope) => {
+    if (!token || exportBusy) return
+    const routeType = scope === 'pick_up' || scope === 'drop' ? scope : undefined
+    setExportBusy(true)
+    const res = await exportTransportRoutesCsv(token, { routeType })
+    setExportBusy(false)
+    if (!res.ok) {
+      toast.error(res.error || 'Could not export routes.')
+      return
+    }
+    downloadBlobFile(res.blob, res.filename)
+    const label = ROUTE_EXPORT_ALL_SCOPES.find((s) => s.value === scope)?.label ?? 'Routes'
+    toast.success(`${label} exported.`)
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -578,8 +666,10 @@ export default function TransportRoutesPage() {
                 value={driverUserId}
                 onChange={setDriverUserId}
                 disabled={formDisabled}
+                showSelectedSubtext
+                showOptionAvatar
                 placeholder={optionsLoading ? 'Loading drivers…' : 'Search and select driver'}
-                searchPlaceholder="Search driver name…"
+                searchPlaceholder="Search name, email, or phone…"
                 emptyText="No drivers found."
               />
             </div>
@@ -641,15 +731,24 @@ export default function TransportRoutesPage() {
           title="Saved routes"
           subtitle={total > 0 ? `${total} total` : 'No routes added yet.'}
           action={
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={listLoading || !token}
-              onClick={() => void loadList()}
-            >
-              {listLoading ? 'Refreshing…' : 'Refresh'}
-            </Button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <RouteExportToolbar
+                selectedCount={selectedRouteIds.size}
+                disabled={listLoading || !token || exportBusy}
+                exporting={exportBusy}
+                onExportSelected={() => void onExportSelectedRoutes()}
+                onExportAll={(scope) => void onExportAllRoutes(scope)}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={listLoading || !token}
+                onClick={() => void loadList()}
+              >
+                {listLoading ? 'Refreshing…' : 'Refresh'}
+              </Button>
+            </div>
           }
         />
         <div className="border-t border-slate-100 px-4 py-4 sm:px-6">
@@ -669,10 +768,35 @@ export default function TransportRoutesPage() {
 
           {routes.length > 0 ? (
             <>
+              {selectedRouteIds.size > 0 ? (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2.5 text-sm text-indigo-950">
+                  <span>
+                    <span className="font-semibold tabular-nums">{selectedRouteIds.size}</span> route
+                    {selectedRouteIds.size === 1 ? '' : 's'} selected on this list
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-indigo-700 underline-offset-2 hover:underline"
+                    onClick={clearRouteSelection}
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              ) : null}
               <div className="overflow-x-auto rounded-xl border border-slate-200/90">
                 <table className="app-data-table">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
+                      <th className="w-10 px-3 py-3">
+                        <input
+                          ref={selectAllRoutesRef}
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={allOnPageSelected}
+                          aria-label="Select all routes on this page"
+                          onChange={toggleAllOnPage}
+                        />
+                      </th>
                       <th className="w-14 px-4 py-3 text-center">Sr. no</th>
                       <th className="px-4 py-3">Route name</th>
                       <th className="px-4 py-3">Vehicle</th>
@@ -684,7 +808,19 @@ export default function TransportRoutesPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {routes.map((row, idx) => (
-                      <tr key={row.id} className="text-slate-800">
+                      <tr
+                        key={row.id}
+                        className={`text-slate-800 ${selectedRouteIds.has(row.id) ? 'bg-indigo-50/40' : ''}`}
+                      >
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={selectedRouteIds.has(row.id)}
+                            aria-label={`Select route ${row.routeName}`}
+                            onChange={() => toggleRouteSelected(row.id)}
+                          />
+                        </td>
                         <td className="px-4 py-3 text-center tabular-nums text-slate-600">
                           {(page - 1) * PAGE_LIMIT + idx + 1}
                         </td>
@@ -834,8 +970,10 @@ export default function TransportRoutesPage() {
                       value={editDriverUserId}
                       onChange={setEditDriverUserId}
                       disabled={editSaving || optionsLoading}
+                      showSelectedSubtext
+                      showOptionAvatar
                       placeholder="Search and select driver"
-                      searchPlaceholder="Search driver name…"
+                      searchPlaceholder="Search name, email, or phone…"
                       emptyText="No drivers found."
                     />
                   </div>

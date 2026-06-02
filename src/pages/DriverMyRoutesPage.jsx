@@ -79,23 +79,13 @@ function RouteSummaryBox({ kind, stats, vehicleLabel }) {
               <p className="mt-1 text-sm text-slate-600">{stats.routes.length} routes assigned</p>
             )}
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-            <span
-              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                isPickup ? 'bg-indigo-100 text-indigo-800' : 'bg-emerald-100 text-emerald-800'
-              }`}
-            >
-              {isPickup ? 'Pick up' : 'Drop'}
-            </span>
-            <Link
-              to={`/driver-transport?routeType=${isPickup ? 'pick_up' : 'drop'}`}
-              className="inline-flex"
-            >
-              <Button type="button" size="sm">
-                Start trip
-              </Button>
-            </Link>
-          </div>
+          <span
+            className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              isPickup ? 'bg-indigo-100 text-indigo-800' : 'bg-emerald-100 text-emerald-800'
+            }`}
+          >
+            {isPickup ? 'Pick up' : 'Drop'}
+          </span>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -208,11 +198,11 @@ export default function DriverMyRoutesPage() {
             Dashboard
           </Button>
         </Link>
-        <Link to="/driver-transport">
+        {/* <Link to="/driver-transport">
           <Button type="button" size="sm" variant="secondary">
             My trip
           </Button>
-        </Link>
+        </Link> */}
         <Link to="/driver/map">
           <Button type="button" size="sm" variant="secondary">
             Map

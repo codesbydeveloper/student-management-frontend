@@ -407,6 +407,113 @@ export async function updateTransportRoute(token, id, body) {
   }
 }
 
+function parseCsvExportFilename(res, fallback) {
+  let filename = fallback
+  const cd = res.headers.get('Content-Disposition')
+  if (!cd) return filename
+  const star = cd.match(/filename\*=UTF-8''([^;\s]+)/i)
+  const quoted = cd.match(/filename="([^"]+)"/i) || cd.match(/filename=([^;\s]+)/i)
+  if (star) {
+    try {
+      filename = decodeURIComponent(star[1])
+    } catch {
+      filename = star[1]
+    }
+  } else if (quoted) {
+    filename = quoted[1].replace(/["']/g, '')
+  }
+  return filename
+}
+
+async function readTransportRoutesExportResponse(res) {
+  const ctype = (res.headers.get('Content-Type') || '').toLowerCase()
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    return { ok: false, error: formatListError(data, res.status) }
+  }
+  if (ctype.includes('application/json')) {
+    const data = await res.json().catch(() => null)
+    return {
+      ok: false,
+      error: formatListError(data, res.status) || 'Unexpected response',
+    }
+  }
+  const blob = await res.blob()
+  return { ok: true, blob }
+}
+
+/**
+ * GET /api/transport/routes/export/csv — all routes, or filtered by routeType.
+ * @param {'pick_up'|'drop'|undefined} routeType — omit for all pick up & drop
+ */
+export async function exportTransportRoutesCsv(token, { routeType } = {}) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const params = new URLSearchParams()
+  if (routeType === 'pick_up' || routeType === 'drop') {
+    params.set('routeType', routeType)
+  }
+  const qs = params.toString()
+  const url = `${API_BASE_URL}/api/transport/routes/export/csv${qs ? `?${qs}` : ''}`
+  const fallback =
+    routeType === 'pick_up'
+      ? 'routes-pickup.csv'
+      : routeType === 'drop'
+        ? 'routes-drop.csv'
+        : 'routes-all.csv'
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json,text/csv,*/*',
+      },
+    })
+    const parsed = await readTransportRoutesExportResponse(res)
+    if (!parsed.ok) return parsed
+    return {
+      ok: true,
+      blob: parsed.blob,
+      filename: parseCsvExportFilename(res, fallback),
+    }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
+/**
+ * POST /api/transport/routes/export/csv — selected route IDs.
+ * @param {(string|number)[]} routeIds
+ */
+export async function exportTransportRoutesSelectedCsv(token, routeIds) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  const ids = (routeIds || []).map((id) => Number(id)).filter(Number.isFinite)
+  if (!ids.length) return { ok: false, error: 'Select at least one route to export.' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/transport/routes/export/csv`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json,text/csv,*/*',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ routeIds: ids }),
+    })
+    const parsed = await readTransportRoutesExportResponse(res)
+    if (!parsed.ok) return parsed
+    return {
+      ok: true,
+      blob: parsed.blob,
+      filename: parseCsvExportFilename(res, 'routes-selected.csv'),
+    }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
 /**
  * DELETE /api/transport/routes/:id
  */

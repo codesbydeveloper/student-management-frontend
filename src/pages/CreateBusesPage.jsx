@@ -3,18 +3,13 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
-import { fetchDriversPicker } from '../api/driversApi'
 import { createBus, deleteBus, fetchBus, fetchBuses, updateBus } from '../api/busesApi'
 import { Card, CardHeader } from '../components/ui/Card'
 import { ListPagination } from '../components/ui/ListPagination'
 import { Button } from '../components/ui/Button'
 import { Label } from '../components/ui/Label'
 import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
-import {
-  clearDriverBusOverride,
-  setDriverBusForUser,
-} from '../modules/transport/transportAssignmentStore'
+import { clearDriverBusOverride } from '../modules/transport/transportAssignmentStore'
 
 const PAGE_LIMIT = 10
 
@@ -26,10 +21,6 @@ export default function CreateBusesPage() {
 
   const [busName, setBusName] = useState('')
   const [numberPlate, setNumberPlate] = useState('')
-  const [driverUserId, setDriverUserId] = useState('')
-
-  const [pickerDrivers, setPickerDrivers] = useState([])
-  const [pickerLoading, setPickerLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [page, setPage] = useState(1)
@@ -47,27 +38,10 @@ export default function CreateBusesPage() {
   const [editBusId, setEditBusId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editPlate, setEditPlate] = useState('')
-  const [editDriverUserId, setEditDriverUserId] = useState('')
   const [editInitial, setEditInitial] = useState(null)
   const [editLoading, setEditLoading] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
-
-  const loadPicker = useCallback(async () => {
-    if (!token) {
-      setPickerDrivers([])
-      return
-    }
-    setPickerLoading(true)
-    const res = await fetchDriversPicker(token)
-    setPickerLoading(false)
-    if (res.ok) {
-      setPickerDrivers(res.drivers)
-    } else {
-      setPickerDrivers([])
-      toast.error(res.error || 'Could not load drivers.')
-    }
-  }, [token])
 
   const loadBuses = useCallback(async () => {
     if (!token) {
@@ -97,10 +71,6 @@ export default function CreateBusesPage() {
   }, [token, page])
 
   useEffect(() => {
-    void loadPicker()
-  }, [loadPicker])
-
-  useEffect(() => {
     void loadBuses()
   }, [loadBuses])
 
@@ -109,7 +79,6 @@ export default function CreateBusesPage() {
     setEditBusId(null)
     setEditName('')
     setEditPlate('')
-    setEditDriverUserId('')
     setEditInitial(null)
     setEditLoading(false)
     setEditSaving(false)
@@ -126,7 +95,6 @@ export default function CreateBusesPage() {
     setEditInitial(null)
     setEditName('')
     setEditPlate('')
-    setEditDriverUserId('')
     const res = await fetchBus(token, row.id)
     setEditLoading(false)
     if (!res.ok || !res.bus) {
@@ -135,15 +103,11 @@ export default function CreateBusesPage() {
       return
     }
     const b = res.bus
-    const dKey = b.driverUserId != null ? String(b.driverUserId).trim() : ''
-    setEditName(b.name === '—' ? '' : b.name)
-    setEditPlate(b.plate === '—' ? '' : b.plate)
-    setEditDriverUserId(dKey)
-    setEditInitial({
-      name: b.name === '—' ? '' : b.name,
-      plate: b.plate === '—' ? '' : b.plate,
-      driverKey: dKey,
-    })
+    const name = b.name === '—' ? '' : b.name
+    const plate = b.plate === '—' ? '' : b.plate
+    setEditName(name)
+    setEditPlate(plate)
+    setEditInitial({ name, plate })
   }
 
   const saveEdit = async () => {
@@ -154,17 +118,12 @@ export default function CreateBusesPage() {
       toast.error('Enter bus name and number plate.')
       return
     }
-    const curDriver = String(editDriverUserId ?? '').trim()
-    const iniDriver = String(editInitial.driverKey ?? '').trim()
     const iniName = String(editInitial.name ?? '').trim()
     const iniPlate = String(editInitial.plate ?? '').trim()
 
     const patch = {}
     if (name !== iniName) patch.name = name
     if (plate !== iniPlate) patch.plate = plate
-    if (curDriver !== iniDriver) {
-      patch.driverUserId = curDriver === '' ? null : curDriver
-    }
     if (Object.keys(patch).length === 0) {
       toast.info('No changes to save.')
       return
@@ -176,13 +135,6 @@ export default function CreateBusesPage() {
       if (!res.ok) {
         toast.error(res.error)
         return
-      }
-      if (Object.prototype.hasOwnProperty.call(patch, 'driverUserId')) {
-        if (iniDriver) clearDriverBusOverride(iniDriver)
-        if (curDriver) {
-          const drv = setDriverBusForUser(curDriver, editBusId)
-          if (!drv.ok) toast.info(drv.error || 'Bus saved; could not update local driver map.')
-        }
       }
       toast.success('Bus updated.')
       closeEdit()
@@ -238,81 +190,21 @@ export default function CreateBusesPage() {
       return
     }
 
-    const did = String(driverUserId ?? '').trim()
     setSaving(true)
     try {
-      const res = await createBus(token, {
-        name,
-        plate,
-        driverUserId: did || undefined,
-      })
+      const res = await createBus(token, { name, plate })
       if (!res.ok) {
         toast.error(res.error)
         return
       }
-      if (did && res.bus?.id) {
-        const drv = setDriverBusForUser(did, res.bus.id)
-        if (!drv.ok) toast.info(drv.error || 'Bus saved; could not update local driver map.')
-      }
       toast.success('Bus created.')
       setBusName('')
       setNumberPlate('')
-      setDriverUserId('')
       await loadBuses()
     } finally {
       setSaving(false)
     }
   }
-
-  /** @param {{ idPrefix: string, value: string, setValue: (v: string) => void }} p */
-  const renderDriverField = ({ idPrefix, value, setValue }) => {
-    const inList = value === '' || pickerDrivers.some((d) => d.userId === value)
-    const useSelect = pickerDrivers.length > 0 && inList
-    if (useSelect) {
-      return {
-        el: (
-          <Select
-            id={`${idPrefix}-driver`}
-            value={value === '' ? '' : value}
-            onChange={(e) => setValue(e.target.value)}
-            disabled={pickerLoading}
-            className="mt-1.5 w-full max-w-md"
-          >
-            <option value="">No driver yet</option>
-            {pickerDrivers.map((d) => (
-              <option key={d.userId} value={d.userId}>
-                {String(d.fullName ?? '').trim() || 'Unnamed driver'}
-              </option>
-            ))}
-          </Select>
-        ),
-        showFallbackHint: false,
-      }
-    }
-    return {
-      el: (
-        <Input
-          id={`${idPrefix}-driver`}
-          value={value}
-          onChange={(e) => setValue(e.target.value.trim())}
-          placeholder="Optional: driver users.id"
-          className="max-w-md"
-        />
-      ),
-      showFallbackHint: pickerDrivers.length === 0,
-    }
-  }
-
-  const createDriverField = renderDriverField({
-    idPrefix: 'cb',
-    value: driverUserId,
-    setValue: setDriverUserId,
-  })
-  const editDriverField = renderDriverField({
-    idPrefix: 'eb',
-    value: editDriverUserId,
-    setValue: setEditDriverUserId,
-  })
 
   return (
     <div className="space-y-6">
@@ -371,20 +263,6 @@ export default function CreateBusesPage() {
           </div>
         </div>
 
-        <div className="mt-5">
-          <Label htmlFor="cb-driver">Assign to driver </Label>
-          <div className="mt-1.5 space-y-2">{createDriverField.el}</div>
-          {createDriverField.showFallbackHint ? (
-            <p className="mt-1 text-xs text-slate-500">
-              {!token
-                ? 'Sign in to load drivers from the directory.'
-                : pickerLoading
-                  ? 'Loading drivers…'
-                  : 'No drivers returned from the server yet, or type a driver user id above.'}
-            </p>
-          ) : null}
-        </div>
-
         <div className="mt-6">
           <Button type="button" disabled={saving} onClick={() => void onCreate()}>
             {saving ? 'Creating…' : 'Create bus'}
@@ -413,26 +291,25 @@ export default function CreateBusesPage() {
                   <th className="px-3 py-2">Sr no.</th>
                   <th className="px-3 py-2">Name</th>
                   <th className="px-3 py-2">Plate</th>
-                  <th className="px-3 py-2">Driver</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {token && listLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-4 text-slate-500">
+                    <td colSpan={4} className="px-3 py-4 text-slate-500">
                       Loading…
                     </td>
                   </tr>
                 ) : !token ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-4 text-slate-500">
+                    <td colSpan={4} className="px-3 py-4 text-slate-500">
                       —
                     </td>
                   </tr>
                 ) : buses.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-4 text-slate-500">
+                    <td colSpan={4} className="px-3 py-4 text-slate-500">
                       No buses yet.
                     </td>
                   </tr>
@@ -444,16 +321,6 @@ export default function CreateBusesPage() {
                       </td>
                       <td className="px-3 py-2">{b.name}</td>
                       <td className="px-3 py-2 font-mono text-xs">{b.plate}</td>
-                      <td className="px-3 py-2">
-                        {b.driverUserId
-                          ? String(
-                              pickerDrivers.find(
-                                (d) => d.userId === String(b.driverUserId ?? '').trim(),
-                              )
-                                ?.fullName ?? '',
-                            ).trim() || '—'
-                          : '—'}
-                      </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button
@@ -539,19 +406,6 @@ export default function CreateBusesPage() {
                       className="mt-1.5"
                     />
                   </div>
-                </div>
-                <div className="mt-5">
-                  <Label htmlFor="eb-driver">Driver</Label>
-                  <div className="mt-1.5 space-y-2">{editDriverField.el}</div>
-                  {editDriverField.showFallbackHint && (
-                    <p className="mt-1 text-xs text-slate-500">
-                      {!token
-                        ? 'Sign in to load drivers from the directory.'
-                        : pickerLoading
-                          ? 'Loading drivers…'
-                          : 'No drivers'}
-                    </p>
-                  )}
                 </div>
                 <div className="mt-6 flex flex-wrap gap-2">
                   <Button type="button" disabled={editSaving} onClick={() => void saveEdit()}>

@@ -7,7 +7,7 @@ export const ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students', 'parents',
 /** Admin / principal: grouped under "Transport" in the sidebar. */
 export const TRANSPORT_NAV_KEYS = [
   'drivers',
-  'admin_assign_bus',
+ // 'admin_assign_bus',
   'admin_create_buses',
   'admin_pick_up_points',
   'admin_transport_routes',
@@ -45,6 +45,13 @@ export const TEACHER_PTM_NAV_KEYS = ['teacher_ptm_requests']
 /** Teacher: leads, intake, visitor log. */
 export const TEACHER_CRM_NAV_KEYS = ['teacher_assigned_leads', 'create_lead', 'admin_visitor_logs']
 
+/** Parent: grouped sidebar sections. */
+export const PARENT_COMMUNICATIONS_NAV_KEYS = ['parent_notifications']
+export const PARENT_TRANSPORT_NAV_KEYS = ['parent_my_transport']
+export const PARENT_PTM_NAV_KEYS = ['parent_ptm_request', 'parent_ptm_history']
+export const PARENT_ACADEMICS_NAV_KEYS = ['students']
+export const PARENT_CRM_NAV_KEYS = ['create_lead']
+
 function groupedNavKeys() {
   return new Set([
     ...ACADEMICS_NAV_KEYS,
@@ -65,6 +72,16 @@ function teacherGroupedNavKeys() {
   ])
 }
 
+function parentGroupedNavKeys() {
+  return new Set([
+    ...PARENT_COMMUNICATIONS_NAV_KEYS,
+    ...PARENT_TRANSPORT_NAV_KEYS,
+    ...PARENT_PTM_NAV_KEYS,
+    ...PARENT_ACADEMICS_NAV_KEYS,
+    ...PARENT_CRM_NAV_KEYS,
+  ])
+}
+
 function isAdminOrPrincipal(role) {
   return role === ROLES.ADMIN || role === ROLES.PRINCIPAL
 }
@@ -74,11 +91,11 @@ const items = [
   { key: 'dashboard', to: '/dashboard', label: 'Dashboard' },
   { key: 'parent_dashboard', to: '/parent-dashboard', label: 'Family dashboard' },
   { key: 'parent_notifications', to: '/parent-notifications', label: 'School messages' },
-  { key: 'parent_bus', to: '/parent-bus', label: 'Bus tracking' },
-  { key: 'parent_my_transport', to: '/parent/routes', label: 'Routes' },
+// { key: 'parent_bus', to: '/parent-bus', label: 'Bus tracking' },
+{ key: 'parent_my_transport', to: '/parent/routes', label: 'Bus tracking' },
   { key: 'parent_ptm_request', to: '/parent/ptm/request', label: 'PTM request' },
   { key: 'parent_ptm_history', to: '/parent/ptm/history', label: 'PTM history' },
-  { key: 'driver_transport', to: '/driver-transport', label: 'My trip' },
+  // { key: 'driver_transport', to: '/driver-transport', label: 'My trip' },
   { key: 'driver_map', to: '/driver/map', label: 'Map' },
   { key: 'driver_my_routes', to: '/driver/routes', label: 'Routes' },
   { key: 'classes', to: '/classes', label: 'Classes' },
@@ -88,7 +105,7 @@ const items = [
   { key: 'parents', to: '/parents', label: 'Parents' },
   { key: 'admins', to: '/admins', label: 'Admins' },
   { key: 'principals', to: '/principals', label: 'Principals' },
-  { key: 'admin_assign_bus', to: '/transport/assign-bus', label: 'Assign bus' },
+ // { key: 'admin_assign_bus', to: '/transport/assign-bus', label: 'Assign bus' },
   { key: 'admin_create_buses', to: '/transport/buses', label: 'Create buses' },
   { key: 'admin_pick_up_points', to: '/transport/pick-up-points', label: 'Pick up points' },
   { key: 'admin_transport_routes', to: '/transport/routes', label: 'Routes' },
@@ -194,6 +211,16 @@ export function getNavSidebarEntries(role) {
       { key: 'ptm', label: 'PTM', keys: TEACHER_PTM_NAV_KEYS },
       { key: 'crm', label: 'CRM & operations', keys: TEACHER_CRM_NAV_KEYS },
     ], teacherGroupedNavKeys())
+  }
+
+  if (role === ROLES.PARENT) {
+    return buildGroupedSidebarEntries(dash, rest, [
+      { key: 'communications', label: 'Communications', keys: PARENT_COMMUNICATIONS_NAV_KEYS },
+      { key: 'transport', label: 'Transport', keys: PARENT_TRANSPORT_NAV_KEYS },
+      { key: 'ptm', label: 'PTM', keys: PARENT_PTM_NAV_KEYS },
+      { key: 'academics', label: 'Academics', keys: PARENT_ACADEMICS_NAV_KEYS },
+      { key: 'support', label: 'Support', keys: PARENT_CRM_NAV_KEYS },
+    ], parentGroupedNavKeys())
   }
 
   return flat.map((item) => ({ type: 'link', ...item }))

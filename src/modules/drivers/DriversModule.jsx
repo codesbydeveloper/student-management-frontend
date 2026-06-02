@@ -13,7 +13,6 @@ import { Input } from '../../components/ui/Input'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { PhoneInput } from '../../components/ui/PhoneInput'
 import { Label } from '../../components/ui/Label'
-import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { canManageDrivers } from '../../utils/permissions'
 import { email, minLength, phone10Digits, required, sanitizePhoneDigits } from '../../utils/validators'
@@ -26,7 +25,6 @@ import {
   importDriversCsv,
   updateDriver,
 } from '../../api/driversApi'
-import { fetchBuses } from '../../api/busesApi'
 import { downloadBlobFile } from '../../utils/busAssignmentExport'
 import { formatActivityTimestamp } from '../../utils/lastActivityDisplay'
 
@@ -34,8 +32,6 @@ const SEARCH_KEYS = ['fullName', 'email', 'phone', 'licenseNumber']
 const DRIVER_LIST_PAGE = 1
 const DRIVER_LIST_LIMIT = 50
 const DRIVER_TABLE_PAGE_SIZE = 8
-const ASSIGNED_BUS_PICKER_PAGE = 1
-const ASSIGNED_BUS_PICKER_LIMIT = 20
 
 const emptyForm = () => ({
   fullName: '',
@@ -43,7 +39,6 @@ const emptyForm = () => ({
   password: '',
   phone: '',
   licenseNumber: '',
-  busId: '',
   active: true,
 })
 
@@ -93,8 +88,6 @@ export function DriversModule() {
   /** Row id while DELETE /api/drivers/:id is in flight. */
   const [deletingDriverId, setDeletingDriverId] = useState(null)
 
-  const [pickerBuses, setPickerBuses] = useState([])
-  const [busesLoading, setBusesLoading] = useState(false)
 
   const displayedDriverRowsRef = useRef([])
   const onDisplayedRowsChange = useCallback((rows) => {
@@ -124,39 +117,6 @@ export function DriversModule() {
     setExportPickPage((prev) => Math.min(Math.max(1, prev), exportTotalPages))
   }, [exportTotalPages])
 
-  useEffect(() => {
-    if (!modalOpen) return
-    if (!token) {
-      setPickerBuses([])
-      setBusesLoading(false)
-      return
-    }
-    let cancelled = false
-    setBusesLoading(true)
-    setPickerBuses([])
-    void (async () => {
-      const res = await fetchBuses(token, {
-        page: ASSIGNED_BUS_PICKER_PAGE,
-        limit: ASSIGNED_BUS_PICKER_LIMIT,
-      })
-      if (cancelled) return
-      setBusesLoading(false)
-      if (res.ok) {
-        setPickerBuses(res.buses)
-      } else {
-        setPickerBuses([])
-        toast.error(res.error || 'Could not load buses.')
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [modalOpen, token])
-
-  const busIdVal = String(form.busId ?? '').trim()
-  const busInPickerList = busIdVal !== '' && pickerBuses.some((b) => String(b.id) === busIdVal)
-  const showUnlistedBusOption = busIdVal !== '' && !busInPickerList
-
   const openCreate = useCallback(() => {
     setEditing(null)
     setForm(emptyForm())
@@ -183,7 +143,6 @@ export function DriversModule() {
       password: '',
       phone: sanitizePhoneDigits(row.phone ?? ''),
       licenseNumber: row.licenseNumber ?? '',
-      busId: row.busId ?? '',
       active: Boolean(row.active),
     })
     setFormErrors({})
@@ -234,7 +193,6 @@ export function DriversModule() {
                   email: emailNorm,
                   phone: sanitizePhoneDigits(form.phone),
                   licenseNumber: form.licenseNumber.trim(),
-                  busId: form.busId.trim() || '',
                   active: form.active,
                   ...(form.password.trim() ? { password: form.password.trim() } : {}),
                 }
@@ -251,7 +209,6 @@ export function DriversModule() {
           email: emailNorm,
           phone: sanitizePhoneDigits(form.phone),
           licenseNumber: form.licenseNumber.trim(),
-          assignedBus: form.busId.trim(),
           isActive: form.active,
         }
         if (form.password.trim()) {
@@ -276,7 +233,6 @@ export function DriversModule() {
                   email: emailNorm,
                   phone: sanitizePhoneDigits(form.phone),
                   licenseNumber: form.licenseNumber.trim(),
-                  busId: form.busId.trim() || '',
                   active: form.active,
                   ...(form.password.trim() ? { password: form.password.trim() } : {}),
                 }
@@ -301,7 +257,6 @@ export function DriversModule() {
         email: emailNorm,
         phone: sanitizePhoneDigits(form.phone),
         licenseNumber: form.licenseNumber.trim(),
-        assignedBus: form.busId.trim(),
         isActive: form.active,
         password: form.password.trim(),
       })
@@ -373,7 +328,6 @@ export function DriversModule() {
         email: (row.email ?? '').trim().toLowerCase(),
         phone: (row.phone ?? '').trim(),
         licenseNumber: (row.licenseNumber ?? '').trim(),
-        assignedBus: (row.busId ?? '').trim(),
         isActive: nextActive,
       }
 
@@ -399,21 +353,15 @@ export function DriversModule() {
     [manage, token, apiRows, loadDrivers, setDrivers],
   )
 
-  const displayAssignedBus = useCallback((row) => {
-    const v = (row?.assignedBus ?? row?.busId ?? '').trim()
-    return v || '—'
-  }, [])
-
   const downloadDriversCsv = (rows, filename) => {
     const header = ['fullName', 'email', 'phone', 'licenseNumber', 'assignedBus', 'active']
     const lines = rows.map((d) => {
-      const bus = displayAssignedBus(d)
       return [
         d.fullName,
         d.email,
         d.phone,
         d.licenseNumber,
-        bus === '—' ? '' : bus,
+        d.assignedBus ?? d.busId ?? '',
         d.active ? 'yes' : 'no',
       ]
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
@@ -566,13 +514,6 @@ export function DriversModule() {
       { key: 'phone', header: 'Phone', tdClassName: 'whitespace-nowrap' },
       { key: 'licenseNumber', header: 'License', tdClassName: 'text-xs' },
       {
-        key: 'busId',
-        header: 'Assigned bus',
-        render: (row) => (
-          <span className="font-mono text-sm font-medium text-slate-800">{displayAssignedBus(row)}</span>
-        ),
-      },
-      {
         key: 'lastActivity',
         header: 'Last login / seen',
         thClassName: 'min-w-[15rem]',
@@ -646,7 +587,7 @@ export function DriversModule() {
           ),
       },
     ],
-    [manage, displayAssignedBus, openEdit, removeDriver, toggleActive, togglingActiveId, deletingDriverId],
+    [manage, openEdit, removeDriver, toggleActive, togglingActiveId, deletingDriverId],
   )
 
   return (
@@ -867,47 +808,6 @@ export function DriversModule() {
             {formErrors.licenseNumber ? (
               <p className="mt-1 text-xs font-medium text-red-600">{formErrors.licenseNumber}</p>
             ) : null}
-          </div>
-          <div>
-            <Label htmlFor="drv-bus">Assigned bus</Label>
-            {token ? (
-              <>
-                <Select
-                  id="drv-bus"
-                  value={busIdVal}
-                  onChange={(e) => setForm((f) => ({ ...f, busId: e.target.value }))}
-                  disabled={busesLoading}
-                  className="mt-1.5"
-                >
-                  <option value="">{busesLoading ? 'Loading buses…' : 'No bus assigned'}</option>
-                  {pickerBuses.map((b) => (
-                    <option key={b.id} value={String(b.id)}>
-                      {b.name} — {b.plate}
-                    </option>
-                  ))}
-                  {showUnlistedBusOption ? (
-                    <option value={busIdVal}>
-                      Current assignment ({displayAssignedBus({ busId: form.busId, assignedBus: form.busId })})
-                    </option>
-                  ) : null}
-                </Select>
-                <p className="mt-1 text-xs text-slate-500">
-                  Each row shows the bus name and number plate. Leave unassigned if you do not need a bus yet.
-                </p>
-              </>
-            ) : (
-              <>
-                <Input
-                  id="drv-bus"
-                  value={form.busId}
-                  onChange={(e) => setForm((f) => ({ ...f, busId: e.target.value }))}
-                  placeholder="Bus id or plate (sign in to pick from list)"
-                  className="mt-1.5"
-                  autoComplete="off"
-                />
-                <p className="mt-1 text-xs text-slate-500">Sign in to choose a bus from the directory.</p>
-              </>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <input

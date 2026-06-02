@@ -5,6 +5,22 @@ import { Label } from './ui/Label'
 
 const MENU_PORTAL_Z = 110
 
+function OptionAvatar({ label, imageUrl }) {
+  const letter = (label || '?').charAt(0).toUpperCase()
+  if (imageUrl) {
+    return (
+      <span className="flex h-9 w-9 shrink-0 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/80">
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" decoding="async" />
+      </span>
+    )
+  }
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-800 ring-1 ring-indigo-200/60">
+      {letter}
+    </span>
+  )
+}
+
 /**
  * Full-width searchable single-select (same interaction pattern as SearchableMultiSelect).
  * When `menuPortal` is true (default), the list renders in a fixed layer above modals.
@@ -25,6 +41,10 @@ export function SearchableSingleSelect({
   panelMaxHeightClass = 'max-h-[min(50vh,22rem)]',
   /** Render dropdown in document.body so it is not clipped by overflow containers (e.g. modals). */
   menuPortal = true,
+  /** When set, show option subtext under the label on the closed trigger after selection. */
+  showSelectedSubtext = false,
+  /** Show profile photo (or initial) beside each option and on the trigger when selected. */
+  showOptionAvatar = false,
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -147,10 +167,13 @@ export function SearchableSingleSelect({
                   <button
                     type="button"
                     onClick={() => select(o.value)}
-                    className={`flex w-full items-start gap-2 rounded-lg px-2 py-2.5 text-left text-sm transition hover:bg-indigo-50/60 ${
+                    className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-left text-sm transition hover:bg-indigo-50/60 ${
                       active ? 'bg-indigo-50 ring-1 ring-indigo-200/80' : ''
                     }`}
                   >
+                    {showOptionAvatar ? (
+                      <OptionAvatar label={o.label} imageUrl={o.imageUrl} />
+                    ) : null}
                     <span className="min-w-0 flex-1">
                       <span className="font-medium text-slate-800">{o.label}</span>
                       {o.subtext ? (
@@ -204,8 +227,24 @@ export function SearchableSingleSelect({
               : 'text-slate-900 hover:border-indigo-300 focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/25'
           }`}
         >
-          <span className={`min-w-0 flex-1 truncate ${selected ? 'font-medium' : 'text-slate-400'}`}>
-            {summary}
+          <span
+            className={`flex min-w-0 flex-1 items-center gap-2.5 ${showSelectedSubtext && selected?.subtext ? 'py-0.5' : ''} ${!showOptionAvatar && !(showSelectedSubtext && selected?.subtext) ? 'truncate' : ''} ${selected ? 'font-medium' : 'text-slate-400'}`}
+          >
+            {showOptionAvatar && selected ? (
+              <OptionAvatar label={selected.label} imageUrl={selected.imageUrl} />
+            ) : null}
+            <span className={`min-w-0 flex-1 ${showSelectedSubtext && selected?.subtext ? '' : 'truncate'}`}>
+              {showSelectedSubtext && selected?.subtext ? (
+                <>
+                  <span className="block truncate text-slate-900">{summary}</span>
+                  <span className="mt-0.5 block truncate text-xs font-normal text-slate-500">
+                    {selected.subtext}
+                  </span>
+                </>
+              ) : (
+                summary
+              )}
+            </span>
           </span>
           <span className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
             ▼
