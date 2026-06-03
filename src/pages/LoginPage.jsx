@@ -13,6 +13,7 @@ import {
   resetForgottenPassword,
 } from '../api/authForgotPassword'
 import { email, minLength, required } from '../utils/validators'
+import { resolvePostLoginPath } from '../utils/postLoginPath'
 
 function initialLoginForm(locationState) {
   const regEmail = locationState?.registeredEmail
@@ -22,10 +23,10 @@ function initialLoginForm(locationState) {
 }
 
 export default function LoginPage() {
-  const { login, isAuthenticated, ready } = useAuth()
+  const { login, isAuthenticated, ready, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from?.pathname || '/dashboard'
+  const fromPath = location.state?.from?.pathname
 
   const [form, setForm] = useState(() => initialLoginForm(location.state))
   const [errors, setErrors] = useState({})
@@ -166,7 +167,7 @@ export default function LoginPage() {
   }
 
   if (ready && isAuthenticated) {
-    return <Navigate to={from} replace />
+    return <Navigate to={resolvePostLoginPath(fromPath, user?.role)} replace />
   }
 
   const onSubmit = async (e) => {
@@ -186,7 +187,7 @@ export default function LoginPage() {
         return
       }
       toast.success('Welcome back — redirecting to your workspace.')
-      navigate(from, { replace: true })
+      navigate(resolvePostLoginPath(fromPath, res.user?.role), { replace: true })
     } catch {
       toast.error('Sign in failed. Please try again.')
     } finally {

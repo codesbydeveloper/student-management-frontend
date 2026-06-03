@@ -184,18 +184,18 @@ export function AdminDashboardOverview() {
         </DashboardSectionTitle>
         <div className="grid gap-4 sm:grid-cols-2">
           <DashboardStatTile
-            to="/transport-assignments"
-            navKey="admin_assign_bus"
+            to="/transport/routes"
+            navKey="admin_transport_routes"
             label="Active trips today"
             value={fmtNum(dash.transport.activeTripsToday)}
-            hint="Assignments & live trips →"
+            hint="Routes →"
           />
           <DashboardStatTile
-            to="/transport-assignments"
+            to="/transport/routes"
             navKey="admin_transport_routes"
             label="Completed trips today"
             value={fmtNum(dash.transport.completedTripsToday)}
-            hint="Trip history →"
+            hint="Routes →"
           />
         </div>
       </section>

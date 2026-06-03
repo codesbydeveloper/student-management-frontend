@@ -132,3 +132,90 @@ export function formatNotificationTimeAgo(value) {
     year: 'numeric',
   })
 }
+
+/** Backend bell / transport timestamps: DD-MM-YYYY, h:mm[:ss] AM/PM [TZ] */
+const API_DAY_FIRST_DT_RE =
+  /^(\d{1,2})-(\d{1,2})-(\d{4}),\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i
+
+function stripTimezoneSuffix(s) {
+  return String(s)
+    .trim()
+    .replace(/\s+(IST|UTC|GMT|EST|PST|CET|IST\+?\d*)\s*$/i, '')
+    .trim()
+}
+
+/**
+ * Format API sentAt string without re-ordering day/month (DD-MM-YYYY).
+ * @param {string} cleaned
+ * @returns {string}
+ */
+function formatApiDayFirstDateTime(cleaned) {
+  const m = cleaned.match(API_DAY_FIRST_DT_RE)
+  if (!m) return ''
+  const ap = m[6] ? ` ${m[6].toUpperCase()}` : ''
+  return `${m[1]}-${m[2]}-${m[3]}, ${m[4]}:${m[5]}${ap}`.trim()
+}
+
+function parseNotificationTimestampMs(value) {
+  if (value == null || value === '') return NaN
+  const trimmed = stripTimezoneSuffix(value)
+
+  if (value instanceof Date) return value.getTime()
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 1e12 ? value * 1000 : value
+  }
+
+  const apiMatch = trimmed.match(API_DAY_FIRST_DT_RE)
+  if (apiMatch) {
+    const day = Number(apiMatch[1])
+    const month = Number(apiMatch[2]) - 1
+    const year = Number(apiMatch[3])
+    let hour = Number(apiMatch[4])
+    const minute = Number(apiMatch[5])
+    const ampm = apiMatch[6]
+    if (ampm) {
+      const ap = ampm.toUpperCase()
+      if (ap === 'PM' && hour < 12) hour += 12
+      if (ap === 'AM' && hour === 12) hour = 0
+    }
+    return new Date(year, month, day, hour, minute).getTime()
+  }
+
+  const native = Date.parse(trimmed)
+  if (!Number.isNaN(native)) return native
+
+  return NaN
+}
+
+/**
+ * Date + time for transport pick-up/drop alerts — matches API (DD-MM-YYYY), no IST, no seconds.
+ * @param {string | number | Date | null | undefined} value
+ * @returns {string}
+ */
+export function formatTransportSafetyTime(value) {
+  if (value == null || value === '') return ''
+  const cleaned = stripTimezoneSuffix(value)
+
+  const fromApiShape = formatApiDayFirstDateTime(cleaned)
+  if (fromApiShape) return fromApiShape
+
+  const ms = parseNotificationTimestampMs(value)
+  if (Number.isNaN(ms)) return ''
+
+  const d = new Date(ms)
+  const pad = (n) => String(n).padStart(2, '0')
+  const datePart = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
+  const timePart = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(ms))
+
+  return `${datePart}, ${timePart}`
+}
+
+/** @deprecated Use formatTransportSafetyTime for transport safety rows. */
+export function formatNotificationDateTime(value) {
+  return formatTransportSafetyTime(value)
+}

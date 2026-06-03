@@ -1,5 +1,9 @@
 import { API_BASE_URL, ROLES } from '../utils/constants'
-import { formatNotificationTimeAgo, pickNotificationMediaUrl } from '../utils/notificationFormat'
+import {
+  formatNotificationTimeAgo,
+  formatTransportSafetyTime,
+  pickNotificationMediaUrl,
+} from '../utils/notificationFormat'
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_STATUSES,
@@ -1655,8 +1659,12 @@ export async function patchNotificationPreference(token, enabled) {
  */
 export function mapBellNotificationFromApi(raw) {
   if (!raw || typeof raw !== 'object') return null
+  const alertKey = String(raw.alertKey ?? raw.alert_key ?? '').trim()
   const idRaw = raw.id ?? raw._id ?? raw.notificationId ?? raw.messageId
-  const id = idRaw != null ? String(idRaw).trim() : ''
+  const id =
+    idRaw != null && String(idRaw).trim() !== '' && String(idRaw).trim() !== 'null'
+      ? String(idRaw).trim()
+      : alertKey || ''
   if (!id) return null
 
   const title = String(raw.title ?? raw.subject ?? 'Notification').trim() || 'Notification'
@@ -1670,6 +1678,15 @@ export function mapBellNotificationFromApi(raw) {
     raw.updatedAt ??
     raw.created_at
   const timeAgo = presetAgo || formatNotificationTimeAgo(stamp) || 'Recently'
+  const occurredAtRaw =
+    raw.sentAt ??
+    raw.sent_at ??
+    raw.approvedAt ??
+    raw.approved_at ??
+    raw.createdAt ??
+    raw.created_at ??
+    stamp
+  const occurredAtLabel = formatTransportSafetyTime(occurredAtRaw)
 
   let unread = false
   if (raw.unread === true || raw.isUnread === true) unread = true
@@ -1687,12 +1704,29 @@ export function mapBellNotificationFromApi(raw) {
     meta?.ptmRequestId ??
     meta?.requestId
   const leadIdRaw = raw.leadId ?? raw.lead_id ?? meta?.leadId
+  const transport =
+    raw.transport && typeof raw.transport === 'object' && !Array.isArray(raw.transport)
+      ? {
+          tripId: raw.transport.tripId ?? raw.transport.trip_id ?? null,
+          studentId: raw.transport.studentId ?? raw.transport.student_id ?? null,
+          studentName: String(
+            raw.transport.studentName ?? raw.transport.student_name ?? '',
+          ).trim(),
+          studentStatus: String(
+            raw.transport.studentStatus ?? raw.transport.student_status ?? '',
+          ).trim(),
+        }
+      : null
 
   return {
     id,
+    alertKey: alertKey || undefined,
+    transport,
     title,
     message: message || title,
     timeAgo,
+    occurredAtLabel,
+    occurredAtRaw: occurredAtRaw ? String(occurredAtRaw).trim() : '',
     unread,
     kind,
     type: kind || category,

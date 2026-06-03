@@ -10,8 +10,10 @@ import { getParentAssignedBusId } from '../modules/transport/transportAssignment
 import { useTransportAssignmentRevision } from '../modules/transport/useTransportAssignmentRevision'
 import { isSocketTransportEnabled } from '../modules/transport/transportSocketConfig'
 import { useParentBusLiveMap } from '../modules/transport/useParentBusLiveMap'
+import { useParentBusLiveSocketSync } from '../modules/transport/useParentBusLiveSocketSync'
 import { useParentBusLiveStatus } from '../modules/transport/useParentBusLiveStatus'
 import {
+  isParentBusTripEnded,
   isParentBusTripStarted,
   parentHasTransportAssignment,
 } from '../modules/transport/parentTripLive'
@@ -122,6 +124,7 @@ export default function ParentBusTrackingPage() {
     routeLine,
     sourceLabel,
     isDriverLive,
+    socketIsRunning,
     socketPoint,
     joinedInfo,
     joinedRoomMissing,
@@ -157,6 +160,13 @@ export default function ParentBusTrackingPage() {
     selectedLive,
   })
 
+  const tripEnded = isParentBusTripEnded(
+    selectedLive?.trip,
+    selectedLive?.live,
+    liveStatus,
+    selectedLive?.tripActive,
+  )
+
   const tripStarted = isParentBusTripStarted(
     selectedLive?.trip,
     liveStatus,
@@ -164,7 +174,19 @@ export default function ParentBusTrackingPage() {
     selectedLive?.tripActive,
   )
 
-  const mapLiveIndicator = Boolean(tripStarted && isDriverLive)
+  useParentBusLiveSocketSync({
+    enabled: user?.role === ROLES.PARENT && Boolean(token),
+    refreshLive,
+    socketDriverLive: isDriverLive,
+    socketIsRunning,
+    tripStarted,
+    tripEnded,
+  })
+
+  const tripEndedDisplay = tripEnded && socketIsRunning !== true
+  const tripStartedDisplay = tripStarted || (socketIsRunning === true && !tripEndedDisplay)
+
+  const mapLiveIndicator = Boolean(tripStartedDisplay && isDriverLive)
 
   return (
     <div className="space-y-6">
@@ -213,7 +235,7 @@ export default function ParentBusTrackingPage() {
           </div>
 
           {hasTransport ? (
-            <ParentTripStatusBadge active={tripStarted} />
+            <ParentTripStatusBadge active={tripStartedDisplay} />
           ) : (
             <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               No bus route is linked to your child yet. Contact the school if you expected transport here.

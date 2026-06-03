@@ -22,7 +22,7 @@ export const LOGIN_ROLE_OPTIONS = [
   ROLES.DRIVER,
   ROLES.PRINCIPAL,
 ]
- export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://aliceblue-frog-823531.hostingersite.com').replace(/\/$/, '')
+  export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://aliceblue-frog-823531.hostingersite.com').replace(/\/$/, '')
  // export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export const STORAGE_KEYS = {

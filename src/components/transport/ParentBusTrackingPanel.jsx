@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { fetchNotificationBell } from '../../api/notificationsApi'
 import { fetchParentMyDriver, markParentBusLiveAlertsRead } from '../../api/parentsApi'
 import { Button } from '../ui/Button'
 import { ParentBusLiveMap } from './ParentBusLiveMap'
@@ -8,14 +9,30 @@ import { getParentAssignedBusId } from '../../modules/transport/transportAssignm
 import { useTransportAssignmentRevision } from '../../modules/transport/useTransportAssignmentRevision'
 import { isSocketTransportEnabled } from '../../modules/transport/transportSocketConfig'
 import { useParentBusLiveMap } from '../../modules/transport/useParentBusLiveMap'
+import { useParentBusLiveSocketSync } from '../../modules/transport/useParentBusLiveSocketSync'
 import { useParentBusLiveStatus } from '../../modules/transport/useParentBusLiveStatus'
+import { useParentTripStatusCatchUp } from '../../modules/transport/useParentTripStatusCatchUp'
+import { ParentBusConnectingBanner } from './ParentBusConnectingBanner'
 import {
   isParentBusTripEnded,
   isParentBusTripStarted,
   parentHasTransportAssignment,
+  parentBellTerminalStudentStatus,
+  parentTerminalStudentStatusForUi,
 } from '../../modules/transport/parentTripLive'
 import { ParentTripStatusBadge } from './ParentTripStatusBadge'
 import { ROLES } from '../../utils/constants'
+import { formatTransportSafetyTime } from '../../utils/notificationFormat'
+import {
+  getTransportBellStudentId,
+  isParentTransportSafetyNotification,
+  isParentStudentPickupDone,
+  parentTransportSafetyBadgeLabel,
+  parentTransportSafetyTimeLabel,
+  isParentTransportAbsentStatus,
+  parentTransportSafetyToneClasses,
+  parentStudentStatusFromBellAlert,
+} from '../../utils/parentTransportSafety'
 
 function parseBusNumericIdForSocket(busKey) {
   const s = String(busKey ?? '').trim()
@@ -64,13 +81,6 @@ function formatArrivalTime(iso) {
   return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(d)
 }
 
-function isPickupDoneForParent(studentStatus, stopStatus) {
-  const student = String(studentStatus ?? '').trim().toLowerCase()
-  if (student === 'picked_up' || student === 'absent' || student === 'dropped_off') return true
-  const stop = String(stopStatus ?? '').trim().toLowerCase()
-  return stop === 'completed'
-}
-
 function parentStatusMessage({
   tripLive,
   stopStatus,
@@ -81,16 +91,16 @@ function parentStatusMessage({
   stopsRemaining,
   hasMap,
 }) {
-  const student = String(studentStatus ?? '').trim().toLowerCase()
   const who = childName ? childName : 'Your child'
+  const terminal = parentTerminalStudentStatusForUi(studentStatus, stopStatus, tripLive)
 
-  if (student === 'picked_up') {
+  if (terminal === 'picked_up') {
     return `${who} was picked up safely.`
   }
-  if (student === 'absent') {
+  if (terminal === 'absent') {
     return `${who} was marked absent for this trip.`
   }
-  if (student === 'dropped_off') {
+  if (terminal === 'dropped_off') {
     return `${who} was dropped off safely.`
   }
 
@@ -147,6 +157,9 @@ export function ParentBusTrackingPanel({
   const [refreshBusy, setRefreshBusy] = useState(false)
   const [selectedStudentId, setSelectedStudentId] = useState(fixedStudentId)
   const [dismissedAlerts, setDismissedAlerts] = useState(() => new Set())
+  const [dismissedSafetyKeys, setDismissedSafetyKeys] = useState(() => new Set())
+  /** Unread transport safety rows from GET /api/notifications/bell */
+  const [bellTransportAlerts, setBellTransportAlerts] = useState([])
   const refreshInFlight = useRef(false)
 
   const activeStudentId = fixedStudentId ?? selectedStudentId
@@ -177,6 +190,49 @@ export function ParentBusTrackingPanel({
     void loadApiDriverRows()
   }, [loadApiDriverRows])
 
+  const loadBellTransportAlerts = useCallback(async () => {
+    if (!token || user?.role !== ROLES.PARENT) {
+      setBellTransportAlerts([])
+      return
+    }
+    const res = await fetchNotificationBell(token, { limit: 10 })
+    if (!res.ok) {
+      setBellTransportAlerts([])
+      return
+    }
+    const items = res.notifications.filter(
+      (row) => isParentTransportSafetyNotification(row) && row.unread !== false,
+    )
+    setBellTransportAlerts(items)
+  }, [token, user?.role])
+
+  const bellAlertKeysRef = useRef('')
+
+  useEffect(() => {
+    void loadBellTransportAlerts()
+  }, [loadBellTransportAlerts, refreshNonce])
+
+  /** Bell can update before my-bus-live; poll bell lightly while this page is open. */
+  useEffect(() => {
+    if (!token || user?.role !== ROLES.PARENT) return undefined
+    const tick = () => {
+      if (document.visibilityState === 'visible') void loadBellTransportAlerts()
+    }
+    const id = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(id)
+  }, [token, user?.role, loadBellTransportAlerts])
+
+  useEffect(() => {
+    const keys = bellTransportAlerts
+      .map((a) => a.alertKey || a.id)
+      .filter(Boolean)
+      .join('|')
+    if (!keys || keys === bellAlertKeysRef.current) return
+    const hadPrior = bellAlertKeysRef.current.length > 0
+    bellAlertKeysRef.current = keys
+    if (hadPrior && keys) void refreshLive()
+  }, [bellTransportAlerts, refreshLive])
+
   useEffect(() => {
     if (fixedStudentId != null) return
     if (activeStudentId != null) return
@@ -192,13 +248,13 @@ export function ParentBusTrackingPanel({
     refreshInFlight.current = true
     setRefreshBusy(true)
     try {
-      await Promise.all([loadApiDriverRows(), refreshLive()])
+      await Promise.all([loadApiDriverRows(), refreshLive(), loadBellTransportAlerts()])
       setRefreshNonce((n) => n + 1)
     } finally {
       refreshInFlight.current = false
       setRefreshBusy(false)
     }
-  }, [token, user?.role, loadApiDriverRows, refreshLive])
+  }, [token, user?.role, loadApiDriverRows, refreshLive, loadBellTransportAlerts])
 
   const childOptions = useMemo(() => {
     const map = new Map()
@@ -284,6 +340,7 @@ export function ParentBusTrackingPanel({
     position: socketMapPos,
     routeLine,
     isDriverLive: socketDriverLive,
+    socketIsRunning,
     joinedRoomMissing,
   } = useParentBusLiveMap(socketBusId, token, {
     busNumericId: socketBusNumericId,
@@ -343,17 +400,47 @@ export function ParentBusTrackingPanel({
     return markers
   }, [pickupStudents, selectedLive, activeStudentId, childOptions.length])
 
-  const pickupDone = isPickupDoneForParent(
-    selectedLive?.studentStatus,
-    selectedLive?.stopProgress?.yourStopStatus,
-  )
+  const yourStopStatus = selectedLive?.stopProgress?.yourStopStatus
 
-  const visibleAlerts = useMemo(() => {
-    if (!selectedLive?.alerts?.length || pickupDone) return []
-    return selectedLive.alerts.filter(
-      (a) => !a.isRead && !dismissedAlerts.has(a.alertKey),
-    )
-  }, [selectedLive, dismissedAlerts, pickupDone])
+  const activeBellTransportAlert = useMemo(() => {
+    const sid = activeStudentId != null ? String(activeStudentId) : ''
+    for (const item of bellTransportAlerts) {
+      const key = item.alertKey || item.id
+      if (!key || dismissedSafetyKeys.has(key)) continue
+      const itemSid = getTransportBellStudentId(item)
+      if (sid && itemSid != null && String(itemSid) !== sid) continue
+      return item
+    }
+    return null
+  }, [bellTransportAlerts, activeStudentId, dismissedSafetyKeys])
+
+  const safetyBannerKey = activeBellTransportAlert?.alertKey || activeBellTransportAlert?.id || ''
+
+  const bellStudentStatus =
+    parentStudentStatusFromBellAlert(activeBellTransportAlert) ||
+    selectedLive?.studentStatus ||
+    ''
+
+  const safetyBadge = parentTransportSafetyBadgeLabel(bellStudentStatus)
+
+  const safetyBannerMessage =
+    activeBellTransportAlert?.message || activeBellTransportAlert?.title || ''
+
+  const safetyOccurredAtLabel = useMemo(() => {
+    const raw = activeBellTransportAlert?.occurredAtRaw
+    if (raw) return formatTransportSafetyTime(raw)
+    if (activeBellTransportAlert?.occurredAtLabel) return activeBellTransportAlert.occurredAtLabel
+    return ''
+  }, [activeBellTransportAlert])
+
+  const pickupDropTimeLabel = parentTransportSafetyTimeLabel(bellStudentStatus)
+
+  const safetyIsAbsent = isParentTransportAbsentStatus(
+    bellStudentStatus,
+    activeBellTransportAlert?.alertKey,
+    safetyBannerMessage,
+  )
+  const safetyTone = parentTransportSafetyToneClasses(safetyIsAbsent)
 
   const onDismissAlert = useCallback(
     async (alert) => {
@@ -366,6 +453,32 @@ export function ParentBusTrackingPanel({
     },
     [token, selectedLive?.studentId],
   )
+
+  const onDismissSafetyBanner = useCallback(async () => {
+    if (!safetyBannerKey) return
+    setDismissedSafetyKeys((prev) => new Set(prev).add(safetyBannerKey))
+    if (token) {
+      await markParentBusLiveAlertsRead(token, {
+        alertKey: safetyBannerKey,
+        studentId:
+          activeBellTransportAlert?.transport?.studentId ??
+          selectedLive?.studentId ??
+          activeStudentId,
+      })
+    }
+    setDismissedAlerts((prev) => new Set(prev).add(safetyBannerKey))
+    setBellTransportAlerts((prev) =>
+      prev.filter((row) => (row.alertKey || row.id) !== safetyBannerKey),
+    )
+    void loadBellTransportAlerts()
+  }, [
+    safetyBannerKey,
+    token,
+    activeBellTransportAlert,
+    selectedLive?.studentId,
+    activeStudentId,
+    loadBellTransportAlerts,
+  ])
 
   const hasTransport = parentHasTransportAssignment({
     pickupAssigned,
@@ -387,11 +500,66 @@ export function ParentBusTrackingPanel({
     selectedLive?.tripActive,
   )
 
+  useParentBusLiveSocketSync({
+    enabled: user?.role === ROLES.PARENT && Boolean(token),
+    refreshLive,
+    socketDriverLive,
+    socketIsRunning,
+    tripStarted,
+    tripEnded,
+  })
+
+  const driverLiveSignal = socketIsRunning === true || socketDriverLive
+
+  /** Do not show "trip ended" while live GPS proves the bus is running. */
+  const tripEndedDisplay = tripEnded && !driverLiveSignal
+  const tripStartedDisplay =
+    tripStarted || (driverLiveSignal && !tripEndedDisplay)
+
+  const bellTerminalStatus = parentBellTerminalStudentStatus(bellStudentStatus)
+
+  const showSafetyBanner = Boolean(activeBellTransportAlert)
+
+  const pickupDone =
+    bellTerminalStatus != null ||
+    isParentStudentPickupDone(selectedLive?.studentStatus, yourStopStatus, tripStartedDisplay)
+
+  useParentTripStatusCatchUp({
+    enabled: user?.role === ROLES.PARENT && Boolean(token) && hasTransport,
+    tripEnded,
+    tripStarted,
+    driverLive: driverLiveSignal,
+    refreshLive,
+  })
+
+  const isTripStatusSyncing =
+    hasTransport &&
+    !showSafetyBanner &&
+    !bellTerminalStatus &&
+    !tripStartedDisplay &&
+    (liveLoading ||
+      (driverLiveSignal && !tripStarted) ||
+      (tripEnded && !tripStarted && !driverLiveSignal))
+
+  const visibleAlerts = useMemo(() => {
+    if (!selectedLive?.alerts?.length || pickupDone) return []
+    return selectedLive.alerts.filter((a) => {
+      if (a.isRead || dismissedAlerts.has(a.alertKey)) return false
+      if (!tripStartedDisplay) return true
+      const text = `${a.title ?? ''} ${a.message ?? ''}`.toLowerCase()
+      if (/dropped off safely|picked up safely|marked absent/.test(text)) {
+        return yourStopStatus === 'completed'
+      }
+      return true
+    })
+  }, [selectedLive, dismissedAlerts, pickupDone, tripStartedDisplay, yourStopStatus])
+
   const tripLooksLive =
-    tripStarted &&
+    tripStartedDisplay &&
     Boolean(
       selectedLive?.live?.isRunning ||
         socketDriverLive ||
+        socketIsRunning === true ||
         selectedLive?.stopProgress?.yourStopStatus,
     )
 
@@ -409,18 +577,39 @@ export function ParentBusTrackingPanel({
   const arrivalLabel = formatArrivalTime(selectedLive?.live?.estimatedArrivalAt)
   const distanceKm = saneDistanceKm(selectedLive?.live?.distanceKm)
 
-  const statusMessage = tripEnded
+  const syncTitle = driverLiveSignal
+    ? 'Connecting to live bus…'
+    : 'Checking if today’s trip has started…'
+
+  const syncDetail = driverLiveSignal
+    ? 'The driver is sharing their location. Trip details usually appear within a few seconds.'
+    : 'Waiting for the driver to start and send location. This page updates automatically — usually within 15–20 seconds.'
+
+  const statusMessage = isTripStatusSyncing
+    ? syncDetail
+    : tripEndedDisplay
     ? 'Today’s bus trip has ended. You will see updates here when the driver starts the next trip.'
-    : parentStatusMessage({
-    tripLive: tripStarted,
-    stopStatus: selectedLive?.stopProgress?.yourStopStatus,
-    studentStatus: selectedLive?.studentStatus,
-    childName: selectedChildName,
-    pickupLabel: pickupPointLabel,
-    etaMinutes: selectedLive?.live?.estimatedMinutes,
-    stopsRemaining: selectedLive?.stopProgress?.stopsRemainingIncludingYours,
-    hasMap: Boolean(mapPos || pickupMarkers.length),
-  })
+    : bellTerminalStatus
+      ? parentStatusMessage({
+          tripLive: false,
+          stopStatus: yourStopStatus,
+          studentStatus: bellTerminalStatus,
+          childName: selectedChildName,
+          pickupLabel: pickupPointLabel,
+          etaMinutes: selectedLive?.live?.estimatedMinutes,
+          stopsRemaining: selectedLive?.stopProgress?.stopsRemainingIncludingYours,
+          hasMap: Boolean(mapPos || pickupMarkers.length),
+        })
+      : parentStatusMessage({
+          tripLive: tripStartedDisplay,
+          stopStatus: yourStopStatus,
+          studentStatus: selectedLive?.studentStatus,
+          childName: selectedChildName,
+          pickupLabel: pickupPointLabel,
+          etaMinutes: selectedLive?.live?.estimatedMinutes,
+          stopsRemaining: selectedLive?.stopProgress?.stopsRemainingIncludingYours,
+          hasMap: Boolean(mapPos || pickupMarkers.length),
+        })
 
   const mapMinHeight = compact ? 'min(40vh, 16rem)' : 'min(50vh, 22rem)'
 
@@ -445,8 +634,15 @@ export function ParentBusTrackingPanel({
         </div>
       ) : null}
 
+      {isTripStatusSyncing ? (
+        <ParentBusConnectingBanner title={syncTitle} detail={syncDetail} />
+      ) : null}
+
       {hasTransport ? (
-        <ParentTripStatusBadge active={tripStarted} />
+        <ParentTripStatusBadge
+          active={tripStartedDisplay}
+          syncing={isTripStatusSyncing}
+        />
       ) : (
         <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
           No bus route is linked to your child yet. Contact the school if you expected transport here.
@@ -462,6 +658,9 @@ export function ParentBusTrackingPanel({
           <div>
             <p className="font-semibold">{alert.title}</p>
             {alert.message ? <p className="mt-1 text-amber-900">{alert.message}</p> : null}
+            {alert.occurredAtLabel ? (
+              <p className="mt-1.5 text-xs font-medium text-amber-800/90">{alert.occurredAtLabel}</p>
+            ) : null}
           </div>
           <Button
             type="button"
@@ -470,31 +669,68 @@ export function ParentBusTrackingPanel({
             className="shrink-0"
             onClick={() => void onDismissAlert(alert)}
           >
-            Okay
+            OK
           </Button>
         </div>
       ))}
 
+      {showSafetyBanner ? (
+        <div
+          className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border px-4 py-4 sm:px-5 ${safetyTone.box}`}
+          role={safetyIsAbsent ? 'alert' : 'status'}
+        >
+          <div className="min-w-0 flex-1">
+            {selectedChildName ? (
+              <p className={`text-sm font-medium ${safetyTone.name}`}>{selectedChildName}</p>
+            ) : null}
+            <p className={`font-semibold ${safetyTone.message} ${selectedChildName ? 'mt-1' : ''}`}>
+              {safetyBannerMessage}
+            </p>
+            <p
+              className={`mt-2 inline-flex rounded-full bg-white/80 px-3 py-1 text-sm font-semibold ring-1 ${safetyTone.badge}`}
+            >
+              {safetyBadge}
+            </p>
+            {safetyOccurredAtLabel ? (
+              <p className={`mt-2 text-xs font-medium ${safetyTone.time}`}>{safetyOccurredAtLabel}</p>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            onClick={() => void onDismissSafetyBanner()}
+          >
+            OK
+          </Button>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
-        {selectedChildName ? (
+        {selectedChildName && !showSafetyBanner ? (
           <p className="text-sm font-medium text-slate-600">{selectedChildName}</p>
         ) : null}
-        <p className={`font-semibold text-slate-900 ${selectedChildName ? 'mt-1' : ''}`}>
-          {statusMessage}
-        </p>
-
-        {pickupDone ? (
-          <p className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200/80">
-            Picked up safely
+        {!showSafetyBanner ? (
+          <p
+            className={`font-semibold text-slate-900 ${selectedChildName ? 'mt-1' : ''} ${isTripStatusSyncing ? 'inline-flex items-center gap-2' : ''}`}
+          >
+            {isTripStatusSyncing ? (
+              <span
+                className="inline-flex h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-sky-300 border-t-sky-700"
+                aria-hidden
+              />
+            ) : null}
+            {isTripStatusSyncing ? syncTitle : statusMessage}
           </p>
         ) : null}
-        {!pickupDone && tripLooksLive && etaLabel ? (
+        {!showSafetyBanner && !pickupDone && tripLooksLive && etaLabel ? (
           <p className="mt-2 text-lg font-bold text-teal-800">{etaLabel}</p>
         ) : null}
-        {!pickupDone && tripLooksLive && arrivalLabel && etaLabel ? (
+        {!showSafetyBanner && !pickupDone && tripLooksLive && arrivalLabel && etaLabel ? (
           <p className="mt-0.5 text-sm text-slate-600">Expected around {arrivalLabel}</p>
         ) : null}
-        {!pickupDone && tripLooksLive && distanceKm != null ? (
+        {!showSafetyBanner && !pickupDone && tripLooksLive && distanceKm != null ? (
           <p className="mt-0.5 text-sm text-slate-600">{distanceKm.toFixed(1)} km away</p>
         ) : null}
 
@@ -522,18 +758,26 @@ export function ParentBusTrackingPanel({
             <dd className="font-medium text-slate-900">
               {!hasTransport ? (
                 'Not assigned'
-              ) : tripEnded ? (
+              ) : isTripStatusSyncing ? (
+                <span className="text-sky-800">Checking — syncing with driver</span>
+              ) : tripEndedDisplay ? (
                 <span className="text-slate-700">Ended — driver finished today’s trip</span>
-              ) : tripStarted ? (
+              ) : tripStartedDisplay ? (
                 <span className="text-emerald-800">Active — driver started the trip</span>
               ) : (
                 <span className="text-red-800">Inactive — waiting for driver to start</span>
               )}
             </dd>
           </div>
+          {showSafetyBanner && safetyOccurredAtLabel ? (
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500">{pickupDropTimeLabel}</dt>
+              <dd className="font-medium text-slate-900">{safetyOccurredAtLabel}</dd>
+            </div>
+          ) : null}
         </dl>
 
-        {selectedLive?.stopProgress?.currentStop && tripLooksLive ? (
+        {!showSafetyBanner && selectedLive?.stopProgress?.currentStop && tripLooksLive ? (
           <p className="mt-3 text-sm text-slate-600">
             Right now the bus is near{' '}
             <span className="font-medium text-slate-800">
@@ -567,13 +811,14 @@ export function ParentBusTrackingPanel({
 
       {liveError && !tripLooksLive ? (
         <p className="text-sm text-slate-600">
-          We could not refresh the map just now. It will try again automatically.
+          We could not refresh trip details just now. Tap Update map to try again.
         </p>
       ) : null}
 
-      {socketMode && joinedRoomMissing && !tripLooksLive ? (
+      {socketMode && joinedRoomMissing && !tripLooksLive && !tripStartedDisplay && !isTripStatusSyncing ? (
         <p className="text-sm text-slate-600">
-          The driver has not started the trip yet. This page updates on its own when they do.
+          Waiting for the driver to start and share live location. Status usually updates within a
+          few seconds, or tap Update map.
         </p>
       ) : null}
 

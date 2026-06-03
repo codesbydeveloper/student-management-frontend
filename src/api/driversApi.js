@@ -648,7 +648,7 @@ function mapDriverTransportStopStudent(raw, idx) {
   }
 }
 
-function mapDriverTransportStopRow(raw, routeType) {
+export function mapDriverTransportStopRow(raw, routeType) {
   if (!raw || typeof raw !== 'object') return null
   const pickupPointId = raw.pickupPointId ?? raw.pickup_point_id
   const order = Number(raw.order ?? raw.sequence ?? raw.stopOrder ?? raw.sortOrder) || 0

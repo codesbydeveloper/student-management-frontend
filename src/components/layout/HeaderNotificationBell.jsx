@@ -1,23 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BELL_PANEL_DEFAULT_LIMIT, fetchNotificationBell } from '../../api/notificationsApi'
+import { markParentBusLiveAlertsRead } from '../../api/parentsApi'
 import { useAuth } from '../../context/AuthContext'
+import { ROLES } from '../../utils/constants'
 import { BellIcon } from '../icons/BellIcon'
 import {
   getHeaderNotificationItemLink,
   getHeaderNotificationsViewAllPath,
 } from './headerNotificationPreview'
+import {
+  getParentTransportTrackingLink,
+  isParentTransportAbsentStatus,
+  isParentTransportSafetyNotification,
+  parentTransportSafetyToneClasses,
+} from '../../utils/parentTransportSafety'
 
 /**
  * Header bell + inbox popover — loads GET /api/notifications/bell (Bearer).
  */
 export function HeaderNotificationBell() {
   const { user, token } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dismissingKey, setDismissingKey] = useState('')
   const rootRef = useRef(null)
 
   const viewAllPath = useMemo(() => getHeaderNotificationsViewAllPath(user?.role), [user?.role])
@@ -71,6 +81,27 @@ export function HeaderNotificationBell() {
     return () => document.removeEventListener('pointerdown', onPointer)
   }, [open, close])
 
+  const onTransportNotificationClick = useCallback(
+    async (item) => {
+      const alertKey = item?.alertKey
+      if (dismissingKey) return
+      if (token && alertKey) {
+        setDismissingKey(alertKey)
+        await markParentBusLiveAlertsRead(token, {
+          alertKey,
+          studentId: item.transport?.studentId,
+        })
+        setItems((prev) => prev.filter((n) => n.alertKey !== alertKey && n.id !== item.id))
+        setUnreadCount((c) => Math.max(0, c - (item.unread ? 1 : 0)))
+        setDismissingKey('')
+      }
+      close()
+      const link = getParentTransportTrackingLink(item.transport?.studentId)
+      navigate(link.pathname, { state: link.state })
+    },
+    [token, navigate, close, dismissingKey],
+  )
+
   const badgeCount = unreadCount > 0 ? unreadCount : items.filter((i) => i.unread).length
 
   return (
@@ -116,6 +147,42 @@ export function HeaderNotificationBell() {
               ) : null}
               {!loading && !error
                 ? items.map((item) => {
+                    const isTransport =
+                      user?.role === ROLES.PARENT && isParentTransportSafetyNotification(item)
+                    if (isTransport) {
+                      const busy = dismissingKey === item.alertKey
+                      const transportAbsent = isParentTransportAbsentStatus(
+                        item.transport?.studentStatus,
+                        item.alertKey,
+                        item.message || item.title,
+                      )
+                      const tone = parentTransportSafetyToneClasses(transportAbsent)
+                      return (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void onTransportNotificationClick(item)}
+                            className={`block w-full rounded-xl border px-3 py-2.5 text-left transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60 ${tone.bellFocus} ${
+                              item.unread ? tone.bellUnread : tone.bellRead
+                            }`}
+                          >
+                            <h3 className={`text-sm font-semibold leading-snug ${tone.bellTitle}`}>
+                              {item.title}
+                            </h3>
+                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">
+                              {item.message}
+                            </p>
+                            {item.occurredAtLabel ? (
+                              <p className={`mt-1.5 text-xs font-medium ${tone.bellTime}`}>
+                                {item.occurredAtLabel}
+                              </p>
+                            ) : null}
+                          </button>
+                        </li>
+                      )
+                    }
+
                     const to = getHeaderNotificationItemLink(user?.role, item)
                     return (
                       <li key={item.id}>

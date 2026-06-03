@@ -159,7 +159,7 @@ export default function CreateLeadPage() {
     role === ROLES.PARENT
       ? '/dashboard'
       : role === ROLES.DRIVER
-        ? '/driver-transport'
+        ? '/driver/map'
         : '/dashboard'
 
   const totalMinePages = Math.max(1, Math.ceil(mineTotal / MINE_PAGE_LIMIT))

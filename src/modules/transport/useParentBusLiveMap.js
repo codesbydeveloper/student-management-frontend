@@ -49,6 +49,10 @@ function readBusLocationPayload(data, knownServerNumericId) {
     return null
   }
   const tsNum = Number(data.ts)
+  let isRunning = null
+  if (data.isRunning === true || data.is_running === true) isRunning = true
+  else if (data.isRunning === false || data.is_running === false) isRunning = false
+
   return {
     lat,
     lng,
@@ -56,6 +60,7 @@ function readBusLocationPayload(data, knownServerNumericId) {
     ts: Number.isFinite(tsNum) ? tsNum : Date.now(),
     busId: data.busId ?? null,
     busNumericId: payloadNumeric,
+    isRunning,
   }
 }
 
@@ -146,6 +151,8 @@ export function useParentBusLiveMap(busId, token, options = {}) {
   /** @type {[ParentJoinedInfo, Function]} */
   const [joinedInfo, setJoinedInfo] = useState(null)
   const [connError, setConnError] = useState(null)
+  /** Latest live `bus:location` isRunning flag (not from localStorage hydrate). */
+  const [socketIsRunning, setSocketIsRunning] = useState(null)
 
   const socketUrl = getSocketTransportUrl()
 
@@ -179,8 +186,11 @@ export function useParentBusLiveMap(busId, token, options = {}) {
     if (!socketUrl || !busId || !token) {
       setJoinedInfo(null)
       setConnError(null)
+      setSocketIsRunning(null)
       return undefined
     }
+
+    setSocketIsRunning(null)
 
     const socket = io(socketUrl, getSocketIOClientOptions(token))
     let disposed = false
@@ -247,6 +257,8 @@ export function useParentBusLiveMap(busId, token, options = {}) {
       setSocketPoint(next)
       setSocketTrail((prev) => [...prev.slice(-89), { lat: point.lat, lng: point.lng }])
       writePersistedLastLocation(busId, next)
+      if (point.isRunning === true) setSocketIsRunning(true)
+      else if (point.isRunning === false) setSocketIsRunning(false)
     }
 
     const onConnect = () => {
@@ -292,6 +304,7 @@ export function useParentBusLiveMap(busId, token, options = {}) {
       socket.disconnect()
       setJoinedInfo(null)
       setConnError(null)
+      setSocketIsRunning(null)
     }
   }, [busId, socketUrl, token, reconnectNonce])
 
@@ -347,6 +360,7 @@ export function useParentBusLiveMap(busId, token, options = {}) {
     joinedInfo,
     joinedRoomMissing,
     connError,
+    socketIsRunning,
     /** True when the displayed point is the persisted "last known" (not a live event in this session). */
     hasFreshPoint,
     /** Numeric id we believe the server placed us in (joined ack → REST option → null). */

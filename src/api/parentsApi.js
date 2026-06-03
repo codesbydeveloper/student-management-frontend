@@ -2,7 +2,7 @@ import { API_BASE_URL } from '../utils/constants'
 import { parseDashboardTimestampMs } from '../utils/dashboardDateParse'
 import { pickLastActivityFromApi } from '../utils/lastActivityDisplay'
 import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
-import { pickNotificationMediaUrl } from '../utils/notificationFormat'
+import { formatTransportSafetyTime, pickNotificationMediaUrl } from '../utils/notificationFormat'
 import {
   applyParentMessageReadOverrides,
   isParentMessageReadLocally,
@@ -1568,12 +1568,26 @@ function mapParentBusLiveAlert(raw) {
   if (!raw || typeof raw !== 'object') return null
   const alertKey = String(raw.alertKey ?? raw.alert_key ?? raw.key ?? '').trim()
   if (!alertKey) return null
+  const occurredAtRaw =
+    raw.sentAt ??
+    raw.sent_at ??
+    raw.createdAt ??
+    raw.created_at ??
+    raw.approvedAt ??
+    raw.approved_at ??
+    raw.occurredAt ??
+    raw.occurred_at ??
+    ''
+  const occurredAtRawStr = occurredAtRaw ? String(occurredAtRaw).trim() : ''
+  const occurredAtLabel = occurredAtRawStr ? formatTransportSafetyTime(occurredAtRawStr) : ''
   return {
     alertKey,
     type: String(raw.type ?? raw.alertType ?? '').trim(),
     title: String(raw.title ?? '').trim() || 'Bus update',
     message: String(raw.message ?? '').trim(),
     isRead: raw.isRead === true || raw.is_read === true || raw.read === true,
+    occurredAtLabel,
+    occurredAtRaw: occurredAtRawStr,
   }
 }
 

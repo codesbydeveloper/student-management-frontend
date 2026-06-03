@@ -390,6 +390,33 @@ export default function DriverMapPage() {
 
   const activeRoute = visibleRoutes.find((r) => String(r.id) === String(activeRouteId)) || null
   const stops = activeRoute?.stops || []
+
+  const isTripRunning = Boolean(tripId && (trip?.active || gpsTripActive))
+
+  const lockedTripRouteType = useMemo(() => {
+    if (!isTripRunning) return null
+    const routeId = String(tripProgress?.routeId ?? activeRouteId ?? '').trim()
+    const route = routes.find((r) => String(r.id) === routeId)
+    if (route?.routeType) return normalizeRouteType(route.routeType)
+    return normalizeRouteType(activeType)
+  }, [isTripRunning, tripProgress?.routeId, activeRouteId, routes, activeType])
+
+  const handleRouteTypeChange = useCallback(
+    (nextType) => {
+      const normalized = normalizeRouteType(nextType)
+      if (isTripRunning && lockedTripRouteType && normalized !== lockedTripRouteType) {
+        if (lockedTripRouteType === 'pick_up') {
+          toast.error('You are currently running on the pick up. End the trip before switching to drop.')
+        } else {
+          toast.error('You are currently running on the drop. End the trip before switching to pick up.')
+        }
+        return
+      }
+      setActiveType(normalized)
+    },
+    [isTripRunning, lockedTripRouteType],
+  )
+
   const displayProgress = useMemo(
     () => enrichTripProgressWithRouteStops(tripProgress, stops),
     [tripProgress, stops],
@@ -754,11 +781,6 @@ export default function DriverMapPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
-        <Link to="/driver-transport">
-          <Button type="button" size="sm" variant="secondary">
-            My trip
-          </Button>
-        </Link>
         <Link to="/driver/routes">
           <Button type="button" size="sm" variant="secondary">
             Routes
@@ -776,7 +798,7 @@ export default function DriverMapPage() {
               {gpsTripActive ? (
                 <p className="mt-2 text-xs font-medium text-emerald-700">Trip in progress — sharing live location</p>
               ) : (
-                <p className="mt-2 text-xs text-slate-600">Start a trip on My trip to broadcast GPS to parents.</p>
+                <p className="mt-2 text-xs text-slate-600">Start a trip here to share live GPS with parents.</p>
               )}
               {plateContractIssue ? (
                 <p className="mt-2 text-xs text-amber-800">{plateContractIssue}</p>
@@ -796,11 +818,6 @@ export default function DriverMapPage() {
                     End trip
                   </Button>
                 )}
-                <Link to="/driver-transport">
-                  <Button type="button" size="sm" variant="secondary">
-                    Open My trip
-                  </Button>
-                </Link>
                 {tripId ? (
                   <Button
                     type="button"
@@ -869,7 +886,7 @@ export default function DriverMapPage() {
                 type="button"
                 size="sm"
                 variant={activeType === 'pick_up' ? 'primary' : 'secondary'}
-                onClick={() => setActiveType('pick_up')}
+                onClick={() => handleRouteTypeChange('pick_up')}
               >
                 Pick up ({pickupRoutes.length})
               </Button>
@@ -877,7 +894,7 @@ export default function DriverMapPage() {
                 type="button"
                 size="sm"
                 variant={activeType === 'drop' ? 'primary' : 'secondary'}
-                onClick={() => setActiveType('drop')}
+                onClick={() => handleRouteTypeChange('drop')}
               >
                 Drop ({dropRoutes.length})
               </Button>

@@ -3,15 +3,20 @@ import { API_BASE_URL } from '../../utils/constants'
 /**
  * Live transport — Socket.IO on the **same host** as the REST API by default.
  *
- * **Backend (Express + Socket.IO):**
- * - URL: same as `VITE_API_URL` / `API_BASE_URL` (default production: `https://sch-managment.thevrikshara.com`).
- * - Path: `/socket.io` (default; set explicitly for clarity).
- * - Auth: `io(url, { auth: { token: jwt } })` — same Bearer as REST.
- * - Parent: server may auto-join `bus-<numericId>`; optional `socket.emit('subscribe:bus', { busId: <number> })`.
- * - Listen: `bus:location` — `{ lat, lng, speed, busId, driverUserId, ts, isRunning, recordedAt?, busNumericId? }`.
- * - Driver: may **`emit('bus:location', { lat, lng, speed, busId, ts, isRunning })`** with optional ack; server uses the same save path as REST. This app **emits when the socket is connected** and **POSTs as fallback** if offline, ack `ok: false`, or no ack in time.
+ * **Parent map (this frontend):**
+ * - Live GPS marker → Socket `bus:location` only (do not poll REST on each ping).
+ * - Next stop, ETA, alerts, studentStatus → GET `/api/parents/my-bus-live` once per page visit (+ manual Refresh / tab visible); no timer poll.
  *
- * **Override:** set `VITE_SOCKET_TRANSPORT_URL` if the socket is on another origin (e.g. old relay on :3001).
+ * **Backend (Express + Socket.IO):**
+ * - URL: same as `VITE_API_URL` / `API_BASE_URL` (e.g. `http://localhost:8000`).
+ * - Path: `/socket.io`
+ * - Auth: `io(url, { path: '/socket.io', auth: { token: jwt } })`
+ * - Server → parent: `joined` `{ busId, room }` (room e.g. `bus-3`)
+ * - Parent → server: `subscribe:bus` `{ busId: <numeric buses.id> }` if `joined.room` is null
+ * - Server → parent: `bus:location` `{ lat, lng, speed, busId, ts, isRunning, busNumericId? }`
+ * - Driver → server: `bus:location` (same payload) while trip is running (~every 10–15s)
+ *
+ * **Override:** `VITE_SOCKET_TRANSPORT_URL` if socket is on another origin.
  */
 
 /** Emit interval aligned with SOW (10–15s). */

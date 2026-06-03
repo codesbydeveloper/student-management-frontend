@@ -1,4 +1,9 @@
 import { ROLES } from '../../utils/constants'
+import {
+  getParentTransportTrackingLink,
+  getTransportBellStudentId,
+  isParentTransportSafetyNotification,
+} from '../../utils/parentTransportSafety'
 
 /**
  * @typedef {{
@@ -45,6 +50,7 @@ function routingBlob(item) {
 }
 
 function resolveBellKind(item) {
+  if (isParentTransportSafetyNotification(item)) return 'transport'
   const text = routingBlob(item)
   if (/\bptm\b|parent.?teacher\s+meeting/.test(text)) return 'ptm'
   if (/\blead\b|\bcrm\b/.test(text)) return 'lead'
@@ -111,6 +117,10 @@ export function getHeaderNotificationItemLink(role, item) {
 
   if (explicit) {
     return state ? { pathname: explicit.split('?')[0], state } : explicit
+  }
+
+  if (kind === 'transport' && role === ROLES.PARENT) {
+    return getParentTransportTrackingLink(getTransportBellStudentId(item))
   }
 
   if (kind === 'ptm') {

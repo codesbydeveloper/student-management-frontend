@@ -219,7 +219,7 @@ export function ParentDashboardOverview() {
           hint="Open messages →"
         />
 
-        <DashboardStatTile to="/parent-bus" navKey="parent_bus" label="Bus trip" hint="Bus tracking →">
+        <DashboardStatTile to="/parent/routes" navKey="parent_my_transport" label="Bus trip" hint="Bus tracking →">
           <div className="mt-2 flex items-center gap-2">
             <span
               className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${

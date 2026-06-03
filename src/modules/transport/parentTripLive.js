@@ -73,6 +73,32 @@ export function isParentBusTripStarted(trip, liveEnvelopeStatus, live, studentTr
   return false
 }
 
+const TERMINAL_STUDENT_STATUSES = new Set(['picked_up', 'absent', 'dropped_off'])
+
+/**
+ * picked_up / absent / dropped_off from API can linger after the driver starts a new trip.
+ * Only show those messages when the trip is not live, or this stop is completed on the current run.
+ *
+ * @param {string | undefined} studentStatus
+ * @param {string | undefined} yourStopStatus
+ * @param {boolean} [tripLive]
+ * @returns {'picked_up' | 'absent' | 'dropped_off' | null}
+ */
+export function parentTerminalStudentStatusForUi(studentStatus, yourStopStatus, tripLive = false) {
+  const student = String(studentStatus ?? '').trim().toLowerCase()
+  if (!TERMINAL_STUDENT_STATUSES.has(student)) return null
+  const stop = String(yourStopStatus ?? '').trim().toLowerCase()
+  if (tripLive && stop !== 'completed') return null
+  return student
+}
+
+/** Trust unread bell safety alert for main status (arrives before my-bus-live may update). */
+export function parentBellTerminalStudentStatus(studentStatus) {
+  const student = String(studentStatus ?? '').trim().toLowerCase()
+  if (!TERMINAL_STUDENT_STATUSES.has(student)) return null
+  return student
+}
+
 /** Parent has at least one child on a bus route with pick-up configured. */
 export function parentHasTransportAssignment({
   pickupAssigned,

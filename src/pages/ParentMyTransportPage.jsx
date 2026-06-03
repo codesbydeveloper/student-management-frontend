@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchParentMyTransport } from '../api/parentsApi'
 import { Card, CardHeader } from '../components/ui/Card'
@@ -9,6 +9,11 @@ import { ROLES } from '../utils/constants'
 
 export default function ParentMyTransportPage() {
   const { user, token } = useAuth()
+  const location = useLocation()
+  const focusStudentId = useMemo(() => {
+    const sid = location.state?.studentId
+    return sid != null && String(sid).trim() !== '' ? sid : null
+  }, [location.state])
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -56,7 +61,7 @@ export default function ParentMyTransportPage() {
           subtitle="See where to wait and when the bus is coming."
         />
         <div className="border-t border-slate-100 px-4 py-6 sm:px-6">
-          <ParentBusTrackingPanel compact />
+          <ParentBusTrackingPanel compact studentId={focusStudentId} />
         </div>
       </Card>
 

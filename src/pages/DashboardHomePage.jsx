@@ -40,7 +40,7 @@ export default function DashboardHomePage() {
     { to: '/parent-notifications', label: 'School messages', key: 'parent_notifications' },
     { to: '/parent-bus', label: 'Bus tracking', key: 'parent_bus' },
     { to: '/parent/routes', label: 'Routes', key: 'parent_my_transport' },
-    { to: '/driver-transport', label: 'My trip', key: 'driver_transport' },
+    { to: '/driver/map', label: 'My trip', key: 'driver_map' },
     { to: '/driver/routes', label: 'Routes', key: 'driver_my_routes' },
     { to: '/teachers', label: 'Teachers', key: 'teachers' },
     { to: '/drivers', label: 'Bus drivers', key: 'drivers' },
@@ -77,7 +77,7 @@ export default function DashboardHomePage() {
       {user.role === ROLES.DRIVER ? (
         <Card>
           <h2 className="flex items-center gap-2.5 text-base font-semibold text-slate-900">
-            <NavIconTile navKey="driver_transport" size="sm" />
+            <NavIconTile navKey="driver_map" size="sm" />
             Transport
           </h2>
           <p className="mt-2 text-sm text-slate-600">
@@ -85,10 +85,10 @@ export default function DashboardHomePage() {
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              to="/driver-transport"
+              to="/driver/map"
               className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
             >
-              <NavIconTile navKey="driver_transport" size="sm" />
+              <NavIconTile navKey="driver_map" size="sm" />
               Open my trip
             </Link>
             <Link

@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchParentMyBusLive, fetchParentMyPickupPoints } from '../../api/parentsApi'
 
-/** Poll my-bus-live during a trip so pickup status reaches parents quickly. */
-const LIVE_POLL_MS = 15_000
-
 /**
- * Pick-up points: once per page visit.
- * Live bus: once on load, then every 30s. No studentId query — filter in the UI.
+ * REST for trip metadata (started?, next stop, ETA, alerts) — not for live GPS.
+ * Live map position uses Socket.IO `bus:location` in useParentBusLiveMap.
+ *
+ * my-bus-live is called only:
+ * - once when the parent bus page mounts
+ * - when the user taps Refresh (refresh())
+ * - when the browser tab becomes visible again (optional catch-up)
+ *
+ * No interval polling — stops repeated HTTP under load.
+ *
  * @param {string | null | undefined} token
- * @param {{ pollMs?: number, enabled?: boolean }} [options]
+ * @param {{ enabled?: boolean, refreshOnTabVisible?: boolean }} [options]
  */
 export function useParentBusLiveStatus(token, options = {}) {
-  const { pollMs = LIVE_POLL_MS, enabled = true } = options
+  const { enabled = true, refreshOnTabVisible = true } = options
 
   const [pickupStudents, setPickupStudents] = useState([])
   const [liveStudents, setLiveStudents] = useState([])
@@ -91,13 +96,17 @@ export function useParentBusLiveStatus(token, options = {}) {
 
   useEffect(() => {
     if (!token || !enabled) return undefined
+
     void loadLive()
-    if (pollMs <= 0) return undefined
-    const id = window.setInterval(() => {
-      void loadLive()
-    }, pollMs)
-    return () => window.clearInterval(id)
-  }, [token, enabled, pollMs, loadLive])
+
+    if (!refreshOnTabVisible) return undefined
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void loadLive()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [token, enabled, refreshOnTabVisible, loadLive])
 
   return {
     pickupStudents,
