@@ -1,7 +1,6 @@
-/** Default page size for notice history (admin / principal). */
+
 export const NOTICE_HISTORY_PAGE_SIZE = 50
 
-/** Rows-per-page choices in the notice history footer dropdown. */
 export const NOTICE_HISTORY_PAGE_SIZE_OPTIONS = [10, 30, 50, 80, 100]
 
 export const DATE_RANGE_PRESETS = [

@@ -29,6 +29,7 @@ export function useParentBusLiveStatus(token, options = {}) {
   const pickupLoaded = useRef(false)
   const pickupInFlight = useRef(false)
   const liveInFlight = useRef(false)
+  const liveLoadedOnce = useRef(false)
 
   const loadPickupPoints = useCallback(async () => {
     if (!token || !enabled) {
@@ -64,7 +65,8 @@ export function useParentBusLiveStatus(token, options = {}) {
     }
     if (liveInFlight.current) return
     liveInFlight.current = true
-    setLoading(true)
+    const showBlockingLoader = !liveLoadedOnce.current
+    if (showBlockingLoader) setLoading(true)
     try {
       const liveRes = await fetchParentMyBusLive(token)
       if (liveRes.ok) {
@@ -72,15 +74,17 @@ export function useParentBusLiveStatus(token, options = {}) {
         setLiveStatus(liveRes.status)
         setLiveMessage(liveRes.message)
         setError('')
+        liveLoadedOnce.current = true
       } else {
         setLiveStudents([])
         setLiveStatus(null)
         setLiveMessage(liveRes.error || null)
         setError(liveRes.error || '')
+        liveLoadedOnce.current = true
       }
     } finally {
       liveInFlight.current = false
-      setLoading(false)
+      if (showBlockingLoader) setLoading(false)
     }
   }, [token, enabled])
 

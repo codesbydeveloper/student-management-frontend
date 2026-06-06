@@ -28,14 +28,14 @@ function saveRaw(data) {
   notifyTransportAssignmentListeners()
 }
 
-/** Effective bus for a signed-in parent (`users.id` from JWT) — local override only; prefer API. */
+
 export function getParentAssignedBusId(user) {
   const key = user?.id != null ? String(user.id) : ''
   if (!key) return ''
   return loadRaw().parentBus[key] || ''
 }
 
-/** Effective bus for a signed-in driver (`users.id` from JWT) — local override only; prefer API. */
+
 export function getDriverBusIdForUser(user) {
   const key = user?.id != null ? String(user.id) : ''
   if (!key) return ''

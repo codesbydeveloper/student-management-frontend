@@ -54,6 +54,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: false,
+        clientsClaim: false,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
@@ -78,7 +80,8 @@ export default defineConfig({
       },
       // Service worker required for install prompt (beforeinstallprompt).
       devOptions: {
-        enabled: true,
+        // Off in dev — enabled SW + HMR caused continuous full-page reload loops.
+        enabled: false,
         type: 'module',
         navigateFallback: 'index.html',
       },

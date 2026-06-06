@@ -1,8 +1,6 @@
 import { API_BASE_URL, ROLES } from '../utils/constants'
 
-/**
- * JSON body for `POST /api/auth/register` (matches server examples on port 8000).
- */
+
 export function buildRegisterRequestBody(form) {
   const role = form.role
   const fullName = form.fullName.trim()

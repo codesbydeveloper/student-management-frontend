@@ -1,6 +1,9 @@
 /** Same key as webpushrSetup — duplicated to avoid circular imports. */
 const WEBPUSHR_PUBLIC_KEY =
-  'BPvye14rYpRLR_49ONyv6jCt4UYvqX3GGLN7jQe8jUSMHO2LDnaj-z6LN8TI3HipcA3HpxjqzMOP2oyovbchSis'
+// 'BPvye14rYpRLR_49ONyv6jCt4UYvqX3GGLN7jQe8jUSMHO2LDnaj-z6LN8TI3HipcA3HpxjqzMOP2oyovbchSis'
+  'BAj6Hb0eZ2YCVnvPJa0ltZpBxi6edKY-zuAbefqg1F-24wEfqKvZaEYUSfpQ2lpHcEEuFHvA6LW2ucI0A7whl7s'
+
+import { prepareWebpushrServiceWorker } from './appServiceWorker'
 
 const SW_PATH = '/webpushr-sw.js'
 const SUBSCRIBE_URL = 'https://subscriber.webpushr.com/subscribe/'
@@ -64,13 +67,17 @@ async function postSubscriptionToWebpushr(subscription) {
   return res.text()
 }
 
-async function getPushRegistration() {
+async function getPushRegistration({ replaceAppSw = false } = {}) {
   if (!('serviceWorker' in navigator)) return null
 
   const registrations = await navigator.serviceWorker.getRegistrations()
   for (const reg of registrations) {
     const url = reg.active?.scriptURL || reg.installing?.scriptURL || ''
     if (url.includes('webpushr')) return reg
+  }
+
+  if (replaceAppSw) {
+    await prepareWebpushrServiceWorker(true)
   }
 
   try {
@@ -139,7 +146,9 @@ export async function nativeWebpushrSubscribe(options = {}) {
 
   subscribeInFlight = (async () => {
     try {
-      const registration = await getPushRegistration()
+      const registration = await getPushRegistration({
+        replaceAppSw: Boolean(force || requestPermission),
+      })
       if (!registration?.pushManager) {
         if (getNotificationPermission() === 'granted') {
           markPushPromptCompleted('Approve')

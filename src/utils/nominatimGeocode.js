@@ -1,14 +1,12 @@
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org'
 const USER_AGENT = 'SchoolManagementSuite/1.0 (transport pickup points)'
 
-/** Build search string for map lookup from stop fields. */
+
 export function buildPickupGeocodeQuery({ name, location, city, state }) {
   return [name, location, city, state].map((s) => String(s ?? '').trim()).filter(Boolean).join(', ')
 }
 
-/**
- * Forward geocode address → { lat, lng, displayName } (OpenStreetMap Nominatim, no Google).
- */
+
 export async function geocodeAddress(query) {
   const q = String(query ?? '').trim()
   if (!q) return { ok: false, error: 'Enter a location to search.' }
@@ -42,9 +40,8 @@ export async function geocodeAddress(query) {
   }
 }
 
-/**
- * Reverse geocode coordinates → short place label.
- */
+
+
 export async function reverseGeocode(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return { ok: false, error: 'Invalid coordinates.' }

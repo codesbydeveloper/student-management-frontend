@@ -1,4 +1,4 @@
-/** API display shape: `19-05-2026, 03:17:48 PM` (timezone suffix stripped for UI) */
+
 const SERVER_DISPLAY_RE = /^\d{1,2}-\d{1,2}-\d{4}.+\b(AM|PM)\b/i
 
 const DEFAULT_ACTIVITY_TZ = 'Asia/Kolkata'
@@ -44,7 +44,7 @@ function pad2(n) {
   return String(n).padStart(2, '0')
 }
 
-/** Remove trailing timezone label from API strings (e.g. `… PM IST` → `… PM`). */
+
 function stripTimezoneSuffix(s) {
   return String(s)
     .trim()

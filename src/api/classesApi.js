@@ -16,7 +16,7 @@ function formatMutationError(data, status) {
   return `Request failed (${status})`
 }
 
-/** Coerce teacher ids to numbers when numeric (matches server curl), else keep as string. */
+
 function teacherIdsForApi(ids) {
   if (!Array.isArray(ids)) return []
   const out = []
@@ -39,7 +39,7 @@ function formatListError(data, status) {
   return `Could not load classes (${status})`
 }
 
-/** Pull list + total from common paginated API shapes. */
+
 export function extractPagedClassesResponse(data) {
   if (!data || typeof data !== 'object') {
     return { list: [], total: 0, page: 1, limit: 10 }
@@ -73,7 +73,7 @@ export function extractPagedClassesResponse(data) {
   }
 }
 
-/** Pull teacher ids + display labels from common GET /api/classes/:id (and list) shapes. */
+
 function extractTeachersFromClassPayload(o) {
   const teacherIds = []
   const teacherNames = []
@@ -163,7 +163,7 @@ function extractTeachersFromClassPayload(o) {
   return { teacherIds, teacherNames }
 }
 
-/** GET /api/classes/:id often returns `{ class, teachers, students, ... }` — merge siblings onto the class row. */
+
 function copyDetailEnvelopeOntoClass(envelope, inner) {
   if (!inner || typeof inner !== 'object') return null
   if (!envelope || typeof envelope !== 'object') return { ...inner }
@@ -189,12 +189,12 @@ function copyDetailEnvelopeOntoClass(envelope, inner) {
   return out
 }
 
-/** Map API class payload to the shape used by ClassesModule / AppData. */
+
 export function mapApiClassToRow(raw) {
   if (!raw || typeof raw !== 'object') return null
   let o =
     raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data) ? raw.data : raw
-  // Envelope: { class: { … }, teachers: [ … ] } — keep teachers on the row we map.
+  
   if (o.class && typeof o.class === 'object' && !Array.isArray(o.class)) {
     o = copyDetailEnvelopeOntoClass(o, o.class)
   }
@@ -254,7 +254,7 @@ export async function fetchClassesList(token, params = {}) {
   }
 }
 
-/** Normalize GET /api/classes/summary response to a raw class row array. */
+
 function extractClassesSummaryList(data) {
   if (!data || typeof data !== 'object') return []
   if (Array.isArray(data)) return data
@@ -268,7 +268,7 @@ function extractClassesSummaryList(data) {
   return list.length ? list : []
 }
 
-/** Option shape for SearchableMultiSelect (assign classes on teacher form). */
+
 export function mapSummaryClassToOption(raw) {
   const row = mapApiClassToRow(raw)
   if (!row) return null
@@ -352,7 +352,7 @@ export async function fetchClassesAssigned(token) {
   }
 }
 
-/** Resolve nested JSON from GET /api/classes/:id. */
+
 function unwrapSingleClassPayload(data) {
   if (!data || typeof data !== 'object') return null
   if (data.class && typeof data.class === 'object' && !Array.isArray(data.class)) {

@@ -1,17 +1,15 @@
 import { STORAGE_KEYS } from './constants'
 
-/** Fired when the sign-in page should refresh install prompt visibility. */
+
 export const PWA_INSTALL_LOGIN_PROMPT_EVENT = 'sm-pwa-install-login-prompt'
 
-/** Fired when the browser makes the native install prompt available. */
+
 export const PWA_INSTALL_PROMPT_READY_EVENT = 'sm-pwa-install-prompt-ready'
 
 /** @type {BeforeInstallPromptEvent | null} */
 let deferredInstallPrompt = null
 
-/**
- * Capture beforeinstallprompt as early as possible (main.jsx) so login banner never misses it.
- */
+
 export function installGlobalPwaCapture() {
   if (typeof window === 'undefined') return
 
@@ -61,12 +59,12 @@ export function isChromiumDesktopBrowser() {
   return /Chrome|Edg|Chromium/i.test(ua)
 }
 
-/** Local calendar date key (YYYY-MM-DD) for once-per-day dismiss. */
+
 function getLocalDateKey() {
   return new Date().toLocaleDateString('en-CA')
 }
 
-/** True when the app is already open as an installed PWA / home-screen shortcut. */
+
 export function isRunningAsInstalledPwa() {
   if (typeof window === 'undefined') return false
   try {
@@ -112,7 +110,7 @@ export function isPwaInstallBannerPermanentlyDismissed() {
   }
 }
 
-/** User tapped “Not yet” earlier today. */
+
 export function wasPwaInstallDismissedToday() {
   try {
     return localStorage.getItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED_DATE) === getLocalDateKey()
@@ -121,7 +119,7 @@ export function wasPwaInstallDismissedToday() {
   }
 }
 
-/** Hide the install prompt until tomorrow (local calendar day). */
+
 export function dismissPwaInstallForToday() {
   try {
     localStorage.setItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED_DATE, getLocalDateKey())
@@ -141,7 +139,7 @@ export function requestPwaInstallPromptOnLogin() {
   requestPwaInstallPromptOnLoginPage()
 }
 
-/** Show at most once per day on sign-in until the app is installed. */
+
 export function shouldShowPwaInstallPrompt() {
   if (typeof window === 'undefined') return false
   if (isRunningAsInstalledPwa()) return false

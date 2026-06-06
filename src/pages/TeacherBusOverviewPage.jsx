@@ -11,6 +11,7 @@ import { Modal } from '../components/Modal'
 import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { PageEmptyState } from '../components/ui/PageEmptyState'
 
 const PAGE_LIMIT = 10
 
@@ -169,19 +170,37 @@ export default function TeacherBusOverviewPage() {
 
       <Card>
         <CardHeader title="Buses" subtitle="Transport routes for your classes." />
-        <div className="px-4 pb-4 sm:px-6 sm:pb-6">
+        <div className="-mx-2 sm:mx-0">
           {!token ? (
-            <p className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
-              Sign in to load routes.
-            </p>
+            <PageEmptyState
+              navKey="teacher_bus_overview"
+              title="Sign in required"
+              description="Sign in to see bus routes linked to your classes."
+            />
           ) : loading && routes.length === 0 ? (
-            <p className="text-sm text-slate-600">Loading…</p>
+            <PageEmptyState
+              navKey="teacher_bus_overview"
+              title="Loading routes…"
+              description="Fetching transport routes for your classes."
+              compact
+            />
           ) : error ? (
-            <p className="rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-950">
-              {error}
-            </p>
+            <PageEmptyState
+              navKey="teacher_bus_overview"
+              title="Could not load routes"
+              description={error}
+              action={
+                <Button type="button" size="sm" variant="secondary" onClick={() => void loadRoutes()}>
+                  Try again
+                </Button>
+              }
+            />
           ) : routes.length === 0 ? (
-            <p className="text-sm text-slate-600">No routes on this page.</p>
+            <PageEmptyState
+              navKey="teacher_bus_overview"
+              title="No bus routes yet"
+              description="When your school assigns transport routes to your classes, they will show up here with bus, driver, and student details."
+            />
           ) : (
             <>
               <div className="overflow-x-auto rounded-xl border border-slate-200/90">

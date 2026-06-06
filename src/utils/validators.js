@@ -27,7 +27,7 @@ export function minLength(value, min, label = 'This field') {
   return ''
 }
 
-/** Exactly 10 digits. Set `required: false` to allow empty (optional phone). */
+
 export function phone10Digits(value, label = 'Phone', { required: requiredField = true } = {}) {
   const digits = sanitizePhoneDigits(value)
   if (!digits) return requiredField ? `${label} is required` : ''

@@ -10,24 +10,16 @@ import { NotificationProvider } from './context/NotificationContext'
 import { ConfirmProvider } from './context/ConfirmContext'
 import { LoadingProvider } from './context/LoadingContext'
 import { installGlobalPwaCapture } from './utils/pwaInstall'
+import {
+  cleanupDevServiceWorkers,
+  preventServiceWorkerReloadLoop,
+  registerProductionPwa,
+} from './utils/appServiceWorker'
 
 installGlobalPwaCapture()
-
-/**
- * PWA service worker — dev + production.
- * Install prompt needs a registered service worker; dev used to unregister SW which broke "Yes".
- */
-if ('serviceWorker' in navigator) {
-  void import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({
-      immediate: true,
-      onNeedRefresh() {
-        /* Do not auto-reload — prevents loops with Webpushr SW + DevTools “Update on reload”. */
-      },
-      onOfflineReady() {},
-    })
-  })
-}
+preventServiceWorkerReloadLoop()
+void cleanupDevServiceWorkers()
+registerProductionPwa()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -3,9 +3,7 @@ import { toast } from 'react-toastify'
 import { fetchParentMessageById, markParentMessageRead } from '../api/parentsApi'
 import { requestParentMessagesRefresh } from '../utils/parentMessagesRefreshBus'
 
-/**
- * Open a parent school message (GET detail) and mark it read (POST …/read).
- */
+
 export function useParentMessageViewer(token) {
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [viewLoading, setViewLoading] = useState(false)

@@ -200,9 +200,7 @@ export function mapPickerDriverRow(raw) {
   return { userId, vehicleId, fullName, busId: vehicleId, email, phone, profileImage }
 }
 
-/**
- * GET /api/drivers/picker
- */
+
 export async function fetchDriversPicker(token) {
   if (!token) {
     return { ok: false, error: 'Not signed in', drivers: [] }

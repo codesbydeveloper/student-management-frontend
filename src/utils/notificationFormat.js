@@ -40,10 +40,7 @@ export function formatTargetTypeLabel(targetType) {
   return targetType || '—'
 }
 
-/**
- * Banner / hero image URL from API payloads (parent messages, notices).
- * Prefer absolute `bannerImageFullUrl` when present.
- */
+
 export function pickNotificationMediaUrl(obj) {
   if (!obj || typeof obj !== 'object') return ''
   const candidates = [
@@ -133,7 +130,7 @@ export function formatNotificationTimeAgo(value) {
   })
 }
 
-/** Backend bell / transport timestamps: DD-MM-YYYY, h:mm[:ss] AM/PM [TZ] */
+
 const API_DAY_FIRST_DT_RE =
   /^(\d{1,2})-(\d{1,2})-(\d{4}),\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i
 

@@ -532,14 +532,26 @@ export function ParentBusTrackingPanel({
     refreshLive,
   })
 
+  const tripStatusKey = String(
+    selectedLive?.trip?.status ?? liveStatus ?? '',
+  )
+    .trim()
+    .toLowerCase()
+
+  const isNeverStartedToday =
+    ['not_started', 'inactive', 'pending', 'scheduled', 'idle'].includes(tripStatusKey) ||
+    ['not_running', 'no_trip', 'idle', 'empty'].includes(
+      String(liveStatus ?? '').trim().toLowerCase(),
+    )
+
+  /** Brief sync only: first API load, or live GPS arrived before REST says "started". */
   const isTripStatusSyncing =
     hasTransport &&
     !showSafetyBanner &&
     !bellTerminalStatus &&
     !tripStartedDisplay &&
-    (liveLoading ||
-      (driverLiveSignal && !tripStarted) ||
-      (tripEnded && !tripStarted && !driverLiveSignal))
+    !tripEndedDisplay &&
+    (liveLoading || (driverLiveSignal && !tripStarted))
 
   const visibleAlerts = useMemo(() => {
     if (!selectedLive?.alerts?.length || pickupDone) return []
@@ -587,8 +599,10 @@ export function ParentBusTrackingPanel({
 
   const statusMessage = isTripStatusSyncing
     ? syncDetail
-    : tripEndedDisplay
+    : tripEndedDisplay && !isNeverStartedToday
     ? 'Today’s bus trip has ended. You will see updates here when the driver starts the next trip.'
+    : !tripStartedDisplay && hasTransport
+      ? 'The bus trip is not active right now. You will see updates here when the driver starts today’s trip.'
     : bellTerminalStatus
       ? parentStatusMessage({
           tripLive: false,
@@ -760,7 +774,7 @@ export function ParentBusTrackingPanel({
                 'Not assigned'
               ) : isTripStatusSyncing ? (
                 <span className="text-sky-800">Checking — syncing with driver</span>
-              ) : tripEndedDisplay ? (
+              ) : tripEndedDisplay && !isNeverStartedToday ? (
                 <span className="text-slate-700">Ended — driver finished today’s trip</span>
               ) : tripStartedDisplay ? (
                 <span className="text-emerald-800">Active — driver started the trip</span>

@@ -1,4 +1,4 @@
-/** Decode JWT payload (middle segment); returns null for non-JWT or invalid tokens. */
+
 export function decodeJwtPayload(token) {
   if (typeof token !== 'string' || token.startsWith('sms.')) return null
   const parts = token.split('.')
@@ -17,9 +17,6 @@ export function decodeJwtPayload(token) {
   }
 }
 
-/**
- * Client-side session token (base64 payload, no cryptographic signing).
- */
 export function createFakeToken(payload) {
   const body = {
     ...payload,
@@ -55,7 +52,7 @@ export function isTokenExpired(token) {
   return Date.now() >= jwtPayload.exp * 1000
 }
 
-/** True if token subject matches stored user id (supports demo token + JWT). */
+
 export function tokenMatchesStoredUser(token, user) {
   if (!token || !user?.id) return false
   if (token.startsWith('sms.')) {

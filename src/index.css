@@ -45,7 +45,7 @@
   .app-table-head {
     @apply bg-slate-700 text-white;
   }
-  /** Shared admin/data tables — centered headers and cells app-wide. */
+  
   .app-data-table {
     @apply min-w-full text-center text-sm;
   }
@@ -69,7 +69,7 @@
 }
 
 @layer utilities {
-  /** Hide scrollbars but keep overflow scroll / auto (trackpad, wheel, touch). */
+
   .scrollbar-none {
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -80,7 +80,7 @@
     height: 0;
   }
 
-  /** Visible thin scrollbar for header notification panel. */
+ 
   .bell-panel-scroll {
     scrollbar-width: thin;
     scrollbar-color: rgb(148 163 184) transparent;
@@ -97,14 +97,14 @@
   }
 }
 
-/* datetime-local — hide native icon; DateTimeInput shows one calendar button */
+
 .datetime-input::-webkit-calendar-picker-indicator {
   display: none;
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* Toasts — clear notches / home indicator */
+
 .Toastify__toast-container {
   --toastify-toast-width: min(22rem, calc(100vw - 1.25rem));
   padding: max(0.5rem, env(safe-area-inset-top, 0px)) max(0.5rem, env(safe-area-inset-right, 0px))
@@ -155,13 +155,13 @@
   color: #fff;
 }
 
-/* Use in-app push banner; hide Webpushr’s duplicate floating prompt. */
+
 #webpushr-prompt-wrapper {
   display: none !important;
   pointer-events: none !important;
 }
 
-/* Drivers: hide Webpushr floating opt-in and bell (push not used for drivers). */
+
 body.driver-no-webpushr #webpushr-prompt-wrapper,
 body.driver-no-webpushr #webpushr-subscription-wrapper,
 body.driver-no-webpushr .webpushr-subscription-widget,

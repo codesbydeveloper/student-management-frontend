@@ -20,7 +20,6 @@ function saveIds(set) {
   }
 }
 
-/** Remember a message id as read for this browser session (survives list refetch). */
 export function rememberParentMessageRead(messageId) {
   const id = String(messageId ?? '').trim()
   if (!id) return
@@ -36,7 +35,7 @@ export function isParentMessageReadLocally(messageId) {
   return loadIds().has(id)
 }
 
-/** Apply session read overrides after mapping API rows. */
+
 export function applyParentMessageReadOverrides(messages) {
   if (!Array.isArray(messages) || !messages.length) return messages
   const readIds = loadIds()

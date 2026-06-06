@@ -22,7 +22,7 @@ export function NavigationLoadingBridge() {
       window.clearTimeout(timer)
       setNavigationLoading(false)
     }
-  }, [location.pathname, location.search, location.key, setNavigationLoading])
+  }, [location.pathname, location.search, setNavigationLoading])
 
   return null
 }

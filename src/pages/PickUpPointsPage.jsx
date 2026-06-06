@@ -319,48 +319,21 @@ export default function PickUpPointsPage() {
       return
     }
     setEditSaving(true)
-    const [firstStudentId, ...extraStudentIds] = editStudentIds
     const res = await updatePickupPoint(token, editId, {
       location: pickUpPointName,
       latitude: editLatitude,
       longitude: editLongitude,
       pickupTime: editPickUpTime,
       dropTime: editDropTime,
-      studentId: firstStudentId,
+      studentIds: editStudentIds,
     })
     if (!res.ok) {
       setEditSaving(false)
       toast.error(res.error || 'Could not update pick up point.')
       return
     }
-    let created = 0
-    let failed = 0
-    let firstError = ''
-    for (const sid of extraStudentIds) {
-      const createRes = await createPickupPoint(token, {
-        location: pickUpPointName,
-        latitude: editLatitude,
-        longitude: editLongitude,
-        pickupTime: editPickUpTime,
-        dropTime: editDropTime,
-        studentId: sid,
-      })
-      if (createRes.ok) created += 1
-      else {
-        failed += 1
-        if (!firstError) firstError = createRes.error || 'Could not add one of the students.'
-      }
-    }
     setEditSaving(false)
-    if (failed) {
-      toast.warn(
-        `Pick up point updated. Added ${created} extra student(s), ${failed} failed.${firstError ? ` ${firstError}` : ''}`,
-      )
-    } else if (created > 0) {
-      toast.success(`Pick up point updated and ${created} extra student(s) added.`)
-    } else {
-      toast.success('Pick up point updated.')
-    }
+    toast.success('Pick up point updated.')
     closeEdit()
     await loadList()
   }

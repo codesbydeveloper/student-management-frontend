@@ -57,7 +57,7 @@ export function useProfilePrefs(userId, fallbackName = '', token = null) {
       return
     }
     void refresh()
-  }, [userId, token]) // eslint-disable-line react-hooks/exhaustive-deps -- refresh on identity change only
+  }, [userId, token]) 
 
   useEffect(() => {
     const onLocalUpdate = () => {

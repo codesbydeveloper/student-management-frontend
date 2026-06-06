@@ -9,7 +9,8 @@ import {
 
 /** Webpushr site key (from Webpushr dashboard). */
 export const WEBPUSHR_PUBLIC_KEY =
-  'BPvye14rYpRLR_49ONyv6jCt4UYvqX3GGLN7jQe8jUSMHO2LDnaj-z6LN8TI3HipcA3HpxjqzMOP2oyovbchSis'
+//'BPvye14rYpRLR_49ONyv6jCt4UYvqX3GGLN7jQe8jUSMHO2LDnaj-z6LN8TI3HipcA3HpxjqzMOP2oyovbchSis'
+  'BAj6Hb0eZ2YCVnvPJa0ltZpBxi6edKY-zuAbefqg1F-24wEfqKvZaEYUSfpQ2lpHcEEuFHvA6LW2ucI0A7whl7s'
 
 export const DRIVER_WEBPUSHR_BODY_CLASS = 'driver-no-webpushr'
 

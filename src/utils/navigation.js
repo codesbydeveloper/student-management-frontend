@@ -27,25 +27,25 @@ export const OPERATIONS_NAV_KEYS = [
   'admin_leads',
 ]
 
-/** Admin / principal: staff PTM queue and full history. */
+
 export const PTM_NAV_KEYS = ['staff_ptm_requests', 'staff_ptm_history']
 
-/** Teacher: grouped sidebar — Academics. */
+
 export const TEACHER_ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students']
 
-/** Teacher: Create Notice, Notifications. */
+
 export const TEACHER_COMMUNICATIONS_NAV_KEYS = ['create_notice', 'notifications']
 
-/** Teacher: bus student overview. */
+
 export const TEACHER_TRANSPORT_NAV_KEYS = ['teacher_bus_overview']
 
-/** Teacher: PTM requests. */
+
 export const TEACHER_PTM_NAV_KEYS = ['teacher_ptm_requests']
 
-/** Teacher: leads, intake, visitor log. */
+
 export const TEACHER_CRM_NAV_KEYS = ['teacher_assigned_leads', 'create_lead', 'admin_visitor_logs']
 
-/** Parent: grouped sidebar sections. */
+
 export const PARENT_COMMUNICATIONS_NAV_KEYS = ['parent_notifications']
 export const PARENT_TRANSPORT_NAV_KEYS = ['parent_my_transport']
 export const PARENT_PTM_NAV_KEYS = ['parent_ptm_request', 'parent_ptm_history']

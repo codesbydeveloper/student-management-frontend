@@ -1,4 +1,4 @@
-/** Indian-style mobile: digits only, max 10. */
+
 export const PHONE_MAX_LENGTH = 10
 
 export function sanitizePhoneDigits(value) {

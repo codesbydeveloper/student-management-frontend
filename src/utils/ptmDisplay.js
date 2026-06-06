@@ -1,4 +1,4 @@
-/** Format ISO timestamps for PTM lists and detail modals. */
+
 export function formatPtmDateTime(iso) {
   if (!iso) return '—'
   try {

@@ -75,9 +75,7 @@ export function normalizeNotificationStats(data) {
   }
 }
 
-/**
- * GET /api/notifications/stats — Bearer (admin or principal token).
- */
+
 export async function fetchNotificationStats(token) {
   if (!token) {
     return { ok: false, error: 'Not signed in', stats: null }

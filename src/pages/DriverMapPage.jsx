@@ -163,7 +163,6 @@ function studentsAtStop(targetStop, routeStops) {
   }))
 }
 
-/** Pick-up: picked up or absent counts as done. Drop: dropped off or absent. */
 function isStudentHandledForRoute(status, routeType) {
   const key = studentStatusKey(status)
   const type = normalizeRouteType(routeType)
@@ -183,7 +182,7 @@ function primaryActionForRoute(routeType) {
     : { label: 'Picked up', status: 'picked_up' }
 }
 
-/** Same stop on route list vs trip progress (ids may differ). */
+
 function driverStopsMatchForMarking(a, b) {
   if (!a || !b) return false
   if (String(a.id) === String(b.id)) return true
@@ -202,7 +201,6 @@ function driverStopsMatchForMarking(a, b) {
   return Boolean(locA && locB && locA === locB)
 }
 
-/** Table "detail" only — driver sees info, cannot mark here. */
 function DriverStopStudentDetailRow({ student }) {
   const parentName = String(student.parentName ?? '').trim()
   const parentPhone = String(student.parentPhone ?? '').trim()
@@ -309,9 +307,7 @@ function DriverStopStudentRow({ student, routeType, actionLoadingKey, onMark }) 
   )
 }
 
-/**
- * Driver-only map page focused on assigned routes + current bus location.
- */
+
 export default function DriverMapPage() {
   const { user, token } = useAuth()
   const driverUserId = user?.id != null ? String(user.id) : ''
@@ -337,7 +333,7 @@ export default function DriverMapPage() {
   const [tripId, setTripId] = useState('')
   const [actionLoadingKey, setActionLoadingKey] = useState('')
   const [viewStudentsOpen, setViewStudentsOpen] = useState(false)
-  /** 'mark' = Next stop View (pick up / absent). 'readonly' = table detail (info only). */
+ 
   const [studentModalMode, setStudentModalMode] = useState('mark')
   const [viewingStop, setViewingStop] = useState(null)
   const [modalStopDetail, setModalStopDetail] = useState(null)
@@ -610,7 +606,7 @@ export default function DriverMapPage() {
       setActiveRouteId((prev) => prev || saved.routeId)
     }
     void loadTripProgress(saved.tripId)
-  }, [token, driverUserId]) // eslint-disable-line react-hooks/exhaustive-deps -- restore once per login
+  }, [token, driverUserId]) 
 
   const onStartTripFlow = useCallback(async () => {
     if (!activeRoute?.id) {

@@ -1,8 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
 
-/**
- * POST /api/auth/logout — matches server (JSON content-type, optional Bearer token).
- */
 export async function logoutRequest(authToken) {
   const headers = {
     Accept: '*/*',
@@ -17,6 +14,6 @@ export async function logoutRequest(authToken) {
       headers,
     })
   } catch {
-    // Still clear local session if the network fails
+
   }
 }

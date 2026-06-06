@@ -16,7 +16,7 @@ export function isEmailTaken(email) {
   return readCustomUsers().some((u) => u.email.toLowerCase() === n)
 }
 
-/** True if email exists in custom directory, teachers, or parents from API/cache. */
+
 export function isEmailRegisteredAnywhere(email, teachers = [], parents = []) {
   const n = email.trim().toLowerCase()
   if (isEmailTaken(email)) return true
@@ -25,7 +25,7 @@ export function isEmailRegisteredAnywhere(email, teachers = [], parents = []) {
   return false
 }
 
-/** Persist Admin / Principal / Driver (and any other directory-only role) for sign-in. */
+
 export function appendCustomDirectoryUser({ fullName, email, password, role }) {
   const id =
     typeof crypto !== 'undefined' && crypto.randomUUID

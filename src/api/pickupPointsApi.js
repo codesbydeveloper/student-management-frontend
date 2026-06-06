@@ -44,6 +44,18 @@ function timeForApi(value) {
   return t || undefined
 }
 
+function toMeridiemTime(value) {
+  const t = normalizeTimeForInput(value)
+  if (!t) return undefined
+  const [hRaw, mRaw = '00'] = t.split(':')
+  const hNum = Number(hRaw)
+  if (!Number.isFinite(hNum)) return undefined
+  const mins = String(mRaw).padStart(2, '0')
+  const ampm = hNum >= 12 ? 'PM' : 'AM'
+  const h12 = hNum % 12 || 12
+  return `${String(h12).padStart(2, '0')}:${mins} ${ampm}`
+}
+
 function extractPickupPointsList(data) {
   if (!data) return { list: [], total: 0, page: 1, limit: 10, hasNextPage: false, hasPrevPage: false }
   if (Array.isArray(data)) {
@@ -439,7 +451,19 @@ export async function createPickupPoint(token, body) {
 export async function updatePickupPoint(token, id, body) {
   if (!token) return { ok: false, error: 'Not signed in' }
   const idSeg = encodeURIComponent(String(id))
-  const payload = pickupPointPayloadFields(body)
+  const payload = {
+    location: String(body.location ?? body.name ?? body.pointName ?? '').trim(),
+    latitude: parseCoordinate(body.latitude ?? body.lat),
+    longitude: parseCoordinate(body.longitude ?? body.lng ?? body.lon),
+    pickupTime: toMeridiemTime(body.pickupTime),
+    dropTime: toMeridiemTime(body.dropTime),
+  }
+  const studentIds = Array.isArray(body.studentIds)
+    ? body.studentIds
+        .map((sid) => Number(sid))
+        .filter((sid) => Number.isFinite(sid))
+    : []
+  if (studentIds.length > 0) payload.studentIds = studentIds
   const validationError = validatePickupPointPayload(payload)
   if (validationError) return { ok: false, error: validationError }
   try {

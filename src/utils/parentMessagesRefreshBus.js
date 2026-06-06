@@ -18,11 +18,7 @@ function firePing() {
   }
 }
 
-/**
- * After a notice is approved (or otherwise should appear for parents), notify any open
- * “School messages” views to refetch `GET /api/parents/messages`. Uses BroadcastChannel
- * (same tab + other tabs) and `storage` (other tabs only) as fallback.
- */
+
 export function requestParentMessagesRefresh() {
   firePing()
   window.setTimeout(firePing, 700)

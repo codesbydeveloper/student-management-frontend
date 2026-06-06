@@ -31,15 +31,14 @@ define(['exports'], (function (exports) { 'use strict';
           return;
         }
         if (method === 'groupCollapsed') {
-          // Safari doesn't print all console.groupCollapsed() arguments:
-          // https://bugs.webkit.org/show_bug.cgi?id=182754
+      
           if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
             console[method](...args);
             return;
           }
         }
         const styles = [`background: ${methodToColorMap[method]}`, `border-radius: 0.5em`, `color: white`, `font-weight: bold`, `padding: 2px 0.5em`];
-        // When in a group, the workbox prefix is not displayed.
+ 
         const logPrefix = inGroup ? [] : ['%cworkbox', styles.join(';')];
         console[method](...logPrefix, ...args);
         if (method === 'groupCollapsed') {
@@ -49,7 +48,7 @@ define(['exports'], (function (exports) { 'use strict';
           inGroup = false;
         }
       };
-      // eslint-disable-next-line @typescript-eslint/ban-types
+  
       const api = {};
       const loggerMethods = Object.keys(methodToColorMap);
       for (const key of loggerMethods) {
@@ -61,13 +60,7 @@ define(['exports'], (function (exports) { 'use strict';
       return api;
     })();
 
-    /*
-      Copyright 2018 Google LLC
 
-      Use of this source code is governed by an MIT-style
-      license that can be found in the LICENSE file or at
-      https://opensource.org/licenses/MIT.
-    */
     const messages$1 = {
       'invalid-value': ({
         paramName,

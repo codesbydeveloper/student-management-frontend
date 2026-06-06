@@ -78,7 +78,6 @@ function extractPagedBuses(data) {
   }
 }
 
-/** Normalize GET /api/buses/all (and similar “full list”) response shapes to a raw bus array. */
 function extractAllBusesList(data) {
   if (!data) return []
   if (Array.isArray(data)) return data
@@ -396,9 +395,7 @@ export async function fetchBuses(token, { page = 1, limit = 10 } = {}) {
   }
 }
 
-/**
- * GET /api/buses/student-assignments — paged summary per bus (name, driver, student count).
- */
+
 function extractPagedStudentAssignments(data) {
   if (!data || typeof data !== 'object') {
     return { list: [], total: 0, page: 1, limit: 10 }
@@ -741,7 +738,7 @@ export async function fetchBusesStudentAssignments(token, { page = 1, limit = 10
   }
 }
 
-/** Bus roster item: `{ studentId, studentName, className }` or full student row. */
+
 function mapBusAssignedStudentRow(raw) {
   if (!raw || typeof raw !== 'object') return null
   return mapApiStudentToRow({
@@ -997,7 +994,7 @@ export async function exportAllBusesStudentsCsv(token) {
   }
 }
 
-/** JSON-friendly id: plain integers as numbers, else string. */
+
 function coerceJsonId(v) {
   if (v == null || v === '') return null
   const s = String(v).trim()
