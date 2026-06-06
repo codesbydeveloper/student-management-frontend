@@ -98,7 +98,8 @@
 }
 
 
-.datetime-input::-webkit-calendar-picker-indicator {
+.datetime-input::-webkit-calendar-picker-indicator,
+.date-input::-webkit-calendar-picker-indicator {
   display: none;
   -webkit-appearance: none;
   appearance: none;

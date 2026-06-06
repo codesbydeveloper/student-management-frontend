@@ -9,6 +9,8 @@ import { buildPickupGeocodeQuery } from '../../utils/nominatimGeocode'
  */
 export function PickupPointLocationFields({
   idPrefix = 'pickup',
+  pointNameLabel = 'Point name',
+  markerVariant = 'pickup',
   pointName,
   onPointNameChange,
   location,
@@ -87,11 +89,14 @@ export function PickupPointLocationFields({
         latitude={latitude}
         longitude={longitude}
         disabled={disabled}
+        markerVariant={markerVariant}
         onCoordsChange={onCoordsChange}
       />
 
       <div>
-        <Label htmlFor={`${idPrefix}-point-name`} required>Pick up point name</Label>
+        <Label htmlFor={`${idPrefix}-point-name`} required>
+          {pointNameLabel}
+        </Label>
         <Input
           id={`${idPrefix}-point-name`}
           value={pointName}

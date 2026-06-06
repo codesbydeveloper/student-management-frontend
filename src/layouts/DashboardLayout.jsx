@@ -117,13 +117,17 @@ export function DashboardLayout() {
     transport: pathIn(
       user.role === ROLES.TEACHER
         ? ['/transport/bus-rosters']
-        : [
-            '/drivers',
-            '/transport/assign-bus',
-            '/transport/buses',
-            '/transport/pick-up-points',
-            '/transport/routes',
-          ],
+        : user.role === ROLES.PARENT
+          ? ['/transport/live-buses', '/parent/routes']
+          : [
+              '/drivers',
+              '/transport/assign-bus',
+              '/transport/buses',
+              '/transport/pick-up-points',
+              '/transport/routes',
+              '/transport/live-buses',
+              '/transport/trip-history',
+            ],
     ),
     notices: pathIn(['/create-category', '/create-notice', '/notifications/history']),
     operations: pathIn([

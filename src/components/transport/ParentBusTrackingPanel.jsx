@@ -491,13 +491,11 @@ export function ParentBusTrackingPanel({
     selectedLive?.trip,
     selectedLive?.live,
     liveStatus,
-    selectedLive?.tripActive,
   )
   const tripStarted = isParentBusTripStarted(
     selectedLive?.trip,
     liveStatus,
     selectedLive?.live,
-    selectedLive?.tripActive,
   )
 
   useParentBusLiveSocketSync({

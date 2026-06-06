@@ -41,6 +41,8 @@ export function SearchableSingleSelect({
   panelMaxHeightClass = 'max-h-[min(50vh,22rem)]',
   /** Render dropdown in document.body so it is not clipped by overflow containers (e.g. modals). */
   menuPortal = true,
+  /** Hide the search field — use for short lists (e.g. route picker). */
+  hideSearch = false,
   /** When set, show option subtext under the label on the closed trigger after selection. */
   showSelectedSubtext = false,
   /** Show profile photo (or initial) beside each option and on the trigger when selected. */
@@ -141,16 +143,18 @@ export function SearchableSingleSelect({
       }
       onWheel={(e) => e.stopPropagation()}
     >
-      <div className="shrink-0 border-b border-slate-100 p-2">
-        <Input
-          id={id ? `${id}-search` : undefined}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={searchPlaceholder}
-          autoComplete="off"
-          aria-label={searchPlaceholder}
-        />
-      </div>
+      {hideSearch ? null : (
+        <div className="shrink-0 border-b border-slate-100 p-2">
+          <Input
+            id={id ? `${id}-search` : undefined}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            autoComplete="off"
+            aria-label={searchPlaceholder}
+          />
+        </div>
+      )}
       <div
         role="listbox"
         className="min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden overscroll-contain p-2 [scrollbar-color:rgb(129_140_248/0.75)_rgb(241_245_249/0.9)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-indigo-300/90 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100"

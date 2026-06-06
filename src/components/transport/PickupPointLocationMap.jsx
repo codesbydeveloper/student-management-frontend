@@ -8,10 +8,14 @@ import './pickupPointLocationMap.css'
 export const PICKUP_MAP_DEFAULT_CENTER = [9.9252, 78.1198]
 export const PICKUP_MAP_DEFAULT_ZOOM = 13
 
-function getStopPinIcon() {
+function getStopPinIcon(variant = 'pickup') {
+  const markerClass =
+    variant === 'dropoff'
+      ? 'pickup-stop-marker pickup-stop-marker--dropoff'
+      : 'pickup-stop-marker pickup-stop-marker--pickup'
   return L.divIcon({
     className: 'pickup-stop-marker-wrap',
-    html: '<div class="pickup-stop-marker" aria-hidden="true">📍</div>',
+    html: `<div class="${markerClass}" aria-hidden="true">📍</div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 28],
     popupAnchor: [0, -26],
@@ -27,7 +31,13 @@ function getStopPinIcon() {
  *   disabled?: boolean,
  * }} props
  */
-export function PickupPointLocationMap({ latitude, longitude, onCoordsChange, disabled = false }) {
+export function PickupPointLocationMap({
+  latitude,
+  longitude,
+  onCoordsChange,
+  disabled = false,
+  markerVariant = 'pickup',
+}) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
@@ -50,7 +60,7 @@ export function PickupPointLocationMap({ latitude, longitude, onCoordsChange, di
 
     if (hasCoords) {
       const marker = L.marker([latitude, longitude], {
-        icon: getStopPinIcon(),
+        icon: getStopPinIcon(markerVariant),
         draggable: !disabled,
         riseOnHover: true,
       }).addTo(map)
@@ -71,7 +81,7 @@ export function PickupPointLocationMap({ latitude, longitude, onCoordsChange, di
           markerRef.current.setLatLng(e.latlng)
         } else {
           const marker = L.marker(e.latlng, {
-            icon: getStopPinIcon(),
+            icon: getStopPinIcon(markerVariant),
             draggable: true,
             riseOnHover: true,
           }).addTo(map)
@@ -115,7 +125,7 @@ export function PickupPointLocationMap({ latitude, longitude, onCoordsChange, di
       else markerRef.current.dragging?.enable()
     } else {
       const marker = L.marker(ll, {
-        icon: getStopPinIcon(),
+        icon: getStopPinIcon(markerVariant),
         draggable: !disabled,
         riseOnHover: true,
       }).addTo(map)

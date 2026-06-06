@@ -6,6 +6,8 @@ export const ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students', 'parents',
 
 /** Admin / principal: grouped under "Transport" in the sidebar. */
 export const TRANSPORT_NAV_KEYS = [
+  'transport_live_buses',
+  'transport_trip_history',
   'drivers',
  // 'admin_assign_bus',
   'admin_create_buses',
@@ -47,7 +49,7 @@ export const TEACHER_CRM_NAV_KEYS = ['teacher_assigned_leads', 'create_lead', 'a
 
 
 export const PARENT_COMMUNICATIONS_NAV_KEYS = ['parent_notifications']
-export const PARENT_TRANSPORT_NAV_KEYS = ['parent_my_transport']
+export const PARENT_TRANSPORT_NAV_KEYS = ['parent_live_buses', 'parent_my_transport']
 export const PARENT_PTM_NAV_KEYS = ['parent_ptm_request', 'parent_ptm_history']
 export const PARENT_ACADEMICS_NAV_KEYS = ['students']
 export const PARENT_CRM_NAV_KEYS = ['create_lead']
@@ -92,6 +94,7 @@ const items = [
   { key: 'parent_dashboard', to: '/parent-dashboard', label: 'Family dashboard' },
   { key: 'parent_notifications', to: '/parent-notifications', label: 'School messages' },
 // { key: 'parent_bus', to: '/parent-bus', label: 'Bus tracking' },
+{ key: 'parent_live_buses', to: '/transport/live-buses', label: 'Live buses' },
 { key: 'parent_my_transport', to: '/parent/routes', label: 'Bus tracking' },
   { key: 'parent_ptm_request', to: '/parent/ptm/request', label: 'PTM request' },
   { key: 'parent_ptm_history', to: '/parent/ptm/history', label: 'PTM history' },
@@ -108,6 +111,8 @@ const items = [
  // { key: 'admin_assign_bus', to: '/transport/assign-bus', label: 'Assign bus' },
   { key: 'admin_create_buses', to: '/transport/buses', label: 'Create buses' },
   { key: 'admin_pick_up_points', to: '/transport/pick-up-points', label: 'Pick up points' },
+  { key: 'transport_live_buses', to: '/transport/live-buses', label: 'Live buses' },
+  { key: 'transport_trip_history', to: '/transport/trip-history', label: 'History of trip' },
   { key: 'admin_transport_routes', to: '/transport/routes', label: 'Routes' },
   { key: 'create_category', to: '/create-category', label: 'Create Category' },
   { key: 'create_notice', to: '/create-notice', label: 'Create Notice' },
@@ -238,6 +243,7 @@ const MAIN_CONTENT_HEADER_SKIP = new Set(['/dashboard', '/parent-dashboard'])
  * @type {{ prefix: string, navKey?: string, groupKey?: string, label: string }[]}
  */
 const PATH_NAV_EXTRAS = [
+  { prefix: '/transport/live-buses/', navKey: 'transport_live_buses', label: 'Bus trip details' },
   { prefix: '/transport-assignments', navKey: 'admin_assign_bus', label: 'Transport assignments' },
   { prefix: '/notifications/create', navKey: 'create_notice', label: 'Create notice' },
   { prefix: '/create-notice', navKey: 'create_notice', label: 'Create notice' },

@@ -35,6 +35,9 @@ const PickUpPointsPage = lazy(() => import('../pages/PickUpPointsPage.jsx'))
 const TransportRoutesPage = lazy(() => import('../pages/TransportRoutesPage.jsx'))
 const AssignBusPage = lazy(() => import('../pages/AssignBusPage.jsx'))
 const TeacherBusOverviewPage = lazy(() => import('../pages/TeacherBusOverviewPage.jsx'))
+const LiveBusesPage = lazy(() => import('../pages/LiveBusesPage.jsx'))
+const LiveBusDetailPage = lazy(() => import('../pages/LiveBusDetailPage.jsx'))
+const TripHistoryPage = lazy(() => import('../pages/TripHistoryPage.jsx'))
 const ParentPtmRequestPage = lazy(() => import('../pages/ptm/ParentPtmRequestPage.jsx'))
 const ParentPtmHistoryPage = lazy(() => import('../pages/ptm/ParentPtmHistoryPage.jsx'))
 const TeacherPtmRequestsPage = lazy(() => import('../pages/ptm/TeacherPtmRequestsPage.jsx'))
@@ -387,6 +390,30 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <TransportRoutesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport/trip-history"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <TripHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport/live-buses"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.PARENT]}>
+                <LiveBusesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="transport/live-buses/:busId"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.PARENT]}>
+                <LiveBusDetailPage />
               </ProtectedRoute>
             }
           />

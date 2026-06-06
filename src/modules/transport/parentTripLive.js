@@ -1,20 +1,14 @@
 /** Driver has started today's trip (from server — same as POST /api/drivers/my-trips/start). */
-const STARTED_TRIP_STATUSES = new Set(['running', 'in_progress', 'started'])
+const STARTED_TRIP_STATUSES = new Set(['running', 'in_progress', 'started', 'active'])
 
-const ENDED_TRIP_STATUSES = new Set([
+/** Only when the driver explicitly ends the trip (POST …/end) or server marks it finished. */
+const EXPLICITLY_ENDED_TRIP_STATUSES = new Set([
   'completed',
   'finished',
   'ended',
   'cancelled',
   'stopped',
-  'inactive',
-  'not_started',
-  'pending',
-  'scheduled',
-  'idle',
   'closed',
-  'done',
-  'complete',
 ])
 
 const ENDED_LIVE_ENVELOPE = new Set([
@@ -23,66 +17,76 @@ const ENDED_LIVE_ENVELOPE = new Set([
   'trip_finished',
   'no_trip',
   'not_running',
-  'idle',
-  'empty',
 ])
-
-/**
- * True when the driver has ended or completed the trip (or GPS stream stopped).
- */
-export function isParentBusTripEnded(trip, live, liveEnvelopeStatus, studentTripActive) {
-  const status = String(trip?.status ?? '').trim().toLowerCase()
-  const envelope = String(liveEnvelopeStatus ?? '').trim().toLowerCase()
-
-  if (studentTripActive === false) return true
-  if (ENDED_TRIP_STATUSES.has(status)) return true
-  if (ENDED_LIVE_ENVELOPE.has(envelope)) return true
-
-  if (trip?.endedAt || trip?.completedAt) return true
-  if (trip?.isActive === false) return true
-
-  if (live?.tripActive === false) return true
-  if (live?.isRunning === false && (live.isRunningExplicit || trip?.id != null)) return true
-
-  return false
-}
-
-/**
- * True when the driver has started the trip and it is still running.
- * Does not use `startedAt` alone — that stays set after end on some APIs.
- */
-export function isParentBusTripStarted(trip, liveEnvelopeStatus, live, studentTripActive) {
-  if (isParentBusTripEnded(trip, live, liveEnvelopeStatus, studentTripActive)) return false
-
-  const status = String(trip?.status ?? '').trim().toLowerCase()
-  const envelope = String(liveEnvelopeStatus ?? '').trim().toLowerCase()
-
-  if (STARTED_TRIP_STATUSES.has(status)) return true
-
-  if (envelope === 'trip_running' || envelope === 'running' || envelope === 'trip_active') {
-    if (live?.isRunning === true) return true
-    if (STARTED_TRIP_STATUSES.has(status)) return true
-    return false
-  }
-
-  if (live?.isRunning === true && STARTED_TRIP_STATUSES.has(status)) return true
-
-  // "active" on some APIs means route assigned, not trip started.
-  if (status === 'active') return false
-
-  return false
-}
 
 const TERMINAL_STUDENT_STATUSES = new Set(['picked_up', 'absent', 'dropped_off'])
 
 /**
+ * Trip is still running until the driver taps End trip — not when all students are picked up/dropped.
+ *
+ * @param {object | null | undefined} trip
+ * @param {object | null | undefined} [live]
+ */
+export function isTripStillRunning(trip, live = null) {
+  if (live?.isRunning === true) return true
+
+  if (!trip || typeof trip !== 'object') return false
+
+  const status = String(trip.status ?? '').trim().toLowerCase()
+
+  if (EXPLICITLY_ENDED_TRIP_STATUSES.has(status)) return false
+  if (trip.endedAt || trip.ended_at || trip.completedAt || trip.completed_at) return false
+
+  if (STARTED_TRIP_STATUSES.has(status)) return true
+
+  // Backend may flip to "inactive" after the last student — trip is still running until End trip.
+  const startedAt = trip.startedAt ?? trip.started_at
+  if (startedAt && !trip.endedAt && !trip.completedAt && !trip.ended_at && !trip.completed_at) {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * @param {object | null | undefined} trip
+ * @param {string | null | undefined} [liveEnvelopeStatus]
+ */
+export function isTripExplicitlyEnded(trip, liveEnvelopeStatus) {
+  const status = String(trip?.status ?? '').trim().toLowerCase()
+  const envelope = String(liveEnvelopeStatus ?? '').trim().toLowerCase()
+
+  if (EXPLICITLY_ENDED_TRIP_STATUSES.has(status)) return true
+  if (trip?.endedAt || trip?.ended_at || trip?.completedAt || trip?.completed_at) return true
+
+  if (ENDED_LIVE_ENVELOPE.has(envelope) && !isTripStillRunning(trip)) return true
+
+  return false
+}
+
+/**
+ * True when the driver has ended the trip — not when every student is picked up/dropped.
+ *
+ * @param {object | null | undefined} trip
+ * @param {object | null | undefined} live
+ * @param {string | null | undefined} liveEnvelopeStatus
+ */
+export function isParentBusTripEnded(trip, live, liveEnvelopeStatus) {
+  if (isTripStillRunning(trip, live)) return false
+  return isTripExplicitlyEnded(trip, liveEnvelopeStatus)
+}
+
+/**
+ * True when the driver has started the trip and it is still running.
+ */
+export function isParentBusTripStarted(trip, liveEnvelopeStatus, live) {
+  if (isParentBusTripEnded(trip, live, liveEnvelopeStatus)) return false
+  return isTripStillRunning(trip, live)
+}
+
+/**
  * picked_up / absent / dropped_off from API can linger after the driver starts a new trip.
  * Only show those messages when the trip is not live, or this stop is completed on the current run.
- *
- * @param {string | undefined} studentStatus
- * @param {string | undefined} yourStopStatus
- * @param {boolean} [tripLive]
- * @returns {'picked_up' | 'absent' | 'dropped_off' | null}
  */
 export function parentTerminalStudentStatusForUi(studentStatus, yourStopStatus, tripLive = false) {
   const student = String(studentStatus ?? '').trim().toLowerCase()

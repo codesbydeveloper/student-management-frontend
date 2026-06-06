@@ -10,14 +10,12 @@ import {
   fetchPickupPointsList,
   updatePickupPoint,
 } from '../api/pickupPointsApi'
-import { PickupPointLocationFields } from '../components/transport/PickupPointLocationFields'
+import { TransportStopLocationSection } from '../components/transport/TransportStopLocationSection'
 import { SearchableMultiSelect } from '../components/SearchableMultiSelect'
 import { buildPickupGeocodeQuery, geocodeAddress } from '../utils/nominatimGeocode'
 import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { Label } from '../components/ui/Label'
 
 const PAGE_LIMIT = 10
 
@@ -31,19 +29,46 @@ function formatTimeForDisplay(value) {
   return `${h12}:${m || '00'} ${ampm}`
 }
 
+function coordsValid(lat, lng) {
+  return Number.isFinite(lat) && Number.isFinite(lng)
+}
+
+function locationCell(name, time, { sameAsPickUp = false } = {}) {
+  return (
+    <div>
+      <p className="font-medium text-slate-800">{name || '—'}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{formatTimeForDisplay(time)}</p>
+      {sameAsPickUp ? (
+        <p className="mt-1 text-[11px] italic text-slate-400">Same as pick up</p>
+      ) : null}
+    </div>
+  )
+}
+
 export default function PickUpPointsPage() {
   const { token } = useAuth()
   const confirm = useConfirm()
 
-  const [pointName, setPointName] = useState('')
-  const [location, setLocation] = useState('')
-  const [city, setCity] = useState('')
-  const [state, setState] = useState('')
-  const [latitude, setLatitude] = useState(null)
-  const [longitude, setLongitude] = useState(null)
-  const [mapSearchLoading, setMapSearchLoading] = useState(false)
+  const [dropSameAsPickUp, setDropSameAsPickUp] = useState(false)
+
+  const [pickUpPointName, setPickUpPointName] = useState('')
+  const [pickUpLocation, setPickUpLocation] = useState('')
+  const [pickUpCity, setPickUpCity] = useState('')
+  const [pickUpState, setPickUpState] = useState('')
+  const [pickUpLatitude, setPickUpLatitude] = useState(null)
+  const [pickUpLongitude, setPickUpLongitude] = useState(null)
+  const [pickUpMapSearchLoading, setPickUpMapSearchLoading] = useState(false)
   const [pickUpTime, setPickUpTime] = useState('')
+
+  const [dropPointName, setDropPointName] = useState('')
+  const [dropLocation, setDropLocation] = useState('')
+  const [dropCity, setDropCity] = useState('')
+  const [dropState, setDropState] = useState('')
+  const [dropLatitude, setDropLatitude] = useState(null)
+  const [dropLongitude, setDropLongitude] = useState(null)
+  const [dropMapSearchLoading, setDropMapSearchLoading] = useState(false)
   const [dropTime, setDropTime] = useState('')
+
   const [studentIds, setStudentIds] = useState([])
   const [creating, setCreating] = useState(false)
 
@@ -60,20 +85,63 @@ export default function PickUpPointsPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [editPointName, setEditPointName] = useState('')
-  const [editLocation, setEditLocation] = useState('')
-  const [editCity, setEditCity] = useState('')
-  const [editState, setEditState] = useState('')
-  const [editLatitude, setEditLatitude] = useState(null)
-  const [editLongitude, setEditLongitude] = useState(null)
-  const [editMapSearchLoading, setEditMapSearchLoading] = useState(false)
+  const [editDropSameAsPickUp, setEditDropSameAsPickUp] = useState(true)
+  const [editPickUpPointName, setEditPickUpPointName] = useState('')
+  const [editPickUpLocation, setEditPickUpLocation] = useState('')
+  const [editPickUpCity, setEditPickUpCity] = useState('')
+  const [editPickUpState, setEditPickUpState] = useState('')
+  const [editPickUpLatitude, setEditPickUpLatitude] = useState(null)
+  const [editPickUpLongitude, setEditPickUpLongitude] = useState(null)
+  const [editPickUpMapSearchLoading, setEditPickUpMapSearchLoading] = useState(false)
   const [editPickUpTime, setEditPickUpTime] = useState('')
+  const [editDropPointName, setEditDropPointName] = useState('')
+  const [editDropLocation, setEditDropLocation] = useState('')
+  const [editDropCity, setEditDropCity] = useState('')
+  const [editDropState, setEditDropState] = useState('')
+  const [editDropLatitude, setEditDropLatitude] = useState(null)
+  const [editDropLongitude, setEditDropLongitude] = useState(null)
+  const [editDropMapSearchLoading, setEditDropMapSearchLoading] = useState(false)
   const [editDropTime, setEditDropTime] = useState('')
-  const [editStudentLabel, setEditStudentLabel] = useState('')
   const [editStudentIds, setEditStudentIds] = useState([])
   const [editLoading, setEditLoading] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+
+  useEffect(() => {
+    if (!dropSameAsPickUp) return
+    setDropPointName(pickUpPointName)
+    setDropLocation(pickUpLocation)
+    setDropCity(pickUpCity)
+    setDropState(pickUpState)
+    setDropLatitude(pickUpLatitude)
+    setDropLongitude(pickUpLongitude)
+  }, [
+    dropSameAsPickUp,
+    pickUpPointName,
+    pickUpLocation,
+    pickUpCity,
+    pickUpState,
+    pickUpLatitude,
+    pickUpLongitude,
+  ])
+
+  useEffect(() => {
+    if (!editDropSameAsPickUp) return
+    setEditDropPointName(editPickUpPointName)
+    setEditDropLocation(editPickUpLocation)
+    setEditDropCity(editPickUpCity)
+    setEditDropState(editPickUpState)
+    setEditDropLatitude(editPickUpLatitude)
+    setEditDropLongitude(editPickUpLongitude)
+  }, [
+    editDropSameAsPickUp,
+    editPickUpPointName,
+    editPickUpLocation,
+    editPickUpCity,
+    editPickUpState,
+    editPickUpLatitude,
+    editPickUpLongitude,
+  ])
 
   const loadStudents = useCallback(async () => {
     if (!token) {
@@ -124,44 +192,76 @@ export default function PickUpPointsPage() {
     void loadList()
   }, [loadList])
 
-  const resetForm = () => {
-    setPointName('')
-    setLocation('')
-    setCity('')
-    setState('')
-    setLatitude(null)
-    setLongitude(null)
-    setPickUpTime('')
-    setDropTime('')
-    setStudentIds([])
-  }
-
-  const findOnMap = async (fields, { forEdit = false } = {}) => {
+  const findOnMap = async (kind, fields, { forEdit = false } = {}) => {
     const q = buildPickupGeocodeQuery(fields)
     if (!q) {
-      toast.error('Enter address, city/state, or pick up point name to search.')
+      toast.error('Enter address, city/state, or point name to search.')
       return
     }
-    if (forEdit) setEditMapSearchLoading(true)
-    else setMapSearchLoading(true)
+    const setLoading =
+      kind === 'pickup'
+        ? forEdit
+          ? setEditPickUpMapSearchLoading
+          : setPickUpMapSearchLoading
+        : forEdit
+          ? setEditDropMapSearchLoading
+          : setDropMapSearchLoading
+    setLoading(true)
     const res = await geocodeAddress(q)
-    if (forEdit) setEditMapSearchLoading(false)
-    else setMapSearchLoading(false)
+    setLoading(false)
     if (!res.ok) {
       toast.error(res.error)
       return
     }
     if (forEdit) {
-      setEditLatitude(res.lat)
-      setEditLongitude(res.lng)
+      if (kind === 'pickup') {
+        setEditPickUpLatitude(res.lat)
+        setEditPickUpLongitude(res.lng)
+      } else {
+        setEditDropLatitude(res.lat)
+        setEditDropLongitude(res.lng)
+      }
+    } else if (kind === 'pickup') {
+      setPickUpLatitude(res.lat)
+      setPickUpLongitude(res.lng)
     } else {
-      setLatitude(res.lat)
-      setLongitude(res.lng)
+      setDropLatitude(res.lat)
+      setDropLongitude(res.lng)
     }
     toast.success('Location placed on map.')
   }
 
-  const coordsValid = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng)
+  const resetForm = () => {
+    setDropSameAsPickUp(false)
+    setPickUpPointName('')
+    setPickUpLocation('')
+    setPickUpCity('')
+    setPickUpState('')
+    setPickUpLatitude(null)
+    setPickUpLongitude(null)
+    setPickUpTime('')
+    setDropPointName('')
+    setDropLocation('')
+    setDropCity('')
+    setDropState('')
+    setDropLatitude(null)
+    setDropLongitude(null)
+    setDropTime('')
+    setStudentIds([])
+  }
+
+  const validateStop = (kind, values, sameAsPickUp) => {
+    if (kind === 'dropoff' && sameAsPickUp) {
+      return values.time ? null : 'Select a drop off time.'
+    }
+    const label = kind === 'pickup' ? 'pick up' : 'drop off'
+    if (!values.pointName?.trim()) return `Enter a ${label} point name.`
+    if (!values.time) return `Select a ${label} time.`
+    if (!coordsValid(values.latitude, values.longitude)) {
+      return `Place the ${label} stop on the map.`
+    }
+    return null
+  }
 
   const onCreate = async (e) => {
     e.preventDefault()
@@ -169,25 +269,32 @@ export default function PickUpPointsPage() {
       toast.error('Sign in to add a pick up point.')
       return
     }
-    const pickUpPointName = pointName.trim()
-    if (!pickUpPointName) {
-      toast.error('Enter a pick up point name.')
-      return
-    }
-    if (!pickUpTime) {
-      toast.error('Select a pick-up time.')
-      return
-    }
-    if (!dropTime) {
-      toast.error('Select a drop time.')
-      return
-    }
     if (!studentIds.length) {
       toast.error('Select at least one student.')
       return
     }
-    if (!coordsValid(latitude, longitude)) {
-      toast.error('Place the stop on the map (click the map or use Find on map).')
+    const pickUpError = validateStop('pickup', {
+      pointName: pickUpPointName,
+      time: pickUpTime,
+      latitude: pickUpLatitude,
+      longitude: pickUpLongitude,
+    })
+    if (pickUpError) {
+      toast.error(pickUpError)
+      return
+    }
+    const dropError = validateStop(
+      'dropoff',
+      {
+        pointName: dropPointName,
+        time: dropTime,
+        latitude: dropLatitude,
+        longitude: dropLongitude,
+      },
+      dropSameAsPickUp,
+    )
+    if (dropError) {
+      toast.error(dropError)
       return
     }
 
@@ -197,11 +304,15 @@ export default function PickUpPointsPage() {
     let firstError = ''
     for (const sid of studentIds) {
       const res = await createPickupPoint(token, {
-        location: pickUpPointName,
-        latitude,
-        longitude,
+        location: pickUpPointName.trim(),
+        latitude: pickUpLatitude,
+        longitude: pickUpLongitude,
         pickupTime: pickUpTime,
         dropTime,
+        dropOffSameAsPickup: dropSameAsPickUp,
+        dropLocation: dropSameAsPickUp ? undefined : dropPointName.trim(),
+        dropLatitude: dropSameAsPickUp ? undefined : dropLatitude,
+        dropLongitude: dropSameAsPickUp ? undefined : dropLongitude,
         studentId: sid,
       })
       if (res.ok) created += 1
@@ -223,116 +334,133 @@ export default function PickUpPointsPage() {
       )
     }
     resetForm()
-    if (page !== 1) {
-      setPage(1)
-    } else {
-      await loadList()
-    }
+    if (page !== 1) setPage(1)
+    else await loadList()
+  }
+
+  const displayName = (row) => {
+    if (row.name && row.name !== '—') return row.name
+    if (row.location && row.location !== '—') return row.location
+    return ''
+  }
+
+  const fillEdit = (point) => {
+    const pickUpName = displayName(point)
+    const pickUpLoc = point.location === '—' ? '' : point.location
+    const sameAsPickUp = point.dropOffSameAsPickup !== false
+    const dropName =
+      point.dropLocation && point.dropLocation !== '—' ? point.dropLocation : pickUpName
+    const dropLoc = sameAsPickUp ? pickUpLoc : dropName
+
+    setEditPickUpPointName(pickUpName)
+    setEditPickUpLocation(pickUpLoc)
+    setEditPickUpCity(point.city || '')
+    setEditPickUpState(point.state || '')
+    setEditPickUpTime(point.pickupTime)
+    setEditDropTime(point.dropTime)
+    setEditPickUpLatitude(point.latitude ?? null)
+    setEditPickUpLongitude(point.longitude ?? null)
+    setEditDropSameAsPickUp(sameAsPickUp)
+    setEditDropPointName(sameAsPickUp ? pickUpName : dropName)
+    setEditDropLocation(dropLoc)
+    setEditDropCity(point.city || '')
+    setEditDropState(point.state || '')
+    setEditDropLatitude(point.dropLatitude ?? point.latitude ?? null)
+    setEditDropLongitude(point.dropLongitude ?? point.longitude ?? null)
+    setEditStudentIds(
+      Array.isArray(point.studentIds) && point.studentIds.length
+        ? point.studentIds.map(String)
+        : point.studentId
+          ? [String(point.studentId)]
+          : [],
+    )
   }
 
   const closeEdit = () => {
     if (editSaving) return
     setEditOpen(false)
     setEditId(null)
-    setEditPointName('')
-    setEditLocation('')
-    setEditCity('')
-    setEditState('')
-    setEditLatitude(null)
-    setEditLongitude(null)
+    setEditDropSameAsPickUp(true)
+    setEditPickUpPointName('')
+    setEditPickUpLocation('')
+    setEditPickUpCity('')
+    setEditPickUpState('')
+    setEditPickUpLatitude(null)
+    setEditPickUpLongitude(null)
     setEditPickUpTime('')
+    setEditDropPointName('')
+    setEditDropLocation('')
+    setEditDropCity('')
+    setEditDropState('')
+    setEditDropLatitude(null)
+    setEditDropLongitude(null)
     setEditDropTime('')
-    setEditStudentLabel('')
     setEditStudentIds([])
     setEditLoading(false)
-  }
-
-  const pickUpPointDisplayName = (row) => {
-    if (row.name && row.name !== '—') return row.name
-    if (row.location && row.location !== '—') return row.location
-    return ''
   }
 
   const openEdit = async (row) => {
     if (!token) return
     setEditOpen(true)
     setEditId(row.id)
-    setEditPointName(pickUpPointDisplayName(row))
-    setEditLocation(row.location === '—' ? '' : row.location)
-    setEditCity(row.city || '')
-    setEditState(row.state || '')
-    setEditPickUpTime(row.pickupTime)
-    setEditDropTime(row.dropTime)
-    setEditStudentLabel(row.studentLabel)
-    setEditStudentIds(
-      Array.isArray(row.studentIds) && row.studentIds.length
-        ? row.studentIds.map(String)
-        : row.studentId
-          ? [String(row.studentId)]
-          : [],
-    )
-    setEditLatitude(row.latitude ?? null)
-    setEditLongitude(row.longitude ?? null)
+    fillEdit(row)
     setEditLoading(true)
     const res = await fetchPickupPointById(token, row.id)
     setEditLoading(false)
-    if (res.ok && res.point) {
-      setEditPointName(pickUpPointDisplayName(res.point))
-      setEditLocation(res.point.location === '—' ? '' : res.point.location)
-      setEditCity(res.point.city || '')
-      setEditState(res.point.state || '')
-      setEditPickUpTime(res.point.pickupTime)
-      setEditDropTime(res.point.dropTime)
-      setEditStudentLabel(res.point.studentLabel)
-      setEditStudentIds(
-        Array.isArray(res.point.studentIds) && res.point.studentIds.length
-          ? res.point.studentIds.map(String)
-          : res.point.studentId
-            ? [String(res.point.studentId)]
-            : [],
-      )
-      setEditLatitude(res.point.latitude ?? null)
-      setEditLongitude(res.point.longitude ?? null)
-    } else if (!res.ok) {
-      toast.error(res.error || 'Could not load pick up point.')
-    }
+    if (res.ok && res.point) fillEdit(res.point)
+    else if (!res.ok) toast.error(res.error || 'Could not load pick up point.')
   }
 
   const onSaveEdit = async (e) => {
     e.preventDefault()
     if (!token || editId == null) return
-    const pickUpPointName = editPointName.trim()
-    if (!pickUpPointName) {
-      toast.error('Enter a pick up point name.')
-      return
-    }
-    if (!editPickUpTime || !editDropTime) {
-      toast.error('Pick-up and drop times are required.')
-      return
-    }
     if (!editStudentIds.length) {
       toast.error('Select at least one student.')
       return
     }
-    if (!coordsValid(editLatitude, editLongitude)) {
-      toast.error('Place the stop on the map (click the map or use Find on map).')
+    const pickUpError = validateStop('pickup', {
+      pointName: editPickUpPointName,
+      time: editPickUpTime,
+      latitude: editPickUpLatitude,
+      longitude: editPickUpLongitude,
+    })
+    if (pickUpError) {
+      toast.error(pickUpError)
       return
     }
+    const dropError = validateStop(
+      'dropoff',
+      {
+        pointName: editDropPointName,
+        time: editDropTime,
+        latitude: editDropLatitude,
+        longitude: editDropLongitude,
+      },
+      editDropSameAsPickUp,
+    )
+    if (dropError) {
+      toast.error(dropError)
+      return
+    }
+
     setEditSaving(true)
     const res = await updatePickupPoint(token, editId, {
-      location: pickUpPointName,
-      latitude: editLatitude,
-      longitude: editLongitude,
+      location: editPickUpPointName.trim(),
+      latitude: editPickUpLatitude,
+      longitude: editPickUpLongitude,
       pickupTime: editPickUpTime,
       dropTime: editDropTime,
+      dropOffSameAsPickup: editDropSameAsPickUp,
+      dropLocation: editDropSameAsPickUp ? undefined : editDropPointName.trim(),
+      dropLatitude: editDropSameAsPickUp ? undefined : editDropLatitude,
+      dropLongitude: editDropSameAsPickUp ? undefined : editDropLongitude,
       studentIds: editStudentIds,
     })
+    setEditSaving(false)
     if (!res.ok) {
-      setEditSaving(false)
       toast.error(res.error || 'Could not update pick up point.')
       return
     }
-    setEditSaving(false)
     toast.success('Pick up point updated.')
     closeEdit()
     await loadList()
@@ -355,99 +483,214 @@ export default function PickUpPointsPage() {
       return
     }
     toast.info('Pick up point deleted.')
-    if (points.length === 1 && page > 1) {
-      setPage((p) => p - 1)
-    } else {
-      await loadList()
+    if (points.length === 1 && page > 1) setPage((p) => p - 1)
+    else await loadList()
+  }
+
+  const renderLocationForm = ({
+    idPrefix,
+    sameAsPickUp,
+    onSameAsPickUpChange,
+    pickUp,
+    dropOff,
+    studentIds: sids,
+    onStudentIdsChange,
+    disabled,
+  }) => (
+    <div className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-2">
+        <TransportStopLocationSection
+          kind="pickup"
+          idPrefix={`${idPrefix}-pickup`}
+          pointName={pickUp.pointName}
+          onPointNameChange={pickUp.onPointNameChange}
+          location={pickUp.location}
+          onLocationChange={pickUp.onLocationChange}
+          city={pickUp.city}
+          onCityChange={pickUp.onCityChange}
+          state={pickUp.state}
+          onStateChange={pickUp.onStateChange}
+          latitude={pickUp.latitude}
+          longitude={pickUp.longitude}
+          onCoordsChange={pickUp.onCoordsChange}
+          timeValue={pickUp.time}
+          onTimeChange={pickUp.onTimeChange}
+          mapSearchLoading={pickUp.mapSearchLoading}
+          disabled={disabled}
+          timeHint={sameAsPickUp ? 'Morning pick up time.' : undefined}
+          onFindOnMap={pickUp.onFindOnMap}
+        />
+
+        <div className="space-y-3">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200/90 bg-white px-4 py-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              checked={sameAsPickUp}
+              onChange={(e) => onSameAsPickUpChange(e.target.checked)}
+              disabled={disabled}
+            />
+            <span className="text-sm text-slate-700">
+              <span className="font-semibold text-slate-900">Drop off same as pick up</span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                {sameAsPickUp
+                  ? 'Location copies from the left. Set morning pick up time on the left and evening drop off time on the right.'
+                  : 'Uncheck when the evening stop is on a different road or gate.'}
+              </span>
+            </span>
+          </label>
+
+          <TransportStopLocationSection
+            kind="dropoff"
+            idPrefix={`${idPrefix}-dropoff`}
+            pointName={dropOff.pointName}
+            onPointNameChange={dropOff.onPointNameChange}
+            location={dropOff.location}
+            onLocationChange={dropOff.onLocationChange}
+            city={dropOff.city}
+            onCityChange={dropOff.onCityChange}
+            state={dropOff.state}
+            onStateChange={dropOff.onStateChange}
+            latitude={dropOff.latitude}
+            longitude={dropOff.longitude}
+            onCoordsChange={dropOff.onCoordsChange}
+            timeValue={dropOff.time}
+            onTimeChange={dropOff.onTimeChange}
+            mapSearchLoading={dropOff.mapSearchLoading}
+            disabled={disabled}
+            locationDisabled={disabled || sameAsPickUp}
+            timeDisabled={disabled}
+            dimmed={sameAsPickUp}
+            timeHint={
+              sameAsPickUp
+                ? 'Evening drop off time — location is already copied from pick up.'
+                : undefined
+            }
+            onFindOnMap={dropOff.onFindOnMap}
+          />
+        </div>
+      </div>
+
+      <SearchableMultiSelect
+        id={`${idPrefix}-student`}
+        label="Student"
+        required
+        options={studentOptions}
+        value={sids}
+        onChange={onStudentIdsChange}
+        disabled={studentsLoading || !token || disabled}
+        collapsedHint={studentsLoading ? 'Loading students…' : 'Search and select student(s)'}
+        searchPlaceholder="Search by name…"
+        emptyText={studentsError || 'No students found.'}
+      />
+      {studentsError ? (
+        <p className="text-sm text-amber-800">
+          {studentsError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void loadStudents()}>
+            Retry
+          </button>
+        </p>
+      ) : null}
+    </div>
+  )
+
+  const makeHandlers = (forEdit = false) => {
+    const isEdit = forEdit
+    return {
+      pickUp: {
+        pointName: isEdit ? editPickUpPointName : pickUpPointName,
+        onPointNameChange: isEdit ? setEditPickUpPointName : setPickUpPointName,
+        location: isEdit ? editPickUpLocation : pickUpLocation,
+        onLocationChange: isEdit ? setEditPickUpLocation : setPickUpLocation,
+        city: isEdit ? editPickUpCity : pickUpCity,
+        onCityChange: isEdit ? setEditPickUpCity : setPickUpCity,
+        state: isEdit ? editPickUpState : pickUpState,
+        onStateChange: isEdit ? setEditPickUpState : setPickUpState,
+        latitude: isEdit ? editPickUpLatitude : pickUpLatitude,
+        longitude: isEdit ? editPickUpLongitude : pickUpLongitude,
+        onCoordsChange: ({ latitude: lat, longitude: lng }) => {
+          if (isEdit) {
+            setEditPickUpLatitude(lat)
+            setEditPickUpLongitude(lng)
+          } else {
+            setPickUpLatitude(lat)
+            setPickUpLongitude(lng)
+          }
+        },
+        time: isEdit ? editPickUpTime : pickUpTime,
+        onTimeChange: isEdit ? setEditPickUpTime : setPickUpTime,
+        mapSearchLoading: isEdit ? editPickUpMapSearchLoading : pickUpMapSearchLoading,
+        onFindOnMap: () => {
+          const f = isEdit
+            ? {
+                name: editPickUpPointName,
+                location: editPickUpLocation,
+                city: editPickUpCity,
+                state: editPickUpState,
+              }
+            : { name: pickUpPointName, location: pickUpLocation, city: pickUpCity, state: pickUpState }
+          void findOnMap('pickup', f, { forEdit: isEdit })
+        },
+      },
+      dropOff: {
+        pointName: isEdit ? editDropPointName : dropPointName,
+        onPointNameChange: isEdit ? setEditDropPointName : setDropPointName,
+        location: isEdit ? editDropLocation : dropLocation,
+        onLocationChange: isEdit ? setEditDropLocation : setDropLocation,
+        city: isEdit ? editDropCity : dropCity,
+        onCityChange: isEdit ? setEditDropCity : setDropCity,
+        state: isEdit ? editDropState : dropState,
+        onStateChange: isEdit ? setEditDropState : setDropState,
+        latitude: isEdit ? editDropLatitude : dropLatitude,
+        longitude: isEdit ? editDropLongitude : dropLongitude,
+        onCoordsChange: ({ latitude: lat, longitude: lng }) => {
+          if (isEdit) {
+            setEditDropLatitude(lat)
+            setEditDropLongitude(lng)
+          } else {
+            setDropLatitude(lat)
+            setDropLongitude(lng)
+          }
+        },
+        time: isEdit ? editDropTime : dropTime,
+        onTimeChange: isEdit ? setEditDropTime : setDropTime,
+        mapSearchLoading: isEdit ? editDropMapSearchLoading : dropMapSearchLoading,
+        onFindOnMap: () => {
+          const f = isEdit
+            ? {
+                name: editDropPointName,
+                location: editDropLocation,
+                city: editDropCity,
+                state: editDropState,
+              }
+            : { name: dropPointName, location: dropLocation, city: dropCity, state: dropState }
+          void findOnMap('dropoff', f, { forEdit: isEdit })
+        },
+      },
     }
   }
+
+  const create = makeHandlers(false)
+  const edit = makeHandlers(true)
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader
           title="Pick up points"
-          subtitle="Set address, city, and state on the map, then pick up point name and coordinates. Add pick-up/drop times and a student."
+          subtitle="Set separate pick up and drop off locations on the map. Use different stops when a one-way road means the bus cannot drop off where it picked up."
         />
         <form onSubmit={onCreate} className="space-y-5 border-t border-slate-100 px-4 py-6 sm:px-6">
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <PickupPointLocationFields
-                idPrefix="pickup"
-                pointName={pointName}
-                onPointNameChange={setPointName}
-                location={location}
-                onLocationChange={setLocation}
-                city={city}
-                onCityChange={setCity}
-                state={state}
-                onStateChange={setState}
-                latitude={latitude}
-                longitude={longitude}
-                onCoordsChange={({ latitude: lat, longitude: lng }) => {
-                  setLatitude(lat)
-                  setLongitude(lng)
-                }}
-                mapSearchLoading={mapSearchLoading}
-                disabled={creating}
-                onFindOnMap={() =>
-                  void findOnMap({ name: pointName, location, city, state })
-                }
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="pickup-time" required>Pick up time</Label>
-              <Input
-                id="pickup-time"
-                type="time"
-                value={pickUpTime}
-                onChange={(e) => setPickUpTime(e.target.value)}
-                className="mt-1.5"
-                disabled={creating}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="drop-time" required>Drop time</Label>
-              <Input
-                id="drop-time"
-                type="time"
-                value={dropTime}
-                onChange={(e) => setDropTime(e.target.value)}
-                className="mt-1.5"
-                disabled={creating}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <SearchableMultiSelect
-                id="pickup-student"
-                label="Student"
-                required
-                options={studentOptions}
-                value={studentIds}
-                onChange={setStudentIds}
-                disabled={studentsLoading || !token || creating}
-                collapsedHint={studentsLoading ? 'Loading students…' : 'Search and select student(s)'}
-                searchPlaceholder="Search by name…"
-                emptyText={studentsError || 'No students found.'}
-              />
-              {studentsError ? (
-                <p className="mt-2 text-sm text-amber-800">
-                  {studentsError}{' '}
-                  <button
-                    type="button"
-                    className="font-semibold underline"
-                    onClick={() => void loadStudents()}
-                  >
-                    Retry
-                  </button>
-                </p>
-              ) : null}
-            </div>
-          </div>
-
+          {renderLocationForm({
+            idPrefix: 'create',
+            sameAsPickUp: dropSameAsPickUp,
+            onSameAsPickUpChange: setDropSameAsPickUp,
+            pickUp: create.pickUp,
+            dropOff: create.dropOff,
+            studentIds,
+            onStudentIdsChange: setStudentIds,
+            disabled: creating,
+          })}
           <div className="flex flex-wrap gap-3">
             <Button type="submit" disabled={creating}>
               {creating ? 'Saving…' : 'Add pick up point'}
@@ -497,47 +740,60 @@ export default function PickUpPointsPage() {
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
                       <th className="w-14 px-4 py-3 text-center">Sr. no</th>
-                      <th className="px-4 py-3">Name</th>
-                      <th className="px-4 py-3">Pick up</th>
-                      <th className="px-4 py-3">Drop</th>
+                      <th className="px-4 py-3">Pick up location</th>
+                      <th className="px-4 py-3">Drop off location</th>
                       <th className="px-4 py-3">Students</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {points.map((row, idx) => (
-                      <tr key={row.id} className="text-slate-800">
-                        <td className="px-4 py-3 text-center tabular-nums text-slate-600">
-                          {(page - 1) * PAGE_LIMIT + idx + 1}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-slate-700">{row.location}</td>
-                        <td className="px-4 py-3">{formatTimeForDisplay(row.pickupTime)}</td>
-                        <td className="px-4 py-3">{formatTimeForDisplay(row.dropTime)}</td>
-                        <td className="px-4 py-3 tabular-nums">{row.studentCount ?? 0}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              disabled={deletingId != null}
-                              onClick={() => void openEdit(row)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              disabled={deletingId != null}
-                              onClick={() => void onDelete(row)}
-                            >
-                              {deletingId === row.id ? 'Deleting…' : 'Delete'}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {points.map((row, idx) => {
+                      const pickUpPlace = displayName(row) || row.location
+                      const dropPlace =
+                        row.dropOffSameAsPickup !== false
+                          ? pickUpPlace
+                          : row.dropLocation && row.dropLocation !== '—'
+                            ? row.dropLocation
+                            : pickUpPlace
+                      return (
+                        <tr key={row.id}>
+                          <td className="px-4 py-3 text-center tabular-nums text-slate-600">
+                            {(page - 1) * PAGE_LIMIT + idx + 1}
+                          </td>
+                          <td className="px-4 py-3">
+                            {locationCell(pickUpPlace, row.pickupTime)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {locationCell(dropPlace, row.dropTime, {
+                              sameAsPickUp: row.dropOffSameAsPickup !== false,
+                            })}
+                          </td>
+                          <td className="px-4 py-3 tabular-nums">{row.studentCount ?? 0}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                disabled={deletingId != null}
+                                onClick={() => void openEdit(row)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                disabled={deletingId != null}
+                                onClick={() => void onDelete(row)}
+                              >
+                                {deletingId === row.id ? 'Deleting…' : 'Delete'}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -564,102 +820,33 @@ export default function PickUpPointsPage() {
             if (e.target === e.currentTarget && !editSaving) closeEdit()
           }}
         >
-          <div
-            className="relative max-h-[92vh] w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-pickup-title"
-          >
+          <div className="relative max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
-              <h2 id="edit-pickup-title" className="text-lg font-bold text-slate-900">
-                Edit pick up point
-              </h2>
+              <h2 className="text-lg font-bold text-slate-900">Edit pick up point</h2>
               <button
                 type="button"
-                aria-label="Close edit dialog"
-                className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Close"
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
                 disabled={editSaving}
                 onClick={closeEdit}
               >
-                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+                ✕
               </button>
             </div>
             {editLoading ? (
-              <p className="mt-4 text-sm text-slate-500">Loading details…</p>
+              <p className="text-sm text-slate-500">Loading details…</p>
             ) : (
               <form onSubmit={onSaveEdit} className="space-y-4">
-                <PickupPointLocationFields
-                  idPrefix="edit-pickup"
-                  pointName={editPointName}
-                  onPointNameChange={setEditPointName}
-                  location={editLocation}
-                  onLocationChange={setEditLocation}
-                  city={editCity}
-                  onCityChange={setEditCity}
-                  state={editState}
-                  onStateChange={setEditState}
-                  latitude={editLatitude}
-                  longitude={editLongitude}
-                  onCoordsChange={({ latitude: lat, longitude: lng }) => {
-                    setEditLatitude(lat)
-                    setEditLongitude(lng)
-                  }}
-                  mapSearchLoading={editMapSearchLoading}
-                  disabled={editSaving}
-                  onFindOnMap={() =>
-                    void findOnMap(
-                      {
-                        name: editPointName,
-                        location: editLocation,
-                        city: editCity,
-                        state: editState,
-                      },
-                      { forEdit: true },
-                    )
-                  }
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="edit-pickup-time" required>Pick up time</Label>
-                    <Input
-                      id="edit-pickup-time"
-                      type="time"
-                      value={editPickUpTime}
-                      onChange={(e) => setEditPickUpTime(e.target.value)}
-                      className="mt-1.5"
-                      disabled={editSaving}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-drop-time" required>Drop time</Label>
-                    <Input
-                      id="edit-drop-time"
-                      type="time"
-                      value={editDropTime}
-                      onChange={(e) => setEditDropTime(e.target.value)}
-                      className="mt-1.5"
-                      disabled={editSaving}
-                    />
-                  </div>
-                </div>
-                <SearchableMultiSelect
-                  id="edit-pickup-student"
-                  label="Student"
-                  required
-                  options={studentOptions}
-                  value={editStudentIds}
-                  onChange={setEditStudentIds}
-                  disabled={studentsLoading || !token || editSaving}
-                  collapsedHint={studentsLoading ? 'Loading students…' : 'Search and select student(s)'}
-                  searchPlaceholder="Search by name…"
-                  emptyText={studentsError || 'No students found.'}
-                />
+                {renderLocationForm({
+                  idPrefix: 'edit',
+                  sameAsPickUp: editDropSameAsPickUp,
+                  onSameAsPickUpChange: setEditDropSameAsPickUp,
+                  pickUp: edit.pickUp,
+                  dropOff: edit.dropOff,
+                  studentIds: editStudentIds,
+                  onStudentIdsChange: setEditStudentIds,
+                  disabled: editSaving,
+                })}
                 <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
                   <Button type="submit" disabled={editSaving}>
                     {editSaving ? 'Saving…' : 'Save changes'}

@@ -276,7 +276,7 @@ export default function AdminVisitorLogsPage() {
               onChange={(e) => setLeaveAt(e.target.value)}
               disabled={submitting}
             />
-            <p className="mt-1 text-xs text-slate-500">Optional — when the visitor left the premises.</p>
+   
           </div>
           <div className="sm:col-span-2">
             <Label variant="compact" htmlFor="visitor-add-purpose" required>

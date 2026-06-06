@@ -152,10 +152,46 @@ export function mapPickupPointRow(raw) {
       ? [String(studentId)]
       : []
 
+  const pickupNested = raw.pickup && typeof raw.pickup === 'object' ? raw.pickup : null
+  const dropNested = raw.dropOff && typeof raw.dropOff === 'object' ? raw.dropOff : null
+
   const name = String(raw.name ?? raw.pickupPointName ?? raw.pointName ?? '').trim()
   const location = String(
-    raw.location ?? raw.address ?? raw.locationName ?? (name ? '' : raw.name) ?? '',
+    pickupNested?.location ??
+      raw.location ??
+      raw.address ??
+      raw.locationName ??
+      raw.pickupLocation ??
+      (name ? '' : raw.name) ??
+      '',
   ).trim()
+
+  const dropLocation = String(
+    dropNested?.location ??
+      raw.dropLocation ??
+      raw.drop_location ??
+      raw.dropOffLocation ??
+      '',
+  ).trim()
+
+  const dropLatitude = parseCoordinate(
+    dropNested?.latitude ?? raw.dropLatitude ?? raw.drop_latitude ?? raw.dropLat,
+  )
+  const dropLongitude = parseCoordinate(
+    dropNested?.longitude ?? raw.dropLongitude ?? raw.drop_longitude ?? raw.dropLng,
+  )
+
+  const dropOffSameAsPickup = Boolean(
+    raw.dropOffSameAsPickup ??
+      raw.drop_off_same_as_pickup ??
+      raw.dropSameAsPickup ??
+      dropNested?.sameAsPickup ??
+      (!dropLocation &&
+        dropLatitude == null &&
+        dropLongitude == null &&
+        !raw.dropLocation &&
+        !raw.drop_location),
+  )
 
   return {
     id: String(id),
@@ -163,40 +199,77 @@ export function mapPickupPointRow(raw) {
     location: location || name || '—',
     city: String(raw.city ?? '').trim(),
     state: String(raw.state ?? raw.region ?? raw.province ?? '').trim(),
-    pickupTime: normalizeTimeForInput(raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime),
-    dropTime: normalizeTimeForInput(raw.dropTime ?? raw.drop_time ?? raw.dropTime),
+    pickupTime: normalizeTimeForInput(
+      pickupNested?.time ?? raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime,
+    ),
+    dropTime: normalizeTimeForInput(
+      dropNested?.time ?? raw.dropTime ?? raw.drop_time ?? raw.dropTime,
+    ),
     studentId: studentId != null ? String(studentId) : '',
     studentIds,
     studentLabel,
     studentCount,
-    latitude: parseCoordinate(raw.latitude ?? raw.lat),
-    longitude: parseCoordinate(raw.longitude ?? raw.lng ?? raw.lon),
+    latitude: parseCoordinate(pickupNested?.latitude ?? raw.latitude ?? raw.lat),
+    longitude: parseCoordinate(pickupNested?.longitude ?? raw.longitude ?? raw.lng ?? raw.lon),
+    dropLocation: dropLocation || location || '—',
+    dropLatitude: dropLatitude ?? parseCoordinate(raw.latitude ?? raw.lat),
+    dropLongitude: dropLongitude ?? parseCoordinate(raw.longitude ?? raw.lng ?? raw.lon),
+    dropOffSameAsPickup,
   }
 }
 
 /**
- * POST/PATCH body — pick up point name is `location`; plus lat/lng and times.
+ * POST/PATCH body — pick-up name is `location`; drop-off is `dropLocation` (+ coords) when different.
  */
 function pickupPointPayloadFields(body) {
+  const dropOffSameAsPickup =
+    body.dropOffSameAsPickup === true ||
+    body.dropSameAsPickUp === true ||
+    body.drop_off_same_as_pickup === true
+
   const out = {
-    location: String(body.location ?? body.name ?? body.pointName ?? '').trim(),
-    latitude: parseCoordinate(body.latitude ?? body.lat),
-    longitude: parseCoordinate(body.longitude ?? body.lng ?? body.lon),
+    location: String(
+      body.location ?? body.name ?? body.pointName ?? body.pickUpPointName ?? '',
+    ).trim(),
+    latitude: parseCoordinate(body.latitude ?? body.pickUpLatitude ?? body.lat),
+    longitude: parseCoordinate(body.longitude ?? body.pickUpLongitude ?? body.lng ?? body.lon),
     pickupTime: timeForApi(body.pickupTime),
     dropTime: timeForApi(body.dropTime),
+    dropOffSameAsPickup,
   }
+
+  if (!dropOffSameAsPickup) {
+    out.dropLocation = String(
+      body.dropLocation ?? body.dropPointName ?? body.dropOffLocation ?? '',
+    ).trim()
+    out.dropLatitude = parseCoordinate(body.dropLatitude ?? body.drop_latitude)
+    out.dropLongitude = parseCoordinate(body.dropLongitude ?? body.drop_longitude)
+  }
+
   const studentId = body.studentId != null ? Number(body.studentId) : NaN
   if (Number.isFinite(studentId)) out.studentId = studentId
+
+  const studentIds = Array.isArray(body.studentIds)
+    ? body.studentIds.map((sid) => Number(sid)).filter((sid) => Number.isFinite(sid))
+    : []
+  if (studentIds.length > 0) out.studentIds = studentIds
+
   return out
 }
 
 function validatePickupPointPayload(payload) {
   if (!payload.location) return 'Enter a pick up point name.'
   if (payload.latitude == null || payload.longitude == null) {
-    return 'Place the stop on the map (click the map or use Find on map).'
+    return 'Place the pick up stop on the map (click the map or use Find on map).'
   }
   if (!payload.pickupTime) return 'Select a pick-up time.'
   if (!payload.dropTime) return 'Select a drop time.'
+  if (!payload.dropOffSameAsPickup) {
+    if (!payload.dropLocation) return 'Enter a drop off point name.'
+    if (payload.dropLatitude == null || payload.dropLongitude == null) {
+      return 'Place the drop off stop on the map (click the map or use Find on map).'
+    }
+  }
   return null
 }
 
@@ -239,65 +312,60 @@ export function pickupPointDisplayNameFromRaw(raw) {
   return ''
 }
 
-/** Option shape for route pickers — label is the pick up point location/name. */
-export function mapPickupPointToPickerOption(raw) {
+function normalizePickerRouteType(routeType) {
+  const t = String(routeType ?? 'pick_up').trim().toLowerCase().replace(/-/g, '_')
+  return t === 'drop' ? 'drop' : 'pick_up'
+}
+
+function pickerStopLocation(raw, row, routeType) {
+  const isDrop = normalizePickerRouteType(routeType) === 'drop'
+  if (isDrop) {
+    const dropLoc = String(
+      raw.dropOff?.location ??
+        raw.dropLocation ??
+        raw.drop_location ??
+        row?.dropLocation ??
+        '',
+    ).trim()
+    if (dropLoc && dropLoc !== '—') return dropLoc
+  }
+  const pickUpName = pickupPointDisplayNameFromRaw(raw)
+  if (pickUpName) return pickUpName
+  const loc = String(row?.location ?? raw.location ?? raw.locationName ?? '').trim()
+  return loc && loc !== '—' ? loc : ''
+}
+
+/** Option shape for route pickers — label follows pick-up or drop-off side by route type. */
+export function mapPickupPointToPickerOption(raw, routeType = 'pick_up') {
   if (!raw || typeof raw !== 'object') return null
   const id = raw.id ?? raw._id ?? raw.pickupPointId
   if (id == null) return null
 
   const row = mapPickupPointRow(raw)
-  const pointName = pickupPointDisplayNameFromRaw(raw)
-  const apiLabel = String(raw.label ?? '').trim()
-  const primaryName = pointName || (apiLabel && !/^Pick up point #\d+$/i.test(apiLabel) ? apiLabel : '')
+  const isDrop = normalizePickerRouteType(routeType) === 'drop'
+  const locationName = pickerStopLocation(raw, row, routeType)
+  const stopTime = isDrop ? row?.dropTime : row?.pickupTime
 
-  if (primaryName) {
-    return {
-      value: String(id),
-      label: primaryName,
-      locationName: primaryName,
-      pickupTime: row?.pickupTime,
-      dropTime: row?.dropTime,
-      subtext:
-        row?.pickupTime || row?.dropTime
-          ? [
-              row.pickupTime ? `Pick ${row.pickupTime}` : '',
-              row.dropTime ? `Drop ${row.dropTime}` : '',
-            ]
-              .filter(Boolean)
-              .join(' · ')
-          : undefined,
-    }
-  }
+  const label = locationName || `Pick up point #${id}`
 
-  if (!row) return null
-  const name = String(raw.name ?? raw.location ?? raw.locationName ?? '').trim()
-  const displayLabel =
-    [name, row.studentLabel !== '—' ? row.studentLabel : ''].filter(Boolean).join(' - ') ||
-    row.location
-  const timeParts = []
-  if (row.pickupTime) timeParts.push(`Pick ${row.pickupTime}`)
-  if (row.dropTime) timeParts.push(`Drop ${row.dropTime}`)
-  const subtext = timeParts.length ? timeParts.join(' · ') : undefined
-  const fallbackLabel = displayLabel !== '—' ? displayLabel : row.studentLabel
-  const locationName =
-    row.location && row.location !== '—'
-      ? row.location
-      : name || (fallbackLabel !== '—' ? String(fallbackLabel).split(' - ')[0].trim() : '')
+  const subtext = stopTime ? `${isDrop ? 'Drop' : 'Pick'} ${stopTime}` : undefined
+
   return {
-    value: row.id,
-    label: locationName || fallbackLabel,
+    value: String(id),
+    label,
     locationName: locationName || undefined,
+    pickupTime: row?.pickupTime,
+    dropTime: row?.dropTime,
     subtext,
-    pickupTime: row.pickupTime,
-    dropTime: row.dropTime,
   }
 }
 
 /**
  * GET /api/transport/pickup-points/picker — all points, or search with ?q=
+ * @param {{ q?: string, routeType?: 'pick_up'|'drop' }} [options] — routeType picks pick-up vs drop-off labels from the same rows
  * @returns {Promise<{ ok: true, options: { value: string, label: string, subtext?: string }[] } | { ok: false, error: string, options: [] }>}
  */
-export async function fetchPickupPointsPicker(token, { q } = {}) {
+export async function fetchPickupPointsPicker(token, { q, routeType } = {}) {
   if (!token) {
     return { ok: false, error: 'Not signed in', options: [] }
   }
@@ -307,6 +375,7 @@ export async function fetchPickupPointsPicker(token, { q } = {}) {
     if (search) params.set('q', search)
     const qs = params.toString()
     const url = `${API_BASE_URL}/api/transport/pickup-points/picker${qs ? `?${qs}` : ''}`
+    const pickerRouteType = normalizePickerRouteType(routeType)
     const res = await fetch(url, {
       method: 'GET',
       headers: {
@@ -319,7 +388,7 @@ export async function fetchPickupPointsPicker(token, { q } = {}) {
       return { ok: false, error: formatListError(data, res.status), options: [] }
     }
     const rawList = extractPickupPointsPickerList(data)
-    const options = rawList.map(mapPickupPointToPickerOption).filter(Boolean)
+    const options = rawList.map((raw) => mapPickupPointToPickerOption(raw, pickerRouteType)).filter(Boolean)
     return { ok: true, options }
   } catch (e) {
     const msg =
@@ -412,7 +481,8 @@ export async function fetchPickupPointById(token, id) {
 
 /**
  * POST /api/transport/pickup-points
- * Body: location (name), latitude, longitude, pickupTime, dropTime, studentId
+ * Body: location, latitude, longitude, pickupTime, dropTime,
+ *       dropLocation, dropLatitude, dropLongitude, dropOffSameAsPickup, studentId
  */
 export async function createPickupPoint(token, body) {
   if (!token) return { ok: false, error: 'Not signed in' }
@@ -451,19 +521,12 @@ export async function createPickupPoint(token, body) {
 export async function updatePickupPoint(token, id, body) {
   if (!token) return { ok: false, error: 'Not signed in' }
   const idSeg = encodeURIComponent(String(id))
+  const fields = pickupPointPayloadFields(body)
   const payload = {
-    location: String(body.location ?? body.name ?? body.pointName ?? '').trim(),
-    latitude: parseCoordinate(body.latitude ?? body.lat),
-    longitude: parseCoordinate(body.longitude ?? body.lng ?? body.lon),
-    pickupTime: toMeridiemTime(body.pickupTime),
-    dropTime: toMeridiemTime(body.dropTime),
+    ...fields,
+    pickupTime: toMeridiemTime(body.pickupTime) ?? fields.pickupTime,
+    dropTime: toMeridiemTime(body.dropTime) ?? fields.dropTime,
   }
-  const studentIds = Array.isArray(body.studentIds)
-    ? body.studentIds
-        .map((sid) => Number(sid))
-        .filter((sid) => Number.isFinite(sid))
-    : []
-  if (studentIds.length > 0) payload.studentIds = studentIds
   const validationError = validatePickupPointPayload(payload)
   if (validationError) return { ok: false, error: validationError }
   try {

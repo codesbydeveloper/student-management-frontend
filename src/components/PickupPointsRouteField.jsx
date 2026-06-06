@@ -43,6 +43,8 @@ function locationLabelFromOption(option) {
   if (locationName) return locationName
   const label = String(option.label || '').trim()
   if (!label || GENERIC_PICKUP_LABEL.test(label)) return '—'
+  const dot = label.indexOf(' · ')
+  if (dot > 0) return label.slice(0, dot).trim()
   const dash = label.indexOf(' - ')
   if (dash > 0) return label.slice(0, dash).trim()
   return label
@@ -236,7 +238,9 @@ export function PickupPointsRouteField({
         collapsedHint={
           (value || []).length
             ? `${value.length} selected — arrange order below`
-            : 'Search and select pick up points'
+            : routeType === 'drop'
+              ? 'Search and select drop off points'
+              : 'Search and select pick up points'
         }
         {...pickerProps}
       />

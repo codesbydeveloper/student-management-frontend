@@ -25,7 +25,7 @@ import {
   loadDriverBackendTrip,
   saveDriverBackendTrip,
 } from '../modules/transport/driverBackendTripStore'
-import { Select } from '../components/ui/Select'
+import { SearchableSingleSelect } from '../components/SearchableSingleSelect'
 
 function normalizeRouteType(routeType) {
   const t = String(routeType ?? '').trim().toLowerCase().replace(/-/g, '_')
@@ -373,6 +373,18 @@ export default function DriverMapPage() {
     [routes],
   )
   const visibleRoutes = activeType === 'drop' ? dropRoutes : pickupRoutes
+  const routeSelectOptions = useMemo(
+    () =>
+      visibleRoutes.map((r) => ({
+        value: String(r.id),
+        label: String(r.routeName ?? r.name ?? 'Route').trim() || 'Route',
+        subtext:
+          activeType === 'pick_up'
+            ? 'Pick up route'
+            : 'Drop route',
+      })),
+    [visibleRoutes, activeType],
+  )
 
   useEffect(() => {
     if (!visibleRoutes.length) {
@@ -850,8 +862,9 @@ export default function DriverMapPage() {
                 ) : null}
                 {tripId || tripProgressLoading ? (
                   <p className="mt-1 text-xs text-slate-600">
-                    Use View to mark each student picked up or absent. The stop finishes on its own when
-                    everyone is done.
+                    Use View to mark each student picked up or absent. When a stop is done, the next one
+                    opens. Tap <strong>End trip</strong> when you finish the full route — parents and
+                    admin see the trip as active until then.
                   </p>
                 ) : null}
               </div>
@@ -904,18 +917,18 @@ export default function DriverMapPage() {
                 {routesLoading ? 'Refreshing…' : 'Refresh routes'}
               </Button>
               {visibleRoutes.length > 0 ? (
-                <Select
-                  className="ml-auto w-auto min-w-[10rem] max-w-[14rem]"
-                  value={activeRouteId}
-                  onChange={(e) => setActiveRouteId(e.target.value)}
-                  aria-label="Select route"
-                >
-                  {visibleRoutes.map((r) => (
-                    <option key={r.id} value={String(r.id)}>
-                      {r.routeName}
-                    </option>
-                  ))}
-                </Select>
+                <div className="ml-auto w-full min-w-[11rem] max-w-[15rem] shrink-0 sm:w-auto">
+                  <SearchableSingleSelect
+                    id="driver-map-route"
+                    value={activeRouteId}
+                    onChange={setActiveRouteId}
+                    options={routeSelectOptions}
+                    placeholder="Select route…"
+                    hideSearch
+                    showSelectedSubtext
+                    panelMaxHeightClass="max-h-56"
+                  />
+                </div>
               ) : null}
             </div>
 

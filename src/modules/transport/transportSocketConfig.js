@@ -30,6 +30,8 @@ export const SOCKET_EVENTS = {
   BUS_LOCATION_LEGACY: 'bus-location',
   /** Client → server: join or refresh subscription (`busId` numeric from `buses.id`, or string plate if server allows). */
   SUBSCRIBE_BUS: 'subscribe:bus',
+  /** Client → server: leave bus room (admin / principal detail page). */
+  UNSUBSCRIBE_BUS: 'unsubscribe:bus',
   /** Server ack after join (optional UI / logging). */
   JOINED: 'joined',
 }

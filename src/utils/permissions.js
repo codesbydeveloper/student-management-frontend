@@ -38,6 +38,12 @@ export const ROUTE_ACCESS = {
   admin_pick_up_points: [ROLES.ADMIN, ROLES.PRINCIPAL],
   /** Admin / principal — transport routes (UI until API). */
   admin_transport_routes: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Admin / principal — live running buses (mock UI until API). */
+  transport_live_buses: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Admin / principal — completed trip history (pick-up / absent times). */
+  transport_trip_history: [ROLES.ADMIN, ROLES.PRINCIPAL],
+  /** Parent — all live school buses on active trips (mock UI until API). */
+  parent_live_buses: [ROLES.PARENT],
   teacher_ptm_requests: [ROLES.TEACHER],
   teacher_assigned_leads: [ROLES.TEACHER],
   /** Teacher — read-only bus ↔ student overview. */

@@ -1664,6 +1664,20 @@ function mapParentBusLiveStudent(raw) {
         }
       : null
 
+  const routeRaw = raw.route && typeof raw.route === 'object' ? raw.route : null
+  const route = routeRaw
+    ? {
+        routeName: String(routeRaw.routeName ?? routeRaw.route_name ?? '').trim(),
+        routeType: String(routeRaw.routeType ?? routeRaw.route_type ?? '').trim(),
+        routeTypeLabel: String(
+          routeRaw.routeTypeLabel ??
+            routeRaw.route_type_label ??
+            PARENT_ROUTE_TYPE_LABELS[routeRaw.routeType ?? routeRaw.route_type] ??
+            '',
+        ).trim(),
+      }
+    : null
+
   const tripRaw = raw.trip
   const tripIsActiveRaw = tripRaw?.isActive ?? tripRaw?.is_active ?? tripRaw?.active
   const trip =
@@ -1729,15 +1743,12 @@ function mapParentBusLiveStudent(raw) {
     .trim()
     .toLowerCase()
 
-  if (live && studentTripActive === false) {
-    live.tripActive = false
-  }
-
   return {
     studentId,
     studentName,
     studentStatus,
     pickupPoint,
+    route,
     bus,
     live,
     trip,

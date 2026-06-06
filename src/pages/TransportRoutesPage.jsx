@@ -156,12 +156,13 @@ export default function TransportRoutesPage() {
   const selectAllRoutesRef = useRef(null)
 
   const loadPickupPointsPicker = useCallback(
-    async (q, { forEdit = false } = {}) => {
+    async (q, { forEdit = false, routeType: routeTypeOverride } = {}) => {
       if (!token) {
         if (forEdit) setEditPickupPointOptions([])
         else setPickupPointOptions([])
         return
       }
+      const pickerRouteType = routeTypeOverride ?? (forEdit ? editRouteType : routeType)
       if (forEdit) {
         setEditPickupPickerLoading(true)
         setEditPickupPickerError(null)
@@ -169,7 +170,7 @@ export default function TransportRoutesPage() {
         setPickupPickerLoading(true)
         setPickupPickerError(null)
       }
-      const res = await fetchPickupPointsPicker(token, { q })
+      const res = await fetchPickupPointsPicker(token, { q, routeType: pickerRouteType })
       if (forEdit) {
         setEditPickupPickerLoading(false)
       } else {
@@ -200,39 +201,55 @@ export default function TransportRoutesPage() {
         setPickupPointLabels((prev) => applyLabels(prev, res.options))
       }
     },
-    [token],
+    [token, routeType, editRouteType],
   )
 
   const onPickupSearchQuery = useCallback(
     (q) => {
       if (pickupSearchTimerRef.current) window.clearTimeout(pickupSearchTimerRef.current)
       pickupSearchTimerRef.current = window.setTimeout(() => {
-        void loadPickupPointsPicker(q)
+        void loadPickupPointsPicker(q, { routeType })
       }, 300)
     },
-    [loadPickupPointsPicker],
+    [loadPickupPointsPicker, routeType],
   )
 
   const onPickupPickerOpen = useCallback(
     (open) => {
-      if (open) void loadPickupPointsPicker('')
+      if (open) void loadPickupPointsPicker('', { routeType })
     },
-    [loadPickupPointsPicker],
+    [loadPickupPointsPicker, routeType],
   )
 
   const onEditPickupSearchQuery = useCallback(
     (q) => {
       if (editPickupSearchTimerRef.current) window.clearTimeout(editPickupSearchTimerRef.current)
       editPickupSearchTimerRef.current = window.setTimeout(() => {
-        void loadPickupPointsPicker(q, { forEdit: true })
+        void loadPickupPointsPicker(q, { forEdit: true, routeType: editRouteType })
       }, 300)
     },
-    [loadPickupPointsPicker],
+    [loadPickupPointsPicker, editRouteType],
   )
 
   const onEditPickupPickerOpen = useCallback(
     (open) => {
-      if (open) void loadPickupPointsPicker('', { forEdit: true })
+      if (open) void loadPickupPointsPicker('', { forEdit: true, routeType: editRouteType })
+    },
+    [loadPickupPointsPicker, editRouteType],
+  )
+
+  const onRouteTypeChange = useCallback(
+    (nextType) => {
+      setRouteType(nextType)
+      void loadPickupPointsPicker('', { routeType: nextType })
+    },
+    [loadPickupPointsPicker],
+  )
+
+  const onEditRouteTypeChange = useCallback(
+    (nextType) => {
+      setEditRouteType(nextType)
+      void loadPickupPointsPicker('', { forEdit: true, routeType: nextType })
     },
     [loadPickupPointsPicker],
   )
@@ -679,7 +696,7 @@ export default function TransportRoutesPage() {
               <Select
                 id="route-type"
                 value={routeType}
-                onChange={(e) => setRouteType(e.target.value)}
+                onChange={(e) => onRouteTypeChange(e.target.value)}
                 className="mt-1.5"
                 disabled={formDisabled}
               >
@@ -694,6 +711,7 @@ export default function TransportRoutesPage() {
             <div className="md:col-span-2">
               <PickupPointsRouteField
                 id="route-pickup-points"
+                label={routeType === 'drop' ? 'Drop off points' : 'Pick up points'}
                 options={mergedPickupPointOptions}
                 pointLabels={pickupPointLabels}
                 value={pickupPointIds}
@@ -704,13 +722,21 @@ export default function TransportRoutesPage() {
                 optionsLoading={pickupPickerLoading}
                 onSearchQueryChange={onPickupSearchQuery}
                 onOpenChange={onPickupPickerOpen}
-                searchPlaceholder="Type to search locations (e.g. mani)…"
+                searchPlaceholder={
+                  routeType === 'drop'
+                    ? 'Search drop off locations…'
+                    : 'Search pick up locations…'
+                }
                 emptyText={
                   pickupPickerError ||
-                  (pickupPickerLoading ? 'Loading…' : 'No pick up points found. Try another search.')
+                  (pickupPickerLoading
+                    ? 'Loading…'
+                    : routeType === 'drop'
+                      ? 'No drop off points found. Try another search.'
+                      : 'No pick up points found. Try another search.')
                 }
                 pickerError={pickupPickerError}
-                onRetryPicker={() => void loadPickupPointsPicker('')}
+                onRetryPicker={() => void loadPickupPointsPicker('', { routeType })}
               />
             </div>
           </div>
@@ -984,7 +1010,7 @@ export default function TransportRoutesPage() {
                   <Select
                     id="edit-route-type"
                     value={editRouteType}
-                    onChange={(e) => setEditRouteType(e.target.value)}
+                    onChange={(e) => onEditRouteTypeChange(e.target.value)}
                     className="mt-1.5"
                     disabled={editSaving}
                   >
@@ -999,6 +1025,7 @@ export default function TransportRoutesPage() {
                 <div>
                   <PickupPointsRouteField
                     id="edit-route-pickup-points"
+                    label={editRouteType === 'drop' ? 'Drop off points' : 'Pick up points'}
                     options={mergedEditPickupPointOptions}
                     pointLabels={editPickupPointLabels}
                     value={editPickupPointIds}
@@ -1009,13 +1036,23 @@ export default function TransportRoutesPage() {
                     optionsLoading={editPickupPickerLoading}
                     onSearchQueryChange={onEditPickupSearchQuery}
                     onOpenChange={onEditPickupPickerOpen}
-                    searchPlaceholder="Type to search locations…"
+                    searchPlaceholder={
+                      editRouteType === 'drop'
+                        ? 'Search drop off locations…'
+                        : 'Search pick up locations…'
+                    }
                     emptyText={
                       editPickupPickerError ||
-                      (editPickupPickerLoading ? 'Loading…' : 'No pick up points found.')
+                      (editPickupPickerLoading
+                        ? 'Loading…'
+                        : editRouteType === 'drop'
+                          ? 'No drop off points found.'
+                          : 'No pick up points found.')
                     }
                     pickerError={editPickupPickerError}
-                    onRetryPicker={() => void loadPickupPointsPicker('', { forEdit: true })}
+                    onRetryPicker={() =>
+                      void loadPickupPointsPicker('', { forEdit: true, routeType: editRouteType })
+                    }
                   />
                 </div>
 
