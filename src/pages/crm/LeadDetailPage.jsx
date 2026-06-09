@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -110,57 +111,48 @@ export default function LeadDetailPage() {
   /** Only admin and principal may edit lead details (contact, assignment, class). */
   const canEditLeadDetails = isAdmin || isPrincipal
 
-  useEffect(() => {
-    if (!isAdmin && !isPrincipal) {
-      setTeacherOpts([])
-      return undefined
-    }
-    let cancelled = false
-    async function loadTeachers() {
+  useAsyncLoader(
+    async () => {
       if (!token) {
         setTeacherOpts([])
         return
       }
       setTeacherOptsError('')
       const res = await fetchTeachersPicker(token)
-      if (cancelled) return
       if (!res.ok) {
         setTeacherOptsError(res.error || 'Could not load teachers.')
         setTeacherOpts([])
         return
       }
       setTeacherOpts(res.options)
-    }
-    void loadTeachers()
-    return () => {
-      cancelled = true
-    }
-  }, [token, isAdmin, isPrincipal])
+    },
+    [token],
+    { enabled: isAdmin || isPrincipal },
+  )
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadClasses() {
+  useAsyncLoader(
+    async () => {
       if (!token || !canEditLeadDetails) {
         setClassOpts([])
         return
       }
       setClassOptsError('')
       const res = await fetchClassesSummary(token)
-      if (cancelled) return
       if (!res.ok) {
         setClassOptsError(res.error || 'Could not load classes.')
         setClassOpts([])
         return
       }
       setClassOpts(res.options)
-    }
-    void loadClasses()
-    return () => {
-      cancelled = true
-    }
-  }, [token, canEditLeadDetails])
+    },
+    [token, canEditLeadDetails],
+    { enabled: canEditLeadDetails },
+  )
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
+    setLead(undefined)
+    setActivities([])
+    setActivitiesError('')
     if (!token || !leadId) {
       setLead(null)
       return
@@ -175,24 +167,21 @@ export default function LeadDetailPage() {
     setLead(res.lead)
   }, [token, leadId])
 
-  const loadActivities = useCallback(async () => {
-    if (!token || !leadId || !canViewLeadActivity) return
-    setActivitiesError('')
-    const res = await fetchLeadActivities(token, leadId)
-    if (!res.ok) {
-      setActivitiesError(res.error || 'Could not load activity.')
-      setActivities([])
-      return
-    }
-    setActivities(res.activities)
-  }, [token, leadId, canViewLeadActivity])
-
-  useEffect(() => {
-    setLead(undefined)
-    setActivities([])
-    setActivitiesError('')
-    void load()
-  }, [load])
+  const loadActivities = useAsyncLoader(
+    async () => {
+      if (!token || !leadId || !canViewLeadActivity) return
+      setActivitiesError('')
+      const res = await fetchLeadActivities(token, leadId)
+      if (!res.ok) {
+        setActivitiesError(res.error || 'Could not load activity.')
+        setActivities([])
+        return
+      }
+      setActivities(res.activities)
+    },
+    [token, leadId, canViewLeadActivity, lead?.id],
+    { enabled: Boolean(lead && canViewLeadActivity) },
+  )
 
   useEffect(() => {
     if (lead && typeof lead === 'object') {
@@ -214,12 +203,6 @@ export default function LeadDetailPage() {
     lead?.phone,
     lead?.classId,
   ])
-
-  useEffect(() => {
-    if (lead && canViewLeadActivity) {
-      void loadActivities()
-    }
-  }, [lead?.id, canViewLeadActivity, loadActivities])
 
   const canAccess =
     lead &&

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { toast } from 'react-toastify'
 import { Modal } from '../Modal'
 import { Button } from '../ui/Button'
@@ -61,7 +62,7 @@ export function NotificationReadReportModal({
   const [hasNext, setHasNext] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     const id = String(notificationId ?? '').trim()
     if (!open || !token || !id) {
       setParents([])
@@ -97,10 +98,6 @@ export function NotificationReadReportModal({
     setPage(1)
     setFilter('all')
   }, [open, notificationId])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   const title = notificationTitle?.trim() || 'School notice'
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import { Card, CardHeader } from '../components/ui/Card'
@@ -69,7 +70,7 @@ export default function NotificationPrincipalApprovalPage() {
     return statsBundle.principal ?? statsBundle.overall ?? empty
   }, [statsBundle])
 
-  const loadPending = useCallback(async () => {
+  const loadPending = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.PRINCIPAL) {
       setServerPending([])
       setServerListOk(false)
@@ -98,13 +99,6 @@ export default function NotificationPrincipalApprovalPage() {
       toast.error(res.error)
     }
   }, [token, user?.role, page])
-
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      void loadPending()
-    }, 0)
-    return () => window.clearTimeout(t)
-  }, [loadPending])
 
   useEffect(() => {
     if (!token) setSettledRows([])

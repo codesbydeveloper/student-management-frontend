@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { toast } from 'react-toastify'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -41,7 +42,7 @@ export default function CreateCategoryPage() {
   const [editValue, setEditValue] = useState('')
   const [mutatingId, setMutatingId] = useState(null)
 
-  const loadCategories = useCallback(async () => {
+  const loadCategories = useAsyncLoader(async () => {
     if (!token) {
       setCategories([])
       setTotal(0)
@@ -79,10 +80,6 @@ export default function CreateCategoryPage() {
       setListLoading(false)
     }
   }, [token, page, user?.role, adminCategoryScope])
-
-  useEffect(() => {
-    void loadCategories()
-  }, [loadCategories])
 
   useEffect(() => {
     setEditingId(null)

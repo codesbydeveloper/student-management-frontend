@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Link, useNavigate } from 'react-router-dom'
 import { BELL_PANEL_DEFAULT_LIMIT, fetchNotificationBell } from '../../api/notificationsApi'
 import { markParentBusLiveAlertsRead } from '../../api/parentsApi'
@@ -32,7 +33,9 @@ export function HeaderNotificationBell() {
 
   const viewAllPath = useMemo(() => getHeaderNotificationsViewAllPath(user?.role), [user?.role])
 
-  const loadBell = useCallback(async () => {
+  const prevOpenRef = useRef(false)
+
+  const loadBell = useAsyncLoader(async () => {
     if (!token) {
       setItems([])
       setUnreadCount(0)
@@ -54,11 +57,10 @@ export function HeaderNotificationBell() {
   }, [token])
 
   useEffect(() => {
-    void loadBell()
-  }, [loadBell])
-
-  useEffect(() => {
-    if (open) void loadBell()
+    if (open && !prevOpenRef.current) {
+      void loadBell()
+    }
+    prevOpenRef.current = open
   }, [open, loadBell])
 
   const close = useCallback(() => setOpen(false), [])

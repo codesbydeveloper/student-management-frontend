@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { toast } from 'react-toastify'
 import {
   addBusStudent,
@@ -71,7 +72,7 @@ export function BusStudentOverview({
   const [editOnBusExpanded, setEditOnBusExpanded] = useState(true)
   const [editError, setEditError] = useState('')
 
-  const loadBuses = useCallback(async () => {
+  const loadBuses = useAsyncLoader(async () => {
     if (!token || (!showExport && !showEdit)) {
       setBuses([])
       setBusesError('')
@@ -90,11 +91,7 @@ export function BusStudentOverview({
     }
   }, [token, showExport, showEdit])
 
-  useEffect(() => {
-    void loadBuses()
-  }, [loadBuses])
-
-  const loadSummary = useCallback(async () => {
+  const loadSummary = useAsyncLoader(async () => {
     if (!token) {
       setSummaryRows([])
       setSummaryError('')
@@ -121,11 +118,7 @@ export function BusStudentOverview({
       setSummaryRows([])
       setSummaryError(res.error || 'Could not load assignments.')
     }
-  }, [token, summaryPage])
-
-  useEffect(() => {
-    void loadSummary()
-  }, [loadSummary, refreshKey])
+  }, [token, summaryPage, refreshKey])
 
   const bumpAssignments = () => {
     void loadSummary()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -14,6 +14,7 @@ import { NotificationReadReportModal } from '../components/notifications/Notific
 import { DateRangeSelect } from '../components/ui/DateRangeSelect'
 import { ListPagination } from '../components/ui/ListPagination'
 import { useNotificationDetailViewer } from '../hooks/useNotificationDetailViewer'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { ROLES } from '../utils/constants'
 
 const MINE_PAGE_LIMIT = 10
@@ -43,7 +44,7 @@ export default function NotificationsPage() {
     openNotificationDetail,
   } = useNotificationDetailViewer(token, 'teacher-mine')
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.TEACHER) {
       setServerOk(false)
       setLoading(false)
@@ -78,13 +79,6 @@ export default function NotificationsPage() {
       toast.error(res.error)
     }
   }, [token, user?.role, page, dateRange, listScope])
-
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      void load()
-    }, 0)
-    return () => window.clearTimeout(t)
-  }, [load])
 
   const awaitingFirstTeacherFetch =
     Boolean(token && user?.role === ROLES.TEACHER) && loading && !serverOk

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Label } from '../components/ui/Label'
 import { Input } from '../components/ui/Input'
 import { clearDriverBusOverride } from '../modules/transport/transportAssignmentStore'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 
 const PAGE_LIMIT = 10
 
@@ -43,7 +44,7 @@ export default function CreateBusesPage() {
   const [editSaving, setEditSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
 
-  const loadBuses = useCallback(async () => {
+  const loadBuses = useAsyncLoader(async () => {
     if (!token) {
       setBuses([])
       setMeta(emptyListMeta)
@@ -69,10 +70,6 @@ export default function CreateBusesPage() {
     })
     return res
   }, [token, page])
-
-  useEffect(() => {
-    void loadBuses()
-  }, [loadBuses])
 
   const closeEdit = () => {
     setEditOpen(false)

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchParentMyDriver } from '../api/parentsApi'
@@ -46,7 +47,7 @@ export default function ParentBusTrackingPage() {
   const [refreshBusy, setRefreshBusy] = useState(false)
   const refreshInFlight = useRef(false)
 
-  const loadApiDriverRows = useCallback(async () => {
+  const loadApiDriverRows = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.PARENT) {
       setApiDriverRows([])
       return
@@ -65,10 +66,6 @@ export default function ParentBusTrackingPage() {
   } = useParentBusLiveStatus(token, {
     enabled: user?.role === ROLES.PARENT,
   })
-
-  useEffect(() => {
-    void loadApiDriverRows()
-  }, [loadApiDriverRows])
 
   const onRefresh = useCallback(async () => {
     if (!token || user?.role !== ROLES.PARENT || refreshInFlight.current) return

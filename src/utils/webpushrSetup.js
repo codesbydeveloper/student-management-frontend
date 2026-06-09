@@ -14,6 +14,15 @@ export const WEBPUSHR_PUBLIC_KEY =
 
 export const DRIVER_WEBPUSHR_BODY_CLASS = 'driver-no-webpushr'
 
+/** Webpushr returns plain text `Error 4: Site detail not found` on unregistered hosts (e.g. localhost). */
+function shouldLoadWebpushr() {
+  if (typeof window === 'undefined') return false
+  if (import.meta.env.VITE_ENABLE_WEBPUSHR === 'true') return true
+  const host = window.location.hostname
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return false
+  return true
+}
+
 let scriptInjected = false
 let setupDone = false
 let interceptorsInstalled = false
@@ -126,6 +135,7 @@ export async function handlePushNotificationYes() {
  */
 export function enableWebpushrForUser() {
   if (typeof document === 'undefined') return
+  if (!shouldLoadWebpushr()) return
   document.body.classList.remove(DRIVER_WEBPUSHR_BODY_CLASS)
   installWebpushrInterceptors()
   injectWebpushrScript()

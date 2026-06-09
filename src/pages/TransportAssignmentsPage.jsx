@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -70,7 +71,7 @@ export default function TransportAssignmentsPage() {
   const [assignmentsFetchError, setAssignmentsFetchError] = useState('')
   const [serverAssignmentRows, setServerAssignmentRows] = useState([])
 
-  const loadDriverPicker = useCallback(async () => {
+  const loadDriverPicker = useAsyncLoader(async () => {
     if (!token) {
       setPickerDrivers([])
       return
@@ -85,10 +86,6 @@ export default function TransportAssignmentsPage() {
       setPickerDrivers([])
     }
   }, [token])
-
-  useEffect(() => {
-    void loadDriverPicker()
-  }, [loadDriverPicker])
 
   useEffect(() => {
     if (!token) {
@@ -116,7 +113,7 @@ export default function TransportAssignmentsPage() {
     }
   }, [token, busRegistryRev])
 
-  const loadAssignmentsFromApi = useCallback(async () => {
+  const loadAssignmentsFromApi = useAsyncLoader(async () => {
     if (!token) {
       setAssignmentsStatus('idle')
       setAssignmentsFetchError('')
@@ -139,10 +136,6 @@ export default function TransportAssignmentsPage() {
     setAssignmentsStatus('success')
     setServerAssignmentRows(res.rows)
   }, [token])
-
-  useEffect(() => {
-    void loadAssignmentsFromApi()
-  }, [loadAssignmentsFromApi])
 
   const pickerSelectValue = useMemo(() => {
     if (!pickerDrivers.length) return ''

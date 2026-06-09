@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 
@@ -24,14 +24,29 @@ export function SearchableMultiSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const prevOpenRef = useRef(open)
+  const onOpenChangeRef = useRef(onOpenChange)
+  const onSearchQueryChangeRef = useRef(onSearchQueryChange)
 
   useEffect(() => {
-    onOpenChange?.(open)
-    if (open && onSearchQueryChange) {
-      onSearchQueryChange('')
+    onOpenChangeRef.current = onOpenChange
+  }, [onOpenChange])
+
+  useEffect(() => {
+    onSearchQueryChangeRef.current = onSearchQueryChange
+  }, [onSearchQueryChange])
+
+  useEffect(() => {
+    const wasOpen = prevOpenRef.current
+    prevOpenRef.current = open
+    if (open === wasOpen) return
+
+    onOpenChangeRef.current?.(open)
+    if (open && onSearchQueryChangeRef.current) {
+      onSearchQueryChangeRef.current('')
       setQuery('')
     }
-  }, [open, onOpenChange, onSearchQueryChange])
+  }, [open])
 
   const filtered = useMemo(() => {
     if (!filterLocally) return options
@@ -119,7 +134,7 @@ export function SearchableMultiSelect({
               onChange={(e) => {
                 const next = e.target.value
                 setQuery(next)
-                onSearchQueryChange?.(next)
+                onSearchQueryChangeRef.current?.(next)
               }}
               placeholder={searchPlaceholder}
               autoComplete="off"

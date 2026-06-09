@@ -8,6 +8,7 @@ import { SearchableStageFilterSelect } from '../../components/SearchableStageSel
 import { LEAD_STAGE_LABELS } from '../../data/phase6Constants'
 import { fetchTeacherLeads } from '../../api/leadsApi'
 import { ListPagination } from '../../components/ui/ListPagination'
+import { syncPageFromApi } from '../../utils/pagination'
 
 const PAGE_LIMIT = 20
 
@@ -55,7 +56,7 @@ export default function TeacherAssignedLeadsPage() {
       }
       setLeads(res.leads)
       setTotal(res.total)
-      setPage(res.page || usePage)
+      syncPageFromApi(setPage, res.page || usePage)
     },
     [token],
   )

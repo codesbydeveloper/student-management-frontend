@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { CsvImportGuideTable } from '../../components/ui/CsvImportGuideTable'
@@ -55,7 +56,7 @@ export function DriversModule() {
   const [apiRows, setApiRows] = useState(null)
   const [listLoading, setListLoading] = useState(false)
 
-  const loadDrivers = useCallback(async () => {
+  const loadDrivers = useAsyncLoader(async () => {
     if (!token) {
       setApiRows(null)
       setListLoading(false)
@@ -71,10 +72,6 @@ export function DriversModule() {
       setApiRows(null)
     }
   }, [token])
-
-  useEffect(() => {
-    void loadDrivers()
-  }, [loadDrivers])
 
   const displayRows = apiRows !== null ? apiRows : drivers
 

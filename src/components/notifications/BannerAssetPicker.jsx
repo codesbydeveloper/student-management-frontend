@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../../utils/pagination'
 import { toast } from 'react-toastify'
 import {
   deleteNotificationBannerAsset,
@@ -42,6 +44,39 @@ export function BannerAssetPicker({
   const pendingAsset = assets.find((a) => a.id === pendingId) ?? null
   const deleteCount = deleteIds.size
 
+  const exitDeleteMode = () => {
+    setDeleteMode(false)
+    setDeleteIds(new Set())
+  }
+
+  useAsyncLoader(
+    async () => {
+      if (!open) return
+      setAssets([])
+      setPendingId(selectedId ?? null)
+      exitDeleteMode()
+      if (!token) {
+        setError('Sign in to browse uploaded banners.')
+        setAssets([])
+        return
+      }
+      setLoading(true)
+      setError('')
+      const res = await fetchNotificationBannerAssets(token, { page: 1, limit: 24 })
+      setLoading(false)
+      if (!res.ok) {
+        setError(res.error || 'Could not load banner library.')
+        setAssets([])
+        return
+      }
+      setHasNext(res.hasNext)
+      syncPageFromApi(setPage, res.page)
+      setAssets(res.assets)
+    },
+    [token, open, selectedId],
+    { enabled: open },
+  )
+
   const loadPage = useCallback(
     async (pageNum, append) => {
       if (!token) {
@@ -59,25 +94,11 @@ export function BannerAssetPicker({
         return
       }
       setHasNext(res.hasNext)
-      setPage(res.page)
+      syncPageFromApi(setPage, res.page)
       setAssets((prev) => (append ? [...prev, ...res.assets] : res.assets))
     },
     [token],
   )
-
-  const exitDeleteMode = () => {
-    setDeleteMode(false)
-    setDeleteIds(new Set())
-  }
-
-  useEffect(() => {
-    if (!open) return
-    setAssets([])
-    setPage(1)
-    setPendingId(selectedId ?? null)
-    exitDeleteMode()
-    void loadPage(1, false)
-  }, [open, loadPage, selectedId])
 
   const handleClose = () => {
     if (deleting) return

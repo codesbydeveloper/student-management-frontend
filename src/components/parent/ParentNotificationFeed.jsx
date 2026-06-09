@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../../utils/pagination'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
@@ -94,7 +96,7 @@ export function ParentNotificationFeed() {
     }
   }, [])
 
-  useEffect(() => {
+  useAsyncLoader(async () => {
     if (!useServerFeed) {
       setServerItems([])
       setServerError(null)
@@ -102,28 +104,21 @@ export function ParentNotificationFeed() {
       setHasNext(false)
       return
     }
-    let cancelled = false
-    ;(async () => {
-      setServerLoading(true)
-      setServerError(null)
-      const res = await fetchParentMessages(token, { page, limit: MESSAGES_PAGE_LIMIT })
-      if (cancelled) return
-      setServerLoading(false)
-      if (!res.ok) {
-        setServerError(res.error)
-        setServerItems([])
-        setTotal(0)
-        setHasNext(false)
-        return
-      }
-      setTotal(res.total)
-      setHasNext(res.hasNextPage)
-      setPage(res.page)
-      setServerItems((prev) => mergeParentMessageReadState(prev, res.messages))
-    })()
-    return () => {
-      cancelled = true
+    setServerLoading(true)
+    setServerError(null)
+    const res = await fetchParentMessages(token, { page, limit: MESSAGES_PAGE_LIMIT })
+    setServerLoading(false)
+    if (!res.ok) {
+      setServerError(res.error)
+      setServerItems([])
+      setTotal(0)
+      setHasNext(false)
+      return
     }
+    setTotal(res.total)
+    setHasNext(res.hasNextPage)
+    syncPageFromApi(setPage, res.page)
+    setServerItems((prev) => mergeParentMessageReadState(prev, res.messages))
   }, [useServerFeed, token, refreshKey, page])
 
   const onRefresh = useCallback(() => {

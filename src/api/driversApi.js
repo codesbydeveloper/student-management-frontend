@@ -816,12 +816,23 @@ export function mapDriverMyTransportRouteRow(raw) {
  * GET /api/drivers/my-transport-routes — routes, stops, students (Bearer driver JWT).
  * @param {string} token
  */
-export async function fetchDriverMyTransportRoutes(token) {
+/**
+ * GET /api/drivers/my-transport-routes?routeType=
+ * @param {string} token
+ * @param {{ routeType?: 'pick_up'|'drop' }} [options]
+ */
+export async function fetchDriverMyTransportRoutes(token, { routeType } = {}) {
   if (!token) {
     return { ok: false, error: 'Not signed in', routes: [] }
   }
   try {
-    const res = await fetch(`${API_BASE_URL}/api/drivers/my-transport-routes`, {
+    const params = new URLSearchParams()
+    if (routeType === 'pick_up' || routeType === 'drop') {
+      params.set('routeType', routeType)
+    }
+    const qs = params.toString()
+    const url = `${API_BASE_URL}/api/drivers/my-transport-routes${qs ? `?${qs}` : ''}`
+    const res = await fetch(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json',

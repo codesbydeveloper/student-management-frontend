@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../../utils/pagination'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -23,33 +25,31 @@ export default function ParentPtmHistoryPage() {
   const { viewRow, viewLoading, viewError, openView, closeView } = usePtmRequestViewer(token)
   useOpenPtmRequestFromBell(openView)
 
-  const load = useCallback(
-    async (nextPage) => {
-      if (!token || user?.role !== ROLES.PARENT) {
-        setApiRows([])
-        setTotal(0)
-        return
-      }
-      setError('')
-      const res = await fetchMyPtmRequests(token, { page: nextPage, limit: PAGE_LIMIT })
-      if (!res.ok) {
-        setError(res.error || 'Could not load PTM history.')
-        setApiRows([])
-        setTotal(0)
-        toast.error(res.error)
-        return
-      }
-      setApiRows(res.requests)
-      setTotal(res.total)
-      setPage(res.page || nextPage)
-    },
-    [token, user?.role],
-  )
-
   useEffect(() => {
+    setPage(1)
     setApiRows(null)
-    void load(1)
-  }, [load])
+  }, [token, user?.role])
+
+  const load = useAsyncLoader(async () => {
+    setApiRows(null)
+    if (!token || user?.role !== ROLES.PARENT) {
+      setApiRows([])
+      setTotal(0)
+      return
+    }
+    setError('')
+    const res = await fetchMyPtmRequests(token, { page, limit: PAGE_LIMIT })
+    if (!res.ok) {
+      setError(res.error || 'Could not load PTM history.')
+      setApiRows([])
+      setTotal(0)
+      toast.error(res.error)
+      return
+    }
+    setApiRows(res.requests)
+    setTotal(res.total)
+    syncPageFromApi(setPage, res.page || page)
+  }, [token, user?.role, page])
 
   const merged = useMemo(() => {
     const api = Array.isArray(apiRows) ? apiRows : []
@@ -64,7 +64,7 @@ export default function ParentPtmHistoryPage() {
 
   const onRefresh = () => {
     setApiRows(null)
-    void load(page)
+    void load()
   }
 
   return (
@@ -130,11 +130,11 @@ export default function ParentPtmHistoryPage() {
             pageSize={PAGE_LIMIT}
             onPrev={() => {
               setApiRows(null)
-              void load(page - 1)
+              setPage((p) => Math.max(1, p - 1))
             }}
             onNext={() => {
               setApiRows(null)
-              void load(page + 1)
+              setPage((p) => p + 1)
             }}
           />
         ) : null}

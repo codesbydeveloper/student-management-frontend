@@ -35,6 +35,8 @@ function pickIso(...candidates) {
       return new Date(ms).toISOString()
     }
     if (typeof v === 'string') {
+      const parsedMs = parseNotificationTimestamp(v)
+      if (parsedMs != null) return new Date(parsedMs).toISOString()
       const t = Date.parse(v)
       if (Number.isFinite(t)) return new Date(t).toISOString()
     }
@@ -158,6 +160,12 @@ export function mapApiVisitorAuditRow(raw) {
     raw.deletedByName ?? deletedByBlock?.fullName ?? deletedByBlock?.name ?? '',
   ).trim()
 
+  const { display: deletedAtDisplay, ms: deletedAtMs } = parseVisitorTimestamp(
+    raw.deletedAt ?? raw.deleted_at,
+  )
+  const deletedAt =
+    deletedAtMs != null ? new Date(deletedAtMs).toISOString() : pickIso(raw.deletedAt, raw.deleted_at)
+
   return {
     id: String(id),
     visitorId: visitorId != null ? String(visitorId) : '',
@@ -167,7 +175,9 @@ export function mapApiVisitorAuditRow(raw) {
     reason: String(raw.reason ?? raw.note ?? '').trim(),
     deletedByUserId: deletedByUserId != null ? String(deletedByUserId) : '',
     deletedByName: deletedByName || 'Admin',
-    deletedAt: pickIso(raw.deletedAt, raw.deleted_at) || new Date().toISOString(),
+    deletedAt,
+    deletedAtDisplay,
+    deletedAtMs,
   }
 }
 

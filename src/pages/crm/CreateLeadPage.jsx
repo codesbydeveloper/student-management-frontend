@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../../utils/pagination'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -54,64 +56,57 @@ export default function CreateLeadPage() {
   const [mineTotal, setMineTotal] = useState(0)
   const [mineError, setMineError] = useState('')
   const mineAbortRef = useRef(null)
+  const mineLoadGenRef = useRef(0)
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadClasses() {
-      if (!token) {
-        setClassOpts([])
-        return
-      }
-      setClassOptsError('')
-      const res = await fetchClassesSummary(token)
-      if (cancelled) return
-      if (!res.ok) {
-        setClassOptsError(res.error || 'Could not load classes.')
-        setClassOpts([])
-        return
-      }
-      setClassOpts(res.options)
+  const loadClasses = useAsyncLoader(async () => {
+    if (!token) {
+      setClassOpts([])
+      return
     }
-    void loadClasses()
-    return () => {
-      cancelled = true
+    setClassOptsError('')
+    const res = await fetchClassesSummary(token)
+    if (!res.ok) {
+      setClassOptsError(res.error || 'Could not load classes.')
+      setClassOpts([])
+      return
     }
+    setClassOpts(res.options)
   }, [token])
 
-  const loadMine = useCallback(
-    async (page) => {
-      if (!token) {
-        setMineLeads([])
-        setMineTotal(0)
-        return
-      }
-      const p = Math.max(1, Number(page) || 1)
-      if (mineAbortRef.current) mineAbortRef.current.abort()
-      const ctrl = new AbortController()
-      mineAbortRef.current = ctrl
-      setMineError('')
-      const res = await fetchMyLeads(token, {
-        page: p,
-        limit: MINE_PAGE_LIMIT,
-        signal: ctrl.signal,
-      })
-      if (ctrl.signal.aborted || res.aborted) return
-      if (!res.ok) {
-        setMineError(res.error || 'Could not load your leads.')
-        setMineLeads([])
-        setMineTotal(0)
-        return
-      }
-      setMineLeads(res.leads)
-      setMineTotal(res.total)
-      setMinePage(res.page || p)
-    },
-    [token],
-  )
-
   useEffect(() => {
-    void loadMine(minePage)
-  }, [loadMine, minePage])
+    setMinePage(1)
+    setMineLeads(null)
+  }, [token])
+
+  const loadMine = useAsyncLoader(async () => {
+    if (!token) {
+      setMineLeads([])
+      setMineTotal(0)
+      return
+    }
+    const p = Math.max(1, Number(minePage) || 1)
+    const loadGen = ++mineLoadGenRef.current
+    if (mineAbortRef.current) mineAbortRef.current.abort()
+    const ctrl = new AbortController()
+    mineAbortRef.current = ctrl
+    setMineError('')
+    const res = await fetchMyLeads(token, {
+      page: p,
+      limit: MINE_PAGE_LIMIT,
+      signal: ctrl.signal,
+    })
+    if (loadGen !== mineLoadGenRef.current) return
+    if (ctrl.signal.aborted || res.aborted) return
+    if (!res.ok) {
+      setMineError(res.error || 'Could not load your leads.')
+      setMineLeads([])
+      setMineTotal(0)
+      return
+    }
+    setMineLeads(res.leads)
+    setMineTotal(res.total)
+    syncPageFromApi(setMinePage, res.page || p)
+  }, [token, minePage])
 
   useEffect(
     () => () => {
@@ -149,7 +144,7 @@ export default function CreateLeadPage() {
       setPhone('')
       setClassId('')
       setMinePage(1)
-      void loadMine(1)
+      void loadMine()
     } finally {
       setSubmitting(false)
     }
@@ -177,7 +172,7 @@ export default function CreateLeadPage() {
           size="sm"
           variant="secondary"
           onClick={() => {
-            void loadMine(minePage)
+            void loadMine()
           }}
         >
           Refresh history

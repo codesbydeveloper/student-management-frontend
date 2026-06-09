@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -31,7 +32,8 @@ export default function StaffPtmHistoryPage() {
 
   const allowed = user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
+    setApiRows(null)
     if (!token || !allowed) {
       setApiRows([])
       setMeta({ total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false })
@@ -54,11 +56,6 @@ export default function StaffPtmHistoryPage() {
       hasPrevPage: res.hasPrevPage,
     })
   }, [token, allowed, page])
-
-  useEffect(() => {
-    setApiRows(null)
-    void load()
-  }, [load])
 
   const sorted = useMemo(() => {
     const api = Array.isArray(apiRows) ? apiRows : []

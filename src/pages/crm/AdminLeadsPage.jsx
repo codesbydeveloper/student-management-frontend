@@ -16,6 +16,7 @@ import { createLead, fetchLeads } from '../../api/leadsApi'
 import { fetchClassesSummary } from '../../api/classesApi'
 import { fetchTeachersPicker } from '../../api/teachersApi'
 import { ListPagination } from '../../components/ui/ListPagination'
+import { syncPageFromApi } from '../../utils/pagination'
 
 const PAGE_LIMIT = 10
 
@@ -120,7 +121,7 @@ export default function AdminLeadsPage() {
       }
       setLeads(res.leads)
       setTotal(res.total)
-      setPage(res.page || nextPage)
+      syncPageFromApi(setPage, res.page || nextPage)
     },
     [token],
   )

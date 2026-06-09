@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -31,7 +32,7 @@ export default function AssignBusPage() {
   const [saving, setSaving] = useState(false)
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0)
 
-  const loadPickers = useCallback(async () => {
+  const loadPickers = useAsyncLoader(async () => {
     if (!token) {
       setBuses([])
       setBusesError('')
@@ -63,10 +64,6 @@ export default function AssignBusPage() {
       toast.error(stRes.error)
     }
   }, [token])
-
-  useEffect(() => {
-    void loadPickers()
-  }, [loadPickers])
 
   useEffect(() => {
     setStudentIds((prev) => prev.filter((id) => studentOptions.some((o) => o.value === id)))

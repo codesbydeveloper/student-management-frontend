@@ -30,6 +30,18 @@ export function parseNotificationTimestamp(v) {
     if (!Number.isNaN(d.getTime())) return d.getTime()
   }
 
+  const m24 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4}),?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(?:IST)?$/i)
+  if (m24) {
+    const day = Number(m24[1])
+    const month = Number(m24[2]) - 1
+    const year = Number(m24[3])
+    const hour = Number(m24[4])
+    const min = Number(m24[5])
+    const sec = m24[6] != null ? Number(m24[6]) : 0
+    const d = new Date(year, month, day, hour, min, sec)
+    if (!Number.isNaN(d.getTime())) return d.getTime()
+  }
+
   return null
 }
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { LiveBusStrip } from '../components/transport/LiveBusStrip'
 import { Card, CardHeader } from '../components/ui/Card'
 import { PageEmptyState } from '../components/ui/PageEmptyState'
@@ -38,13 +39,14 @@ export default function LiveBusesPage() {
     enabled: isStaff,
   })
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     if (!token || !user?.role) {
       setBuses([])
       setCount(0)
       setLoading(false)
       return
     }
+    setLoading(true)
     const res = await fetchLiveBusesList(token, user.role)
     if (!res.ok) {
       setError(res.error || 'Could not load live buses.')
@@ -85,11 +87,6 @@ export default function LiveBusesPage() {
     })
     setCount((prev) => Math.max(prev, socketBuses.length))
   }, [socketBuses, isStaff])
-
-  useEffect(() => {
-    setLoading(true)
-    load()
-  }, [load])
 
   const handleRefresh = () => {
     setLoading(true)

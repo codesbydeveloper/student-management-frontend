@@ -13,6 +13,8 @@ import {
 import { TransportStopLocationSection } from '../components/transport/TransportStopLocationSection'
 import { SearchableMultiSelect } from '../components/SearchableMultiSelect'
 import { buildPickupGeocodeQuery, geocodeAddress } from '../utils/nominatimGeocode'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../utils/pagination'
 import { ApprovalListPagination } from '../components/notifications/ApprovalListPagination'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -143,7 +145,7 @@ export default function PickUpPointsPage() {
     editPickUpLongitude,
   ])
 
-  const loadStudents = useCallback(async () => {
+  const loadStudents = useAsyncLoader(async () => {
     if (!token) {
       setStudentOptions([])
       return
@@ -160,7 +162,7 @@ export default function PickUpPointsPage() {
     setStudentOptions(res.options)
   }, [token])
 
-  const loadList = useCallback(async () => {
+  const loadList = useAsyncLoader(async () => {
     if (!token) {
       setPoints([])
       setTotal(0)
@@ -181,16 +183,8 @@ export default function PickUpPointsPage() {
     setPoints(res.points)
     setTotal(res.total)
     setHasNext(res.hasNextPage)
-    setPage(res.page)
+    syncPageFromApi(setPage, res.page)
   }, [token, page])
-
-  useEffect(() => {
-    void loadStudents()
-  }, [loadStudents])
-
-  useEffect(() => {
-    void loadList()
-  }, [loadList])
 
   const findOnMap = async (kind, fields, { forEdit = false } = {}) => {
     const q = buildPickupGeocodeQuery(fields)

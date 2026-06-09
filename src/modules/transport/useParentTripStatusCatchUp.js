@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 const CATCH_UP_POLL_MS = 10_000
 const CATCH_UP_WINDOW_MS = 90_000
@@ -14,14 +14,19 @@ export function useParentTripStatusCatchUp({
   driverLive = false,
   refreshLive,
 }) {
+  const refreshLiveRef = useRef(refreshLive)
+  refreshLiveRef.current = refreshLive
+
   useEffect(() => {
-    if (!enabled || !refreshLive) return undefined
+    if (!enabled || !refreshLiveRef.current) return undefined
     if (!tripEnded || tripStarted || driverLive) return undefined
 
-    void refreshLive()
+    const refresh = () => void refreshLiveRef.current?.()
+
+    refresh()
 
     const id = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshLive()
+      if (document.visibilityState === 'visible') refresh()
     }, CATCH_UP_POLL_MS)
 
     const stopTimer = window.setTimeout(() => {
@@ -32,5 +37,5 @@ export function useParentTripStatusCatchUp({
       window.clearInterval(id)
       window.clearTimeout(stopTimer)
     }
-  }, [enabled, tripEnded, tripStarted, driverLive, refreshLive])
+  }, [enabled, tripEnded, tripStarted, driverLive])
 }

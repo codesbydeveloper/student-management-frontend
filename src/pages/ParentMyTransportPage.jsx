@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchParentMyTransport } from '../api/parentsApi'
@@ -18,7 +19,7 @@ export default function ParentMyTransportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const loadTransport = useCallback(async () => {
+  const loadTransport = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.PARENT) {
       setRows([])
       setError('')
@@ -35,10 +36,6 @@ export default function ParentMyTransportPage() {
     }
     setRows(transportRes.rows)
   }, [token, user?.role])
-
-  useEffect(() => {
-    void loadTransport()
-  }, [loadTransport])
 
   return (
     <div className="space-y-6">

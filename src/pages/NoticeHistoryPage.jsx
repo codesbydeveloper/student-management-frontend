@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -213,7 +214,7 @@ export default function NoticeHistoryPage() {
     return { total: s.total, pending: s.pending, approved: s.approved }
   }, [statsBundle, categoryFilter])
 
-  const loadStats = useCallback(async () => {
+  const loadStats = useAsyncLoader(async () => {
     if (!token || !allowed) {
       setStatsBundle(null)
       return
@@ -223,7 +224,7 @@ export default function NoticeHistoryPage() {
     setStatsLoading(false)
     if (res.ok) setStatsBundle(res.stats)
     else setStatsBundle(null)
-  }, [token, allowed])
+  }, [token, allowed, categoryFilter])
 
   useEffect(() => {
     const cat = String(searchParams.get('category') ?? '').toLowerCase()
@@ -236,7 +237,7 @@ export default function NoticeHistoryPage() {
     }
   }, [searchParams])
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     if (!token || !allowed) {
       setRows([])
       setTotal(0)
@@ -302,14 +303,6 @@ export default function NoticeHistoryPage() {
     setPageSize(size)
     setPage(1)
   }
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    void loadStats()
-  }, [loadStats, categoryFilter])
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))

@@ -404,7 +404,7 @@ export function AppRouter() {
           <Route
             path="transport/live-buses"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.PARENT]}>
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <LiveBusesPage />
               </ProtectedRoute>
             }
@@ -412,7 +412,7 @@ export function AppRouter() {
           <Route
             path="transport/live-buses/:busId"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.PARENT]}>
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <LiveBusDetailPage />
               </ProtectedRoute>
             }

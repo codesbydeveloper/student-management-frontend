@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -49,7 +50,8 @@ export default function StaffPtmRequestsPage() {
   const [rejectNote, setRejectNote] = useState({})
   const [busy, setBusy] = useState({})
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
+    setApiRows(null)
     if (!token) {
       setApiRows([])
       return
@@ -71,11 +73,6 @@ export default function StaffPtmRequestsPage() {
       hasPrevPage: res.hasPrevPage,
     })
   }, [token, page])
-
-  useEffect(() => {
-    setApiRows(null)
-    void load()
-  }, [load])
 
   const sorted = useMemo(() => {
     const api = Array.isArray(apiRows) ? apiRows : []

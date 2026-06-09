@@ -23,9 +23,14 @@ export function useParentBusLiveSocketSync({
 }) {
   const syncCountRef = useRef(0)
   const retryTimerRef = useRef(null)
+  const refreshLiveRef = useRef(refreshLive)
+
+  refreshLiveRef.current = refreshLive
 
   useEffect(() => {
     if (!enabled) return undefined
+
+    const refreshLiveNow = () => refreshLiveRef.current?.()
 
     const clearRetry = () => {
       if (retryTimerRef.current != null) {
@@ -53,7 +58,7 @@ export function useParentBusLiveSocketSync({
     const runSync = () => {
       if (syncCountRef.current >= 3) return
       syncCountRef.current += 1
-      void refreshLive()
+      void refreshLiveNow()
       if (syncCountRef.current < 3 && staleTripState && runningSignal) {
         clearRetry()
         retryTimerRef.current = window.setTimeout(runSync, 6_000)
@@ -65,7 +70,6 @@ export function useParentBusLiveSocketSync({
     return () => clearRetry()
   }, [
     enabled,
-    refreshLive,
     socketDriverLive,
     socketIsRunning,
     tripStarted,

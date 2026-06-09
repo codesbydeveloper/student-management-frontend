@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -342,7 +343,7 @@ export default function DriverMapPage() {
   const stopDetailRequestRef = useRef(0)
   const autoCompletingRef = useRef(false)
 
-  const loadRoutes = useCallback(async () => {
+  const loadRoutes = useAsyncLoader(async () => {
     if (!token) {
       setRoutes([])
       setRoutesError('')
@@ -359,10 +360,6 @@ export default function DriverMapPage() {
     }
     setRoutes(res.routes)
   }, [token])
-
-  useEffect(() => {
-    void loadRoutes()
-  }, [loadRoutes])
 
   const pickupRoutes = useMemo(
     () => routes.filter((r) => normalizeRouteType(r.routeType) === 'pick_up'),
@@ -861,10 +858,9 @@ export default function DriverMapPage() {
                   </p>
                 ) : null}
                 {tripId || tripProgressLoading ? (
-                  <p className="mt-1 text-xs text-slate-600">
-                    Use View to mark each student picked up or absent. When a stop is done, the next one
-                    opens. Tap <strong>End trip</strong> when you finish the full route — parents and
-                    admin see the trip as active until then.
+                  <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                    Mark students in <strong className="font-semibold text-slate-600">View</strong>. Tap{' '}
+                    <strong className="font-semibold text-slate-600">End trip</strong> when done.
                   </p>
                 ) : null}
               </div>

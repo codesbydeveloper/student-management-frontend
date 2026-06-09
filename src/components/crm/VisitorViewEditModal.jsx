@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Modal } from '../Modal'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -47,7 +48,7 @@ export function VisitorViewEditModal({ open, onClose, visitorId, token, onSaved 
   const [form, setForm] = useState({ name: '', phone: '', purpose: '', visitAt: '', leaveAt: '' })
   const [saving, setSaving] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     const id = String(visitorId ?? '').trim()
     if (!open || !token || !id) {
       setVisitor(null)
@@ -68,10 +69,6 @@ export function VisitorViewEditModal({ open, onClose, visitorId, token, onSaved 
     setForm(visitorToForm(res.visitor))
     setEditing(false)
   }, [open, token, visitorId])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   const handleClose = () => {
     if (saving) return

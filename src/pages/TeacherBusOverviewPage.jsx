@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../utils/pagination'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -100,7 +102,7 @@ export default function TeacherBusOverviewPage() {
   const [viewLoadingRouteId, setViewLoadingRouteId] = useState(null)
   const [viewError, setViewError] = useState(null)
 
-  const loadRoutes = useCallback(async () => {
+  const loadRoutes = useAsyncLoader(async () => {
     if (!token) {
       setRoutes([])
       setTotal(0)
@@ -121,12 +123,8 @@ export default function TeacherBusOverviewPage() {
     setRoutes(res.routes)
     setTotal(res.total)
     setHasNext(res.hasNextPage)
-    setPage(res.page)
+    syncPageFromApi(setPage, res.page)
   }, [token, page])
-
-  useEffect(() => {
-    void loadRoutes()
-  }, [loadRoutes])
 
   const closeView = () => {
     setViewOpen(false)

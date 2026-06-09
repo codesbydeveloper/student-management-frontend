@@ -121,30 +121,48 @@ function isRawStopCompleted(stop) {
 }
 
 /** @param {LiveBusStop[]} mappedStops */
+function orderedMappedStops(mappedStops) {
+  return [...mappedStops].sort((a, b) => a.order - b.order)
+}
+
+/** @param {LiveBusStop[]} mappedStops */
 function pickNextStopNameFromMappedStops(mappedStops) {
-  const current = mappedStops.find((s) => s.state === 'current')
+  const ordered = orderedMappedStops(mappedStops)
+  const current = ordered.find((s) => s.state === 'current')
   if (current?.name) return current.name
-  const upcoming = mappedStops.find((s) => s.state === 'upcoming')
+  const upcoming = ordered.find((s) => s.state === 'upcoming')
   if (upcoming?.name) return upcoming.name
   return ''
 }
 
 /**
- * Backend often sends `currentStop` but leaves `nextStop` null on the first / only stop.
- * @param {{ nextStop: object | null, currentStop: object | null, headingTo: string, mappedStops: LiveBusStop[] }} input
+ * Next stop for admin live view: the stop the driver is at or heading to next on the route.
+ * Route stop list wins over API `nextStop` (backend may send stop+1 while stop 1 is still active).
+ * @param {{ nextStop: object | null, currentStop: object | null, headingTo: string, mappedStops: LiveBusStop[], completedStops?: number }} input
  */
-function resolveAdminNextStopName({ nextStop, currentStop, headingTo, mappedStops }) {
+function resolveAdminNextStopName({
+  nextStop,
+  currentStop,
+  headingTo,
+  mappedStops,
+  completedStops = 0,
+}) {
+  const fromStops = pickNextStopNameFromMappedStops(mappedStops)
+  if (fromStops) return fromStops
+
+  if (completedStops === 0 && mappedStops.length) {
+    const first = orderedMappedStops(mappedStops)[0]
+    if (first?.name) return first.name
+  }
+
+  const fromCurrent = stopLocationLabel(currentStop)
+  if (fromCurrent && !isRawStopCompleted(currentStop)) return fromCurrent
+
   const fromNext = stopLocationLabel(nextStop)
   if (fromNext) return fromNext
 
   const heading = String(headingTo ?? '').trim()
   if (heading) return heading
-
-  const fromCurrent = stopLocationLabel(currentStop)
-  if (fromCurrent && !isRawStopCompleted(currentStop)) return fromCurrent
-
-  const fromStops = pickNextStopNameFromMappedStops(mappedStops)
-  if (fromStops) return fromStops
 
   return '—'
 }
@@ -340,6 +358,7 @@ export function mapAdminLiveBusDetail(raw) {
     currentStop,
     headingTo,
     mappedStops: stops,
+    completedStops: completed,
   })
 
   return {

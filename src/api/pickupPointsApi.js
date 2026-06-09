@@ -362,7 +362,7 @@ export function mapPickupPointToPickerOption(raw, routeType = 'pick_up') {
 
 /**
  * GET /api/transport/pickup-points/picker — all points, or search with ?q=
- * @param {{ q?: string, routeType?: 'pick_up'|'drop' }} [options] — routeType picks pick-up vs drop-off labels from the same rows
+ * @param {{ q?: string, routeType?: 'pick_up'|'drop' }} [options] — routeType is sent to the API so the backend can filter/format pick-up vs drop-off stops
  * @returns {Promise<{ ok: true, options: { value: string, label: string, subtext?: string }[] } | { ok: false, error: string, options: [] }>}
  */
 export async function fetchPickupPointsPicker(token, { q, routeType } = {}) {
@@ -373,9 +373,10 @@ export async function fetchPickupPointsPicker(token, { q, routeType } = {}) {
     const params = new URLSearchParams()
     const search = String(q ?? '').trim()
     if (search) params.set('q', search)
-    const qs = params.toString()
-    const url = `${API_BASE_URL}/api/transport/pickup-points/picker${qs ? `?${qs}` : ''}`
     const pickerRouteType = normalizePickerRouteType(routeType)
+    params.set('routeType', pickerRouteType)
+    const qs = params.toString()
+    const url = `${API_BASE_URL}/api/transport/pickup-points/picker?${qs}`
     const res = await fetch(url, {
       method: 'GET',
       headers: {

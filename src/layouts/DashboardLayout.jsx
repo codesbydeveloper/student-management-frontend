@@ -118,7 +118,7 @@ export function DashboardLayout() {
       user.role === ROLES.TEACHER
         ? ['/transport/bus-rosters']
         : user.role === ROLES.PARENT
-          ? ['/transport/live-buses', '/parent/routes']
+          ? ['/parent/routes']
           : [
               '/drivers',
               '/transport/assign-bus',

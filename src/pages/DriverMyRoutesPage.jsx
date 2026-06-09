@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -146,7 +147,7 @@ export default function DriverMyRoutesPage() {
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState('pick_up')
 
-  const loadRoutes = useCallback(async () => {
+  const loadRoutes = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.DRIVER) {
       setRoutes([])
       setError('')
@@ -163,10 +164,6 @@ export default function DriverMyRoutesPage() {
     }
     setRoutes(res.routes)
   }, [token, user?.role])
-
-  useEffect(() => {
-    void loadRoutes()
-  }, [loadRoutes])
 
   const pickupRoutes = useMemo(
     () => routes.filter((r) => normalizeRouteType(r.routeType) === 'pick_up'),

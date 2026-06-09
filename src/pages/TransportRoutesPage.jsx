@@ -28,6 +28,8 @@ import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { Select } from '../components/ui/Select'
 import { downloadBlobFile } from '../utils/busAssignmentExport'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../utils/pagination'
 
 const ROUTE_TYPE_OPTIONS = [
   { value: 'pick_up', label: 'Pick up' },
@@ -154,6 +156,7 @@ export default function TransportRoutesPage() {
   const pickupSearchTimerRef = useRef(null)
   const editPickupSearchTimerRef = useRef(null)
   const selectAllRoutesRef = useRef(null)
+  const pickerFetchGenRef = useRef(0)
 
   const loadPickupPointsPicker = useCallback(
     async (q, { forEdit = false, routeType: routeTypeOverride } = {}) => {
@@ -163,6 +166,7 @@ export default function TransportRoutesPage() {
         return
       }
       const pickerRouteType = routeTypeOverride ?? (forEdit ? editRouteType : routeType)
+      const fetchGen = ++pickerFetchGenRef.current
       if (forEdit) {
         setEditPickupPickerLoading(true)
         setEditPickupPickerError(null)
@@ -171,6 +175,7 @@ export default function TransportRoutesPage() {
         setPickupPickerError(null)
       }
       const res = await fetchPickupPointsPicker(token, { q, routeType: pickerRouteType })
+      if (fetchGen !== pickerFetchGenRef.current) return
       if (forEdit) {
         setEditPickupPickerLoading(false)
       } else {
@@ -254,7 +259,7 @@ export default function TransportRoutesPage() {
     [loadPickupPointsPicker],
   )
 
-  const loadOptions = useCallback(async () => {
+  const loadOptions = useAsyncLoader(async () => {
     if (!token) {
       setBuses([])
       setDrivers([])
@@ -283,7 +288,7 @@ export default function TransportRoutesPage() {
     setOptionsError(errors.length ? errors.join(' ') : null)
   }, [token])
 
-  const loadList = useCallback(async () => {
+  const loadList = useAsyncLoader(async () => {
     if (!token) {
       setRoutes([])
       setTotal(0)
@@ -306,16 +311,8 @@ export default function TransportRoutesPage() {
     setRoutes(routesWithStops)
     setTotal(res.total)
     setHasNext(res.hasNextPage)
-    setPage(res.page)
+    syncPageFromApi(setPage, res.page)
   }, [token, page])
-
-  useEffect(() => {
-    void loadOptions()
-  }, [loadOptions])
-
-  useEffect(() => {
-    void loadList()
-  }, [loadList])
 
   useEffect(() => {
     return () => {
@@ -477,9 +474,10 @@ export default function TransportRoutesPage() {
     setEditId(row.id)
     applyRouteToEditForm(row)
     setEditLoading(true)
+    const initialRouteType = row.routeType || 'pick_up'
     const [routeRes] = await Promise.all([
       fetchTransportRouteById(token, row.id),
-      loadPickupPointsPicker('', { forEdit: true }),
+      loadPickupPointsPicker('', { forEdit: true, routeType: initialRouteType }),
     ])
     setEditLoading(false)
     if (routeRes.ok && routeRes.route) {

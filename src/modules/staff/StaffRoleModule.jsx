@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { useConfirm } from '../../context/ConfirmContext'
@@ -99,7 +100,7 @@ export function StaffRoleModule({ roleKey }) {
     return () => window.clearTimeout(t)
   }, [searchQuery])
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     if (!token) {
       setRows([])
       setTotal(0)
@@ -121,10 +122,6 @@ export function StaffRoleModule({ roleKey }) {
       setTotal(0)
     }
   }, [token, cfg.resource, page, debouncedSearchQuery])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   const openCreate = () => {
     setEditing(null)

@@ -50,44 +50,41 @@ export function LiveBusDetailPanel({ bus }) {
 
   return (
     <div className="space-y-5">
-      <div className="overflow-hidden rounded-2xl border border-emerald-600/25 bg-gradient-to-br from-emerald-600 via-emerald-600 to-emerald-500 p-5 text-white shadow-sm sm:p-6">
+      <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-100/90">Live trip</p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">{bus.routeName}</h2>
-            <p className="mt-2 text-sm text-emerald-50/95">{routeTypeLabel}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+                Live
+              </span>
+              <span className="text-xs text-slate-500">{routeTypeLabel}</span>
+            </div>
+            <h2 className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">{bus.routeName}</h2>
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-70" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
-            </span>
-            Live now
-          </span>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-white/10 px-3 py-2.5 backdrop-blur-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-100/80">Driver</p>
-            <p className="mt-0.5 text-sm font-semibold">{bus.driverName}</p>
+        <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          <div>
+            <dt className="inline text-slate-400">Driver </dt>
+            <dd className="inline font-medium text-slate-800">{bus.driverName}</dd>
           </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2.5 backdrop-blur-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-100/80">Bus</p>
-            <p className="mt-0.5 text-sm font-semibold">
-              {bus.busLabel}
-              <span className="ml-1 font-normal text-emerald-50/90">({bus.busPlate})</span>
-            </p>
+          <div>
+            <dt className="inline text-slate-400">Bus </dt>
+            <dd className="inline font-medium text-slate-800">
+              {bus.busLabel} <span className="font-normal text-slate-500">({bus.busPlate})</span>
+            </dd>
           </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2.5 backdrop-blur-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-100/80">Started</p>
-            <p className="mt-0.5 text-sm font-semibold">
+          <div>
+            <dt className="inline text-slate-400">Started </dt>
+            <dd className="inline font-medium text-slate-800">
               {bus.startedAt ? formatTime(bus.startedAt) : '—'}
-            </p>
-            {bus.lastUpdatedAt ? (
-              <p className="text-xs text-emerald-100/80">Updated {formatTime(bus.lastUpdatedAt)}</p>
-            ) : null}
+              {bus.lastUpdatedAt ? (
+                <span className="font-normal text-slate-500"> · updated {formatTime(bus.lastUpdatedAt)}</span>
+              ) : null}
+            </dd>
           </div>
-        </div>
+        </dl>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-5">
@@ -113,9 +110,9 @@ export function LiveBusDetailPanel({ bus }) {
         </div>
 
         <div className="space-y-4 lg:col-span-2">
-          <Card className="border-emerald-200/80 bg-emerald-50/40">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Next stop</p>
-            <p className="mt-1 text-lg font-semibold text-emerald-900">
+          <Card>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Next stop</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
               {bus.nextStopName && bus.nextStopName !== '—'
                 ? bus.nextStopName
                 : bus.completedStops >= bus.totalStops && bus.totalStops > 0

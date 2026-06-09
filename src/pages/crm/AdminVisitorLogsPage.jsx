@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../../utils/pagination'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -21,15 +23,6 @@ import { notificationDisplayTime } from '../../utils/notificationTimestamps'
 import { ListPagination } from '../../components/ui/ListPagination'
 
 const PAGE_LIMIT = 10
-
-function fmt(iso) {
-  if (!iso) return '—'
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
-  } catch {
-    return '—'
-  }
-}
 
 export default function AdminVisitorLogsPage() {
   const { token } = useAuth()
@@ -55,29 +48,31 @@ export default function AdminVisitorLogsPage() {
 
   const [viewVisitorId, setViewVisitorId] = useState(null)
 
-  const loadVisitors = useCallback(
-    async (nextPage) => {
-      if (!token) {
-        setVisitors([])
-        return
-      }
-      setListError('')
-      const res = await fetchVisitors(token, { page: nextPage, limit: PAGE_LIMIT })
-      if (!res.ok) {
-        setListError(res.error || 'Could not load visitors.')
-        setVisitors([])
-        setTotal(0)
-        toast.error(res.error)
-        return
-      }
-      setVisitors(res.visitors)
-      setTotal(res.total)
-      setPage(res.page || nextPage)
-    },
-    [token],
-  )
+  useEffect(() => {
+    setPage(1)
+    setVisitors(null)
+  }, [token])
 
-  const loadAudit = useCallback(async () => {
+  const loadVisitors = useAsyncLoader(async () => {
+    if (!token) {
+      setVisitors([])
+      return
+    }
+    setListError('')
+    const res = await fetchVisitors(token, { page, limit: PAGE_LIMIT })
+    if (!res.ok) {
+      setListError(res.error || 'Could not load visitors.')
+      setVisitors([])
+      setTotal(0)
+      toast.error(res.error)
+      return
+    }
+    setVisitors(res.visitors)
+    setTotal(res.total)
+    syncPageFromApi(setPage, res.page || page)
+  }, [token, page])
+
+  const loadAudit = useAsyncLoader(async () => {
     if (!token) {
       setAudit([])
       return
@@ -91,16 +86,6 @@ export default function AdminVisitorLogsPage() {
     }
     setAudit(res.audit)
   }, [token])
-
-  useEffect(() => {
-    setVisitors(null)
-    void loadVisitors(1)
-  }, [loadVisitors])
-
-  useEffect(() => {
-    setAudit(null)
-    void loadAudit()
-  }, [loadAudit])
 
   const auditTotalPages = useMemo(() => {
     if (!Array.isArray(audit) || audit.length === 0) return 1
@@ -154,7 +139,8 @@ export default function AdminVisitorLogsPage() {
       setPurpose('')
       setVisitAt('')
       setLeaveAt('')
-      await loadVisitors(1)
+      setPage(1)
+      await loadVisitors()
     } finally {
       setSubmitting(false)
     }
@@ -188,7 +174,7 @@ export default function AdminVisitorLogsPage() {
       toast.success('Entry removed.')
       setDeleteTarget(null)
       setDeleteReason('')
-      await Promise.all([loadVisitors(page), loadAudit()])
+      await Promise.all([loadVisitors(), loadAudit()])
     } finally {
       setDeleteSubmitting(false)
     }
@@ -215,7 +201,7 @@ export default function AdminVisitorLogsPage() {
           onClick={() => {
             setVisitors(null)
             setAudit(null)
-            void loadVisitors(page)
+            void loadVisitors()
             void loadAudit()
           }}
         >
@@ -380,11 +366,11 @@ export default function AdminVisitorLogsPage() {
             loading={visitors === null}
             onPrev={() => {
               setVisitors(null)
-              void loadVisitors(page - 1)
+              setPage((p) => Math.max(1, p - 1))
             }}
             onNext={() => {
               setVisitors(null)
-              void loadVisitors(page + 1)
+              setPage((p) => p + 1)
             }}
           />
         ) : null}
@@ -433,7 +419,9 @@ export default function AdminVisitorLogsPage() {
                 <div className="flex flex-wrap items-center gap-x-2">
                   <span className="font-medium text-slate-800">{a.visitorNameSnapshot}</span>
                   <span className="text-slate-500">· removed by {a.deletedByName}</span>
-                  <span className="text-slate-400">· {fmt(a.deletedAt)}</span>
+                  <span className="text-slate-400">
+                    · {notificationDisplayTime(a.deletedAtDisplay, a.deletedAtMs)}
+                  </span>
                 </div>
                 {a.reason ? (
                   <p className="mt-0.5 text-xs text-slate-600">
@@ -473,7 +461,7 @@ export default function AdminVisitorLogsPage() {
         onClose={() => setViewVisitorId(null)}
         visitorId={viewVisitorId}
         token={token}
-        onSaved={() => void loadVisitors(page)}
+        onSaved={() => void loadVisitors()}
       />
     </div>
   )

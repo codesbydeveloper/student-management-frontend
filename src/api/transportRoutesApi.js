@@ -228,9 +228,10 @@ function validateRouteBody(payload) {
 }
 
 /**
- * GET /api/transport/routes?page=&limit=
+ * GET /api/transport/routes?page=&limit=&routeType=
+ * @param {{ page?: number, limit?: number, routeType?: 'pick_up'|'drop' }} [options]
  */
-export async function fetchTransportRoutesList(token, { page = 1, limit = 10 } = {}) {
+export async function fetchTransportRoutesList(token, { page = 1, limit = 10, routeType } = {}) {
   if (!token) {
     return {
       ok: false,
@@ -244,6 +245,9 @@ export async function fetchTransportRoutesList(token, { page = 1, limit = 10 } =
   }
   try {
     const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
+    if (routeType === 'pick_up' || routeType === 'drop') {
+      qs.set('routeType', routeType)
+    }
     const res = await fetch(`${API_BASE_URL}/api/transport/routes?${qs}`, {
       method: 'GET',
       headers: {

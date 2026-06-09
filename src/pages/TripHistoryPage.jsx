@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { fetchTripHistory, fetchTripHistoryRoutes } from '../api/tripHistoryApi'
 import { SearchableSingleSelect } from '../components/SearchableSingleSelect'
 import { PageEmptyState } from '../components/ui/PageEmptyState'
@@ -197,7 +198,7 @@ export default function TripHistoryPage() {
   const [infoMessage, setInfoMessage] = useState(null)
   const [trips, setTrips] = useState([])
 
-  const loadRoutes = useCallback(async () => {
+  const loadRoutes = useAsyncLoader(async () => {
     if (!token) {
       setRoutes([])
       setRoutesLoading(false)
@@ -224,10 +225,6 @@ export default function TripHistoryPage() {
       return res.routes.some((r) => String(r.id) === String(prev)) ? prev : ''
     })
   }, [token])
-
-  useEffect(() => {
-    void loadRoutes()
-  }, [loadRoutes])
 
   const routeOptions = useMemo(
     () =>

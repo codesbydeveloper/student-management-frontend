@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { fetchParentDashboard } from '../../api/parentsApi'
@@ -68,7 +69,7 @@ export function ParentDashboardOverview() {
     openMessageDetail,
   } = useParentMessageViewer(token)
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useAsyncLoader(async () => {
     if (!token) {
       setApiDashboard(null)
       setApiError('')
@@ -86,11 +87,7 @@ export function ParentDashboardOverview() {
       setApiDashboard(null)
       setApiError(res.error || 'Could not load dashboard.')
     }
-  }, [token])
-
-  useEffect(() => {
-    void loadDashboard()
-  }, [loadDashboard, dashboardRefreshKey])
+  }, [token, dashboardRefreshKey])
 
   useEffect(() => {
     let debounceTimer = null

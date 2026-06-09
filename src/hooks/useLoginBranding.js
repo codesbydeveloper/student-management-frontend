@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchPublicLoginBranding } from '../api/settingsApi'
 import {
   DEFAULT_LOGIN_BRANDING,
@@ -6,6 +6,7 @@ import {
   normalizeLoginBranding,
   subscribeLoginBranding,
 } from '../utils/loginBranding'
+import { useAsyncLoader } from './useAsyncLoader'
 
 /**
  * Login / institution branding from GET /api/login-appearance (with local fallback).
@@ -13,7 +14,7 @@ import {
 export function useLoginBranding() {
   const [branding, setBranding] = useState(() => ({ ...DEFAULT_LOGIN_BRANDING }))
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     const remote = await fetchPublicLoginBranding()
     if (remote.ok && remote.branding) {
       setBranding(normalizeLoginBranding(remote.branding))
@@ -22,14 +23,16 @@ export function useLoginBranding() {
     setBranding(getLoginBrandingSnapshot())
   }, [])
 
+  const loadRef = useRef(load)
+  loadRef.current = load
+
   useEffect(() => {
-    void load()
     const unsub = subscribeLoginBranding(() => {
       setBranding(getLoginBrandingSnapshot())
-      void load()
+      void loadRef.current()
     })
     return unsub
-  }, [load])
+  }, [])
 
   return branding
 }

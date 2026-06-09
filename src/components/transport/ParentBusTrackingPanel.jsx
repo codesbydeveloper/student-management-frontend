@@ -22,6 +22,7 @@ import {
 } from '../../modules/transport/parentTripLive'
 import { ParentTripStatusBadge } from './ParentTripStatusBadge'
 import { ROLES } from '../../utils/constants'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { formatTransportSafetyTime } from '../../utils/notificationFormat'
 import {
   getTransportBellStudentId,
@@ -153,14 +154,16 @@ export function ParentBusTrackingPanel({
   const socketMode = isSocketTransportEnabled()
 
   const [apiDriverRows, setApiDriverRows] = useState([])
-  const [refreshNonce, setRefreshNonce] = useState(0)
   const [refreshBusy, setRefreshBusy] = useState(false)
+  const [socketReconnectNonce, setSocketReconnectNonce] = useState(0)
   const [selectedStudentId, setSelectedStudentId] = useState(fixedStudentId)
   const [dismissedAlerts, setDismissedAlerts] = useState(() => new Set())
   const [dismissedSafetyKeys, setDismissedSafetyKeys] = useState(() => new Set())
   /** Unread transport safety rows from GET /api/notifications/bell */
   const [bellTransportAlerts, setBellTransportAlerts] = useState([])
   const refreshInFlight = useRef(false)
+  const refreshLiveRef = useRef(null)
+  const bellRefreshTimerRef = useRef(null)
 
   const activeStudentId = fixedStudentId ?? selectedStudentId
 
@@ -176,7 +179,9 @@ export function ParentBusTrackingPanel({
     enabled: user?.role === ROLES.PARENT,
   })
 
-  const loadApiDriverRows = useCallback(async () => {
+  refreshLiveRef.current = refreshLive
+
+  const loadApiDriverRows = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.PARENT) {
       setApiDriverRows([])
       return
@@ -185,10 +190,6 @@ export function ParentBusTrackingPanel({
     if (res.ok) setApiDriverRows(res.rows)
     else setApiDriverRows([])
   }, [token, user?.role])
-
-  useEffect(() => {
-    void loadApiDriverRows()
-  }, [loadApiDriverRows])
 
   const loadBellTransportAlerts = useCallback(async () => {
     if (!token || user?.role !== ROLES.PARENT) {
@@ -210,7 +211,7 @@ export function ParentBusTrackingPanel({
 
   useEffect(() => {
     void loadBellTransportAlerts()
-  }, [loadBellTransportAlerts, refreshNonce])
+  }, [loadBellTransportAlerts])
 
   /** Bell can update before my-bus-live; poll bell lightly while this page is open. */
   useEffect(() => {
@@ -230,8 +231,21 @@ export function ParentBusTrackingPanel({
     if (!keys || keys === bellAlertKeysRef.current) return
     const hadPrior = bellAlertKeysRef.current.length > 0
     bellAlertKeysRef.current = keys
-    if (hadPrior && keys) void refreshLive()
-  }, [bellTransportAlerts, refreshLive])
+    if (!hadPrior || !keys) return undefined
+
+    if (bellRefreshTimerRef.current) window.clearTimeout(bellRefreshTimerRef.current)
+    bellRefreshTimerRef.current = window.setTimeout(() => {
+      bellRefreshTimerRef.current = null
+      void refreshLiveRef.current()
+    }, 800)
+
+    return () => {
+      if (bellRefreshTimerRef.current) {
+        window.clearTimeout(bellRefreshTimerRef.current)
+        bellRefreshTimerRef.current = null
+      }
+    }
+  }, [bellTransportAlerts])
 
   useEffect(() => {
     if (fixedStudentId != null) return
@@ -249,7 +263,7 @@ export function ParentBusTrackingPanel({
     setRefreshBusy(true)
     try {
       await Promise.all([loadApiDriverRows(), refreshLive(), loadBellTransportAlerts()])
-      setRefreshNonce((n) => n + 1)
+      setSocketReconnectNonce((n) => n + 1)
     } finally {
       refreshInFlight.current = false
       setRefreshBusy(false)
@@ -344,7 +358,7 @@ export function ParentBusTrackingPanel({
     joinedRoomMissing,
   } = useParentBusLiveMap(socketBusId, token, {
     busNumericId: socketBusNumericId,
-    reconnectNonce: refreshNonce,
+    reconnectNonce: socketReconnectNonce,
   })
 
   const restLivePos = useMemo(() => {

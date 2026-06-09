@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useAsyncLoader } from '../../hooks/useAsyncLoader'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -22,7 +23,7 @@ export default function SmtpSettingsPage() {
   const [testing, setTesting] = useState(false)
   const [loadError, setLoadError] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useAsyncLoader(async () => {
     if (!token) {
       setLoading(false)
       setLoadError('Sign in to manage SMTP settings.')
@@ -44,10 +45,6 @@ export default function SmtpSettingsPage() {
     setSmtpPass('')
     setTestToEmail((prev) => prev.trim() || loadedUser)
   }, [token])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   const onSave = async () => {
     if (!token) {

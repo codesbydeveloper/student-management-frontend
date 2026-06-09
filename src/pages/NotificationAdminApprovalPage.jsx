@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAsyncLoader } from '../hooks/useAsyncLoader'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
 import { Card, CardHeader } from '../components/ui/Card'
@@ -65,7 +66,7 @@ export default function NotificationAdminApprovalPage() {
     openNotificationDetail,
   } = useNotificationDetailViewer(token, detailSource)
 
-  const loadStats = useCallback(async () => {
+  const loadStats = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.ADMIN) {
       setStatsBundle(null)
       return
@@ -86,7 +87,7 @@ export default function NotificationAdminApprovalPage() {
     return statsBundle.admin ?? empty
   }, [statsBundle, queueFilter])
 
-  const loadPending = useCallback(async () => {
+  const loadPending = useAsyncLoader(async () => {
     if (!token || user?.role !== ROLES.ADMIN) {
       setServerPending([])
       setServerListOk(false)
@@ -129,14 +130,6 @@ export default function NotificationAdminApprovalPage() {
     void loadStats()
     void loadPending()
   }, [loadStats, loadPending])
-
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      void loadStats()
-      void loadPending()
-    }, 0)
-    return () => window.clearTimeout(t)
-  }, [loadStats, loadPending, queueFilter])
 
   useEffect(() => {
     if (!token) setSettledRows([])
