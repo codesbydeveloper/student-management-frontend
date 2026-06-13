@@ -22,7 +22,7 @@ export const LOGIN_ROLE_OPTIONS = [
   ROLES.DRIVER,
   ROLES.PRINCIPAL,
 ]
- export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://lightslategrey-whale-339313.hostingersite.com').replace(/\/$/, '')
+ export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://miraya.dharshschoolofexcellence.co.in').replace(/\/$/, '')
  // export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export const STORAGE_KEYS = {
