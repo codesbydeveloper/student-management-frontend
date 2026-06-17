@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { disableWebpushrForDriver, enableWebpushrForUser } from '../utils/webpushrSetup'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { LayoutOutlet } from '../routes/LayoutOutlet'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utils/constants'
 import { getNavItemsForRole, getNavSidebarEntries } from '../utils/navigation'
+import { isMenuAccessRole } from '../utils/permissions'
 import { RoleBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { MainContentPageHeader } from '../components/layout/MainContentPageHeader'
@@ -12,21 +14,29 @@ import { HeaderNotificationBell } from '../components/layout/HeaderNotificationB
 import { PushNotificationPermissionBanner } from '../components/layout/PushNotificationPermissionBanner'
 import { InstitutionBrandMark } from '../components/layout/InstitutionBrandMark'
 import { useLoginBranding } from '../hooks/useLoginBranding'
+import { useSiteBranding } from '../hooks/useSiteBranding'
+import { useAppBackgroundTheme } from '../hooks/useAppBackgroundTheme'
+import { BackgroundLayer } from '../components/settings/BackgroundLayer'
 import { useProfilePrefs } from '../hooks/useProfilePrefs'
 import { UserProfileAvatar } from '../components/profile/UserProfileAvatar'
 import { NavIcon } from '../components/icons/NavIcon'
 import { PencilIcon } from '../components/icons/PencilIcon'
 import { useTransportTripMaintenance } from '../modules/transport/useTransportTripMaintenance'
+import { readMobileDockVisible, writeMobileDockVisible } from '../utils/mobileDockPref'
 
 function navClass({ isActive }) {
-  return `group flex w-full min-h-[2.75rem] items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
-    isActive ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+  return `group flex w-full min-h-[2.75rem] items-center gap-2.5 rounded-md border-l-[3px] px-2.5 py-2 text-sm font-medium transition-colors ${
+    isActive
+      ? 'border-indigo-400 font-semibold text-white'
+      : 'border-transparent text-slate-300 hover:text-white'
   }`
 }
 
 function navChildClass({ isActive }) {
-  return `group flex w-full min-h-[2.5rem] items-center gap-2 rounded-md py-2 pl-7 pr-2.5 text-[13px] font-medium transition-colors ${
-    isActive ? 'bg-slate-700/80 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
+  return `group flex w-full min-h-[2.5rem] items-center gap-2 rounded-md border-l-[3px] py-2 pl-7 pr-2.5 text-[13px] font-medium transition-colors ${
+    isActive
+      ? 'border-indigo-300 font-semibold text-white'
+      : 'border-transparent text-slate-400 hover:text-slate-100'
   }`
 }
 
@@ -44,6 +54,8 @@ function navLinkUsesEnd(to) {
     to === '/parents' ||
     to === '/admins' ||
     to === '/principals' ||
+    to === '/front-office-staff' ||
+    to === '/coordinators' ||
     to === '/notifications' ||
     to === '/notifications/admin-approval' ||
     to === '/notifications/principal-approval' ||
@@ -72,8 +84,10 @@ function navLinkUsesEnd(to) {
     to === '/notifications/create' ||
     to === '/transport/bus-rosters' ||
     to === '/settings' ||
+    to === '/settings/site-branding' ||
     to === '/settings/login-branding' ||
     to === '/settings/smtp' ||
+    to === '/settings/background' ||
     to === '/profile'
   )
 }
@@ -83,17 +97,26 @@ export function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
+  const [mobileDockVisible, setMobileDockVisible] = useState(() => readMobileDockVisible())
 
   const branding = useLoginBranding()
+  const siteBranding = useSiteBranding()
+  const { theme: backgroundTheme } = useAppBackgroundTheme()
   const { displayName: profileDisplayName, profileImage } = useProfilePrefs(
     user?.id,
     user?.fullName,
     token,
   )
-  const sidebarEntries = getNavSidebarEntries(user.role)
-  const dockItems = getNavItemsForRole(user.role)
+  const sidebarEntries = useMemo(
+    () => getNavSidebarEntries(user.role, user.menuAccess),
+    [user.role, user.menuAccess],
+  )
+  const dockItems = useMemo(
+    () => getNavItemsForRole(user.role, user.menuAccess),
+    [user.role, user.menuAccess],
+  )
   const showHeaderSettings = user.role === ROLES.ADMIN
-  const institutionTitle = branding.title || 'School'
+  const institutionTitle = siteBranding.siteName || branding.title || 'School'
 
   useEffect(() => {
     if (user.role === ROLES.DRIVER) {
@@ -112,7 +135,7 @@ export function DashboardLayout() {
     academics: pathIn(
       user.role === ROLES.TEACHER
         ? ['/classes', '/teachers', '/students']
-        : ['/classes', '/teachers', '/students', '/parents', '/admins', '/principals'],
+        : ['/classes', '/teachers', '/students', '/parents', '/admins', '/principals', '/front-office-staff', '/coordinators'],
     ),
     transport: pathIn(
       user.role === ROLES.TEACHER
@@ -144,15 +167,33 @@ export function DashboardLayout() {
     crm: pathIn(['/assigned-leads', '/create-lead', '/visitor-logs']),
   }
 
-  const [navGroupOpen, setNavGroupOpen] = useState(() => ({
-    academics: navGroupActive.academics,
-    transport: navGroupActive.transport,
-    notices: navGroupActive.notices,
-    operations: navGroupActive.operations,
-    ptm: navGroupActive.ptm,
-    communications: navGroupActive.communications,
-    crm: navGroupActive.crm,
-  }))
+  const [navGroupOpen, setNavGroupOpen] = useState(() => {
+    const staffMenuUser = isMenuAccessRole(user?.role)
+    return {
+      academics: staffMenuUser || navGroupActive.academics,
+      transport: staffMenuUser || navGroupActive.transport,
+      notices: staffMenuUser || navGroupActive.notices,
+      operations: staffMenuUser || navGroupActive.operations,
+      ptm: staffMenuUser || navGroupActive.ptm,
+      communications: staffMenuUser || navGroupActive.communications,
+      crm: staffMenuUser || navGroupActive.crm,
+    }
+  })
+
+  useEffect(() => {
+    if (!isMenuAccessRole(user?.role)) return
+    setNavGroupOpen((g) => {
+      let changed = false
+      const next = { ...g }
+      for (const entry of sidebarEntries) {
+        if (entry.type === 'group' && !next[entry.key]) {
+          next[entry.key] = true
+          changed = true
+        }
+      }
+      return changed ? next : g
+    })
+  }, [user?.role, sidebarEntries])
 
   useEffect(() => {
     setNavGroupOpen((g) => {
@@ -177,6 +218,15 @@ export function DashboardLayout() {
     navigate('/login', { replace: true })
   }
 
+  const onToggleMobileDock = (visible) => {
+    setMobileDockVisible(visible)
+    writeMobileDockVisible(visible)
+  }
+
+  const mainBottomPadding = mobileDockVisible
+    ? 'pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] lg:pb-8'
+    : 'pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] lg:pb-8'
+
   return (
     <div className="relative flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-slate-100">
 
@@ -190,10 +240,12 @@ export function DashboardLayout() {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[min(20rem,calc(100vw-1.25rem))] flex-col overflow-hidden border-r border-slate-800 bg-slate-900 transition-transform duration-300 ease-out lg:static lg:h-dvh lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[min(20rem,calc(100vw-1.25rem))] flex-col overflow-hidden border-r border-slate-800 transition-transform duration-300 ease-out lg:static lg:h-dvh lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
+        <BackgroundLayer surface={backgroundTheme.sidebar} imageFit="repeat" />
+        <div className="relative z-10 flex h-full min-h-0 flex-col">
         <div className="flex shrink-0 flex-col items-center gap-2.5 border-b border-slate-800 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] text-center lg:min-h-[4rem] lg:px-4 lg:py-4 lg:pt-4">
           <InstitutionBrandMark branding={branding} />
           <p className="w-full text-sm font-semibold leading-snug text-white break-words">
@@ -221,10 +273,10 @@ export function DashboardLayout() {
               <div key={entry.key} className="space-y-1">
                 <button
                   type="button"
-                  className={`flex w-full min-h-[2.75rem] items-center gap-2 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
+                  className={`flex w-full min-h-[2.75rem] items-center gap-2 rounded-md border-l-[3px] px-2.5 py-2.5 text-left text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${
                     navGroupPathActive(entry.key, navGroupActive)
-                      ? 'bg-slate-800/90 text-white ring-1 ring-indigo-500/40'
-                      : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
+                      ? 'border-indigo-400 text-white'
+                      : 'border-transparent text-slate-300 hover:text-white'
                   }`}
                   aria-expanded={navGroupOpen[entry.key] ?? false}
                   onClick={() =>
@@ -281,9 +333,12 @@ export function DashboardLayout() {
         <div className="shrink-0 border-t border-slate-800 px-3 py-3 text-xs text-slate-500 lg:px-4 lg:py-3.5">
           School year 2026
         </div>
+        </div>
       </aside>
 
-      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <BackgroundLayer surface={backgroundTheme.main} imageFit="repeat" />
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top,0px)]">
           <div className="flex min-h-[3.5rem] items-center justify-between gap-3 px-3 sm:min-h-[4.25rem] sm:gap-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
@@ -374,13 +429,21 @@ export function DashboardLayout() {
 
         <div className="relative min-h-0 flex-1">
           <PushNotificationPermissionBanner />
-          <main className="scrollbar-none relative min-h-0 h-full overflow-x-hidden overflow-y-auto px-3 py-5 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
+          <main
+            className={`scrollbar-none relative min-h-0 h-full overflow-x-hidden overflow-y-auto px-3 py-5 sm:px-6 sm:py-6 lg:px-8 ${mainBottomPadding}`}
+          >
             <MainContentPageHeader />
-            <Outlet />
+            <LayoutOutlet />
           </main>
         </div>
 
-        <MobileDockNav items={dockItems} onNavigate={() => setOpen(false)} />
+        <MobileDockNav
+          items={dockItems}
+          onNavigate={() => setOpen(false)}
+          visible={mobileDockVisible}
+          onToggleVisible={onToggleMobileDock}
+        />
+        </div>
       </div>
     </div>
   )

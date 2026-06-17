@@ -66,16 +66,20 @@ export default function NotificationAdminApprovalPage() {
     openNotificationDetail,
   } = useNotificationDetailViewer(token, detailSource)
 
-  const loadStats = useAsyncLoader(async () => {
+  const loadStats = useAsyncLoader(async ({ isStale } = {}) => {
     if (!token || user?.role !== ROLES.ADMIN) {
       setStatsBundle(null)
       return
     }
     setStatsLoading(true)
-    const res = await fetchNotificationStats(token)
-    setStatsLoading(false)
-    if (res.ok) setStatsBundle(res.stats)
-    else setStatsBundle(null)
+    try {
+      const res = await fetchNotificationStats(token)
+      if (isStale?.()) return
+      if (res.ok) setStatsBundle(res.stats)
+      else setStatsBundle(null)
+    } finally {
+      if (!isStale?.()) setStatsLoading(false)
+    }
   }, [token, user?.role])
 
   const queueStats = useMemo(() => {
@@ -87,7 +91,7 @@ export default function NotificationAdminApprovalPage() {
     return statsBundle.admin ?? empty
   }, [statsBundle, queueFilter])
 
-  const loadPending = useAsyncLoader(async () => {
+  const loadPending = useAsyncLoader(async ({ isStale } = {}) => {
     if (!token || user?.role !== ROLES.ADMIN) {
       setServerPending([])
       setServerListOk(false)
@@ -97,26 +101,30 @@ export default function NotificationAdminApprovalPage() {
     }
     setListLoading(true)
     setListError(null)
-    const res =
-      queueFilter === APPROVAL_QUEUE.PRINCIPAL
-        ? await fetchPendingPrincipalNotifications(token, { page, limit: PAGE_LIMIT })
-        : await fetchPendingAdminNotifications(token, { page, limit: PAGE_LIMIT })
-    setListLoading(false)
-    if (res.ok) {
-      setServerPending(res.notifications)
-      setTotal(res.total)
-      setHasNext(Boolean(res.hasNext))
-      setServerListOk(true)
-      setListError(null)
-      return
-    }
-    setServerPending([])
-    setTotal(0)
-    setHasNext(false)
-    setServerListOk(false)
-    setListError(res.error || 'Could not load pending list.')
-    if (!res.useClient) {
-      toast.error(res.error)
+    try {
+      const res =
+        queueFilter === APPROVAL_QUEUE.PRINCIPAL
+          ? await fetchPendingPrincipalNotifications(token, { page, limit: PAGE_LIMIT })
+          : await fetchPendingAdminNotifications(token, { page, limit: PAGE_LIMIT })
+      if (isStale?.()) return
+      if (res.ok) {
+        setServerPending(res.notifications)
+        setTotal(res.total)
+        setHasNext(Boolean(res.hasNext))
+        setServerListOk(true)
+        setListError(null)
+        return
+      }
+      setServerPending([])
+      setTotal(0)
+      setHasNext(false)
+      setServerListOk(false)
+      setListError(res.error || 'Could not load pending list.')
+      if (!res.useClient) {
+        toast.error(res.error)
+      }
+    } finally {
+      if (!isStale?.()) setListLoading(false)
     }
   }, [token, user?.role, queueFilter, page])
 
@@ -170,7 +178,7 @@ export default function NotificationAdminApprovalPage() {
       ])
     }
     requestParentMessagesRefresh()
-    await loadPending()
+    void loadPending()
     void loadStats()
   }
 
@@ -196,7 +204,7 @@ export default function NotificationAdminApprovalPage() {
           ])
         }
         closeRejectModal()
-        await loadPending()
+        void loadPending()
         void loadStats()
         return
       }

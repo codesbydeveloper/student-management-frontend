@@ -16,6 +16,8 @@ const ClassesPage = lazy(() => import('../pages/ClassesPage.jsx'))
 const ParentsPage = lazy(() => import('../pages/ParentsPage.jsx'))
 const AdminsPage = lazy(() => import('../pages/AdminsPage.jsx'))
 const PrincipalsPage = lazy(() => import('../pages/PrincipalsPage.jsx'))
+const FrontOfficeStaffPage = lazy(() => import('../pages/FrontOfficeStaffPage.jsx'))
+const CoordinatorsPage = lazy(() => import('../pages/CoordinatorsPage.jsx'))
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage.jsx'))
 const NotificationCreatePage = lazy(() => import('../pages/NotificationCreatePage.jsx'))
 const NotificationAdminApprovalPage = lazy(() => import('../pages/NotificationAdminApprovalPage.jsx'))
@@ -49,8 +51,13 @@ const TeacherAssignedLeadsPage = lazy(() => import('../pages/crm/TeacherAssigned
 const LeadDetailPage = lazy(() => import('../pages/crm/LeadDetailPage.jsx'))
 const CreateLeadPage = lazy(() => import('../pages/crm/CreateLeadPage.jsx'))
 const SettingsHubPage = lazy(() => import('../pages/settings/SettingsHubPage.jsx'))
+const SiteBrandingSettingsPage = lazy(() => import('../pages/settings/SiteBrandingSettingsPage.jsx'))
 const LoginBrandingSettingsPage = lazy(() => import('../pages/settings/LoginBrandingSettingsPage.jsx'))
+const BackgroundThemeSettingsPage = lazy(() => import('../pages/settings/BackgroundThemeSettingsPage.jsx'))
 const SmtpSettingsPage = lazy(() => import('../pages/settings/SmtpSettingsPage.jsx'))
+const SidebarMenuAppearanceSettingsPage = lazy(
+  () => import('../pages/settings/SidebarMenuAppearanceSettingsPage.jsx'),
+)
 const ProfilePage = lazy(() => import('../pages/ProfilePage.jsx'))
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'))
 
@@ -75,7 +82,7 @@ export function AppRouter() {
         <Route
           path="/"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute layoutGate>
               <DashboardLayout />
             </ProtectedRoute>
           }
@@ -88,6 +95,14 @@ export function AppRouter() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <SettingsHubPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="settings/site-branding"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <SiteBrandingSettingsPage />
               </ProtectedRoute>
             }
           />
@@ -108,9 +123,28 @@ export function AppRouter() {
             }
           />
           <Route
+            path="settings/background"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <BackgroundThemeSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="settings/sidebar-menu"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <SidebarMenuAppearanceSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="teachers"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+              <ProtectedRoute
+                menuKey="teachers"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}
+              >
                 <TeachersPage />
               </ProtectedRoute>
             }
@@ -118,7 +152,7 @@ export function AppRouter() {
           <Route
             path="drivers"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="drivers" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <DriversPage />
               </ProtectedRoute>
             }
@@ -127,6 +161,7 @@ export function AppRouter() {
             path="students"
             element={
               <ProtectedRoute
+                menuKey="students"
                 allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER, ROLES.PARENT]}
               >
                 <StudentsPage />
@@ -136,7 +171,10 @@ export function AppRouter() {
           <Route
             path="classes"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+              <ProtectedRoute
+                menuKey="classes"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}
+              >
                 <ClassesPage />
               </ProtectedRoute>
             }
@@ -144,7 +182,7 @@ export function AppRouter() {
           <Route
             path="parents"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="parents" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <ParentsPage />
               </ProtectedRoute>
             }
@@ -152,7 +190,7 @@ export function AppRouter() {
           <Route
             path="admins"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+              <ProtectedRoute menuKey="admins" allowedRoles={[ROLES.ADMIN]}>
                 <AdminsPage />
               </ProtectedRoute>
             }
@@ -160,8 +198,24 @@ export function AppRouter() {
           <Route
             path="principals"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+              <ProtectedRoute menuKey="principals" allowedRoles={[ROLES.ADMIN]}>
                 <PrincipalsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="front-office-staff"
+            element={
+              <ProtectedRoute menuKey="front_office_staff" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <FrontOfficeStaffPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="coordinators"
+            element={
+              <ProtectedRoute menuKey="coordinators" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+                <CoordinatorsPage />
               </ProtectedRoute>
             }
           />
@@ -200,7 +254,7 @@ export function AppRouter() {
           <Route
             path="notifications/history"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="notice_history" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <NoticeHistoryPage />
               </ProtectedRoute>
             }
@@ -208,7 +262,7 @@ export function AppRouter() {
           <Route
             path="create-category"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="create_category" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <CreateCategoryPage />
               </ProtectedRoute>
             }
@@ -216,7 +270,10 @@ export function AppRouter() {
           <Route
             path="create-notice"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+              <ProtectedRoute
+                menuKey="create_notice"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}
+              >
                 <CreateNoticePage />
               </ProtectedRoute>
             }
@@ -280,7 +337,7 @@ export function AppRouter() {
           <Route
             path="ptm-requests/staff"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="staff_ptm_requests" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <StaffPtmRequestsPage />
               </ProtectedRoute>
             }
@@ -288,7 +345,7 @@ export function AppRouter() {
           <Route
             path="ptm-requests/admin/history"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="staff_ptm_history" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <StaffPtmHistoryPage />
               </ProtectedRoute>
             }
@@ -312,7 +369,10 @@ export function AppRouter() {
           <Route
             path="visitor-logs"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+              <ProtectedRoute
+                menuKey="admin_visitor_logs"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}
+              >
                 <AdminVisitorLogsPage />
               </ProtectedRoute>
             }
@@ -320,7 +380,7 @@ export function AppRouter() {
           <Route
             path="leads"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="admin_leads" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <AdminLeadsPage />
               </ProtectedRoute>
             }
@@ -328,7 +388,10 @@ export function AppRouter() {
           <Route
             path="leads/:leadId"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}>
+              <ProtectedRoute
+                menuKey="admin_leads"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.TEACHER]}
+              >
                 <LeadDetailPage />
               </ProtectedRoute>
             }
@@ -356,7 +419,7 @@ export function AppRouter() {
           <Route
             path="transport-assignments"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="admin_assign_bus" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <TransportAssignmentsPage />
               </ProtectedRoute>
             }
@@ -364,7 +427,7 @@ export function AppRouter() {
           <Route
             path="transport/buses"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="admin_create_buses" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <CreateBusesPage />
               </ProtectedRoute>
             }
@@ -372,7 +435,7 @@ export function AppRouter() {
           <Route
             path="transport/assign-bus"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="admin_assign_bus" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <AssignBusPage />
               </ProtectedRoute>
             }
@@ -380,7 +443,7 @@ export function AppRouter() {
           <Route
             path="transport/pick-up-points"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="admin_pick_up_points" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <PickUpPointsPage />
               </ProtectedRoute>
             }
@@ -388,7 +451,7 @@ export function AppRouter() {
           <Route
             path="transport/routes"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="admin_transport_routes" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <TransportRoutesPage />
               </ProtectedRoute>
             }
@@ -396,7 +459,7 @@ export function AppRouter() {
           <Route
             path="transport/trip-history"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute menuKey="transport_trip_history" allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
                 <TripHistoryPage />
               </ProtectedRoute>
             }
@@ -404,7 +467,10 @@ export function AppRouter() {
           <Route
             path="transport/live-buses"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute
+                menuKey="transport_live_buses"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.FRONT_OFFICE_STAFF, ROLES.COORDINATOR]}
+              >
                 <LiveBusesPage />
               </ProtectedRoute>
             }
@@ -412,7 +478,10 @@ export function AppRouter() {
           <Route
             path="transport/live-buses/:busId"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL]}>
+              <ProtectedRoute
+                menuKey="transport_live_buses"
+                allowedRoles={[ROLES.ADMIN, ROLES.PRINCIPAL, ROLES.FRONT_OFFICE_STAFF, ROLES.COORDINATOR]}
+              >
                 <LiveBusDetailPage />
               </ProtectedRoute>
             }

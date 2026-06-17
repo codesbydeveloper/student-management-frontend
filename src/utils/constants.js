@@ -4,6 +4,8 @@ export const ROLES = {
   TEACHER: 'teacher',
   PARENT: 'parent',
   DRIVER: 'driver',
+  FRONT_OFFICE_STAFF: 'front_office_staff',
+  COORDINATOR: 'coordinator',
 }
 
 export const ROLE_LABELS = {
@@ -12,6 +14,8 @@ export const ROLE_LABELS = {
   [ROLES.TEACHER]: 'Teacher',
   [ROLES.PARENT]: 'Parent',
   [ROLES.DRIVER]: 'Driver',
+  [ROLES.FRONT_OFFICE_STAFF]: 'Front office staff',
+  [ROLES.COORDINATOR]: 'Coordinator',
 }
 
 
@@ -22,8 +26,8 @@ export const LOGIN_ROLE_OPTIONS = [
   ROLES.DRIVER,
   ROLES.PRINCIPAL,
 ]
- export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://aliceblue-frog-823531.hostingersite.com').replace(/\/$/, '')
- // export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+  //export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://miraya.dharshschoolofexcellence.co.in').replace(/\/$/, '')
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export const STORAGE_KEYS = {
   TOKEN: 'token',
@@ -43,4 +47,7 @@ export const STORAGE_KEYS = {
   PUSH_PERMISSION_DISMISSED_DATE: 'scs_push_permission_dismissed_date',
  
   PUSH_SW_SETUP_DONE: 'scs_push_sw_setup_done',
+
+  /** Mobile bottom dock: '1' visible (default), '0' hidden */
+  MOBILE_DOCK_VISIBLE: 'scs_mobile_dock_visible',
 }

@@ -69,6 +69,7 @@ export function shouldShowPushPermissionBanner() {
   if (perm === 'granted' || perm === 'denied' || perm === 'unsupported') return false
   if (perm === 'granted' && hasStoredPushEndpoint()) return false
   if (wasPushPermissionDismissedToday()) return false
+  if (isPushPermissionRequestInFlight()) return false
   return true
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAsyncLoader } from '../hooks/useAsyncLoader'
+import { syncPageFromApi } from '../utils/pagination'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -22,6 +23,12 @@ import {
 import { NotificationApprovalStatsBoxes } from '../components/notifications/NotificationApprovalStatsBoxes'
 import { ParentMessageDetailModal } from '../components/parent/ParentMessageDetailModal'
 import { ROLES } from '../utils/constants'
+import {
+  canUserAccessRoute,
+  hasMenuScreenAccess,
+  isMenuAccessRole,
+} from '../utils/permissions'
+import { parseMenuAccessFromApi } from '../api/staffMenuPermissionsApi'
 import {
   NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_CATEGORIES,
@@ -104,13 +111,17 @@ function isFinalStatus(status) {
   return status === NOTIFICATION_STATUSES.APPROVED || status === NOTIFICATION_STATUSES.REJECTED
 }
 
-function canShowReadReport(_row, role) {
-  const r = String(role || '')
-  return r === ROLES.ADMIN || r === ROLES.PRINCIPAL
+function canShowReadReport(_row, user) {
+  if (!user) return false
+  if (user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL) return true
+  if (isMenuAccessRole(user.role)) {
+    return hasMenuScreenAccess(parseMenuAccessFromApi(user.menuAccess), 'notice_history')
+  }
+  return false
 }
 
-function isPrincipalAdministrativeTab(isPrincipal, categoryFilter) {
-  return isPrincipal && categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
+function isPrincipalAdministrativeTab(isPrincipal, isStaffReviewer, categoryFilter) {
+  return isPrincipal && !isStaffReviewer && categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
 }
 
 function isPrincipalAdministrativeApiMessage(msg) {
@@ -118,8 +129,8 @@ function isPrincipalAdministrativeApiMessage(msg) {
   return s.includes('principal') && (s.includes('academic') || s.includes('administrative'))
 }
 
-function emptyNoticeMessage(categoryFilter, isPrincipal) {
-  if (isPrincipalAdministrativeTab(isPrincipal, categoryFilter)) {
+function emptyNoticeMessage(categoryFilter, isPrincipal, isStaffReviewer) {
+  if (isPrincipalAdministrativeTab(isPrincipal, isStaffReviewer, categoryFilter)) {
     return 'No admin notices. These are managed by the school admin.'
   }
   return `No ${categoryLabel(categoryFilter).toLowerCase()} notices on this page.`
@@ -173,7 +184,7 @@ function NoticeHistoryPagination({
   )
 }
 
-/** Admin / principal: notice history (approval queue). */
+/** Notice history / approvals — admin, principal, and menu-access staff with notice_history permission. */
 export default function NoticeHistoryPage() {
   const { user, token } = useAuth()
   const [searchParams] = useSearchParams()
@@ -199,9 +210,11 @@ export default function NoticeHistoryPage() {
   const [statsLoading, setStatsLoading] = useState(false)
   const viewFetchSeq = useRef(0)
 
-  const allowed = user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
+  const canAccess = canUserAccessRoute(user, 'notice_history')
   const isAdmin = user?.role === ROLES.ADMIN
   const isPrincipal = user?.role === ROLES.PRINCIPAL
+  const isStaffReviewer = isMenuAccessRole(user?.role) && canAccess
+  const useAdminListApi = isAdmin || isStaffReviewer
 
   const categoryStats = useMemo(() => {
     const empty = { total: 0, pending: 0, approved: 0 }
@@ -214,20 +227,26 @@ export default function NoticeHistoryPage() {
     return { total: s.total, pending: s.pending, approved: s.approved }
   }, [statsBundle, categoryFilter])
 
-  const loadStats = useAsyncLoader(async () => {
-    if (!token || !allowed) {
+  const categoryFromUrl = searchParams.get('category')
+
+  const loadStats = useAsyncLoader(async ({ isStale } = {}) => {
+    if (!token || !canAccess) {
       setStatsBundle(null)
       return
     }
     setStatsLoading(true)
-    const res = await fetchNotificationStats(token)
-    setStatsLoading(false)
-    if (res.ok) setStatsBundle(res.stats)
-    else setStatsBundle(null)
-  }, [token, allowed, categoryFilter])
+    try {
+      const res = await fetchNotificationStats(token)
+      if (isStale?.()) return
+      if (res.ok) setStatsBundle(res.stats)
+      else setStatsBundle(null)
+    } finally {
+      if (!isStale?.()) setStatsLoading(false)
+    }
+  }, [token, canAccess])
 
   useEffect(() => {
-    const cat = String(searchParams.get('category') ?? '').toLowerCase()
+    const cat = String(categoryFromUrl ?? '').toLowerCase()
     if (cat === NOTIFICATION_CATEGORIES.ADMINISTRATIVE) {
       setCategoryFilter(NOTIFICATION_CATEGORIES.ADMINISTRATIVE)
       setPage(1)
@@ -235,10 +254,10 @@ export default function NoticeHistoryPage() {
       setCategoryFilter(NOTIFICATION_CATEGORIES.ACADEMIC)
       setPage(1)
     }
-  }, [searchParams])
+  }, [categoryFromUrl])
 
-  const load = useAsyncLoader(async () => {
-    if (!token || !allowed) {
+  const load = useAsyncLoader(async ({ isStale } = {}) => {
+    if (!token || !canAccess) {
       setRows([])
       setTotal(0)
       setHasNext(false)
@@ -248,45 +267,59 @@ export default function NoticeHistoryPage() {
     }
     setLoading(true)
     setError(null)
-    const res = isAdmin
-      ? await fetchAdminNotifications(token, {
-          page,
-          limit: pageSize,
-          category: categoryFilter,
-          dateRange,
-        })
-      : await fetchNotificationApprovalQueue(token, {
+    try {
+      let res = useAdminListApi
+        ? await fetchAdminNotifications(token, {
+            page,
+            limit: pageSize,
+            category: categoryFilter,
+            dateRange,
+          })
+        : await fetchNotificationApprovalQueue(token, {
+            page,
+            limit: pageSize,
+            categoryKind: categoryFilter,
+            dateRange,
+          })
+      if (!res.ok && isStaffReviewer && useAdminListApi && !res.useClient) {
+        const fallback = await fetchNotificationApprovalQueue(token, {
           page,
           limit: pageSize,
           categoryKind: categoryFilter,
           dateRange,
         })
-    setLoading(false)
-    if (!res.ok) {
-      if (
-        isPrincipalAdministrativeTab(isPrincipal, categoryFilter) ||
-        (isPrincipal && isPrincipalAdministrativeApiMessage(res.error))
-      ) {
+        if (fallback.ok) res = fallback
+      }
+      if (isStale?.()) return
+      if (!res.ok) {
+        if (
+          isPrincipalAdministrativeTab(isPrincipal, isStaffReviewer, categoryFilter) ||
+          (isPrincipal && isPrincipalAdministrativeApiMessage(res.error))
+        ) {
+          setRows([])
+          setTotal(0)
+          setHasNext(false)
+          setError(null)
+          return
+        }
         setRows([])
         setTotal(0)
         setHasNext(false)
-        setError(null)
+        const msg = res.error || 'Could not load notice history.'
+        setError(msg)
+        if (!res.useClient) {
+          toast.error(msg)
+        }
         return
       }
-      setRows([])
-      setTotal(0)
-      setHasNext(false)
-      const msg = res.error || 'Could not load notice history.'
-      setError(msg)
-      if (!res.useClient) {
-        toast.error(msg)
-      }
-      return
+      syncPageFromApi(setPage, res.page)
+      setRows(res.notifications)
+      setTotal(res.total)
+      setHasNext(Boolean(res.hasNext))
+    } finally {
+      if (!isStale?.()) setLoading(false)
     }
-    setRows(res.notifications)
-    setTotal(res.total)
-    setHasNext(Boolean(res.hasNext))
-  }, [token, allowed, isAdmin, isPrincipal, page, pageSize, categoryFilter, dateRange])
+  }, [token, canAccess, useAdminListApi, isPrincipal, isStaffReviewer, page, pageSize, categoryFilter, dateRange])
 
   const selectCategoryFilter = (kind) => {
     setCategoryFilter(kind)
@@ -316,7 +349,7 @@ export default function NoticeHistoryPage() {
       if (res.ok) {
         toast.success('Notice approved.')
         requestParentMessagesRefresh()
-        await load()
+        void load()
         void loadStats()
         return
       }
@@ -340,7 +373,7 @@ export default function NoticeHistoryPage() {
       if (res.ok) {
         toast.info('Rejected')
         closeRejectModal()
-        await load()
+        void load()
         void loadStats()
         return
       }
@@ -408,7 +441,7 @@ export default function NoticeHistoryPage() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <NotificationReadReportModal
         open={readReport.open}
         onClose={() => setReadReport({ open: false, id: null, title: '' })}
@@ -458,20 +491,20 @@ export default function NoticeHistoryPage() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader title="Notice history" />
 
         <div className="border-t border-slate-100 px-4 py-5 sm:px-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="grid w-full gap-4 sm:grid-cols-2 sm:items-end lg:max-w-3xl lg:flex-1">
-              <div className="w-full min-w-0">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="grid min-w-0 gap-4 md:grid-cols-2">
+              <div className="min-w-0">
                 <Label variant="compact" className="mb-2">
                   Category
                 </Label>
-                <div className="flex w-full min-w-[16rem] rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner sm:min-w-[18rem]">
+                <div className="flex w-full min-w-0 rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 shadow-inner">
                   <button
                     type="button"
-                    className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`min-h-11 min-w-0 flex-1 rounded-lg px-2 py-2.5 text-xs font-semibold transition sm:px-4 sm:text-sm ${
                       categoryFilter === NOTIFICATION_CATEGORIES.ADMINISTRATIVE
                         ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
                         : 'text-slate-600 hover:text-slate-900'
@@ -482,7 +515,7 @@ export default function NoticeHistoryPage() {
                   </button>
                   <button
                     type="button"
-                    className={`min-h-11 flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`min-h-11 min-w-0 flex-1 rounded-lg px-2 py-2.5 text-xs font-semibold transition sm:px-4 sm:text-sm ${
                       categoryFilter === NOTIFICATION_CATEGORIES.ACADEMIC
                         ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-slate-200/80'
                         : 'text-slate-600 hover:text-slate-900'
@@ -495,7 +528,7 @@ export default function NoticeHistoryPage() {
               </div>
               <DateRangeSelect
                 id="notice-history-date-range"
-                className="w-full min-w-0"
+                className="min-w-0 w-full"
                 value={dateRange}
                 onChange={selectDateRange}
                 disabled={loading}
@@ -511,41 +544,43 @@ export default function NoticeHistoryPage() {
           </div>
         </div>
 
-        <div className="border-t border-slate-100 px-4 py-6 sm:px-6">
+        <div className="min-w-0 border-t border-slate-100 px-4 py-6 sm:px-6">
           {error ? (
             <div className="mb-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-center text-sm text-amber-950">
               {error}
             </div>
           ) : null}
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
-            <div className="overflow-x-auto">
-              <table className="app-data-table min-w-[72rem] w-full border-collapse">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
+            <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+              <table className="app-data-table w-max min-w-full border-collapse lg:min-w-[68rem]">
                 <thead>
                   <tr className="app-table-head">
-                    <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Title</th>
-                    <th className="w-36 px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[10rem] whitespace-nowrap px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">
+                      Title
+                    </th>
+                    <th className="min-w-[7rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Category
                     </th>
-                    <th className="w-36 px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[7rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="max-w-[13rem] px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[9rem] max-w-[13rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Targets
                     </th>
-                    <th className="max-w-[11rem] px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[9rem] max-w-[11rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Submitted by
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[8.5rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Submitted
                     </th>
-                    <th className="min-w-[5.5rem] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[5.5rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       View
                     </th>
-                    <th className="min-w-[9.5rem] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[9.5rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Actions
                     </th>
-                    <th className="min-w-[11rem] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
+                    <th className="min-w-[8.5rem] whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">
                       Read report
                     </th>
                   </tr>
@@ -560,7 +595,7 @@ export default function NoticeHistoryPage() {
                   ) : sorted.length === 0 ? (
                     <tr>
                       <td colSpan={TABLE_COL_COUNT} className="px-4 py-12 text-center text-sm text-slate-600">
-                        {error ? 'Could not load notices.' : emptyNoticeMessage(categoryFilter, isPrincipal)}
+                        {error ? 'Could not load notices.' : emptyNoticeMessage(categoryFilter, isPrincipal, isStaffReviewer)}
                       </td>
                     </tr>
                   ) : (
@@ -568,7 +603,7 @@ export default function NoticeHistoryPage() {
                       const act = row.actions || {}
                       const canApprove = act.canApprove === true
                       const canReject = act.canReject === true
-                      const showReadReport = canShowReadReport(row, user?.role)
+                      const showReadReport = canShowReadReport(row, user)
                       const locked = isFinalStatus(row.status)
                       const showApproveReject =
                         canApprove || canReject || (!locked && !Object.keys(act).length)
@@ -581,21 +616,21 @@ export default function NoticeHistoryPage() {
                             idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/45'
                           }`}
                         >
-                          <td className="max-w-[16rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle">
+                          <td className="min-w-[10rem] max-w-[16rem] border-b border-slate-100/80 px-4 py-3.5 align-middle">
                             <p
-                              className="line-clamp-2 font-medium leading-snug text-slate-900"
+                              className="!mx-0 line-clamp-2 text-left font-medium leading-snug text-slate-900"
                               title={row.title || ''}
                             >
                               {truncate(row.title, 140)}
                             </p>
                           </td>
-                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-slate-700">
+                          <td className="min-w-[7rem] whitespace-nowrap border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-slate-700">
                             {categoryLabel(row.category)}
                           </td>
-                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top">
+                          <td className="min-w-[7rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-top">
                             <StatusBadge status={row.status} variant="stack" />
                           </td>
-                          <td className="max-w-[13rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle text-slate-600">
+                          <td className="min-w-[9rem] max-w-[13rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle text-slate-600">
                             <p
                               className="line-clamp-2 text-xs leading-relaxed"
                               title={targetSummary(row)}
@@ -603,10 +638,10 @@ export default function NoticeHistoryPage() {
                               {truncate(targetSummary(row), 160)}
                             </p>
                           </td>
-                          <td className="max-w-[11rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle text-slate-600">
+                          <td className="min-w-[9rem] max-w-[11rem] border-b border-slate-100/80 px-4 py-3.5 text-center align-middle text-slate-600">
                             {formatSubmittedBy(row.submitterName || row.createdByName)}
                           </td>
-                          <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-xs tabular-nums text-slate-500">
+                          <td className="min-w-[8.5rem] whitespace-nowrap border-b border-slate-100/80 px-4 py-3.5 text-center align-top text-xs tabular-nums text-slate-500">
                             {notificationDisplayTime(row.submittedAtDisplay, row.createdAt)}
                           </td>
                           <td className="border-b border-slate-100/80 px-4 py-3.5 text-center align-middle">

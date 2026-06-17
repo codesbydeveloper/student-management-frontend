@@ -10,6 +10,9 @@ import { NotificationProvider } from './context/NotificationContext'
 import { ConfirmProvider } from './context/ConfirmContext'
 import { LoadingProvider } from './context/LoadingContext'
 import { installGlobalPwaCapture } from './utils/pwaInstall'
+import { applySiteBrandingToDocument, cacheSiteBranding, getSiteBrandingSnapshot, normalizeSiteBranding } from './utils/siteBranding'
+import { cacheAppBackgroundTheme, getAppBackgroundSnapshot } from './utils/appBackgroundTheme'
+import { fetchPublicBackgroundAppearance, fetchPublicSiteIdentity } from './api/settingsApi'
 import {
   cleanupDevServiceWorkers,
   preventServiceWorkerReloadLoop,
@@ -17,6 +20,19 @@ import {
 } from './utils/appServiceWorker'
 
 installGlobalPwaCapture()
+applySiteBrandingToDocument(getSiteBrandingSnapshot())
+cacheAppBackgroundTheme(getAppBackgroundSnapshot())
+void fetchPublicSiteIdentity().then((res) => {
+  if (res.ok && res.identity) cacheSiteBranding(normalizeSiteBranding(res.identity))
+})
+void fetchPublicBackgroundAppearance().then((res) => {
+  if (res.ok && res.theme) {
+    cacheAppBackgroundTheme({
+      sidebar: res.theme.sidebar,
+      main: res.theme.main,
+    })
+  }
+})
 preventServiceWorkerReloadLoop()
 void cleanupDevServiceWorkers()
 registerProductionPwa()

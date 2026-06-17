@@ -9,6 +9,11 @@ import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { ROLES } from '../utils/constants'
 import {
+  canUserAccessRoute,
+  isMenuAccessRole,
+} from '../utils/permissions'
+import { parseMenuAccessFromApi } from '../api/staffMenuPermissionsApi'
+import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
 } from '../utils/notificationConstants'
@@ -22,6 +27,26 @@ import {
 import { ListPagination } from '../components/ui/ListPagination'
 
 const PAGE_LIMIT = 10
+
+function canCreateNoticeCategory(user) {
+  if (!user?.role) return false
+  if (user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL) return true
+  if (!isMenuAccessRole(user.role) || !canUserAccessRoute(user, 'create_category')) return false
+  const entry = parseMenuAccessFromApi(user.menuAccess)?.create_category
+  return Boolean(entry?.create || entry?.edit)
+}
+
+/** Principal + menu-access staff use `{ categoryName, categoryKind: "academic" }`. */
+function resolveCategoryCreateParams(user, adminCategoryScope) {
+  if (user?.role === ROLES.ADMIN) {
+    const asPrincipal = adminCategoryScope === 'principal'
+    return {
+      role: asPrincipal ? ROLES.PRINCIPAL : ROLES.ADMIN,
+      kind: asPrincipal ? NOTIFICATION_CATEGORIES.ACADEMIC : NOTIFICATION_CATEGORIES.ADMINISTRATIVE,
+    }
+  }
+  return { role: ROLES.PRINCIPAL, kind: NOTIFICATION_CATEGORIES.ACADEMIC }
+}
 
 export default function CreateCategoryPage() {
   const { user, token } = useAuth()
@@ -41,6 +66,8 @@ export default function CreateCategoryPage() {
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
   const [mutatingId, setMutatingId] = useState(null)
+
+  const canCreate = canCreateNoticeCategory(user)
 
   const loadCategories = useAsyncLoader(async () => {
     if (!token) {
@@ -108,20 +135,15 @@ export default function CreateCategoryPage() {
       toast.error('Sign in again to create a category.')
       return
     }
-    if (user?.role !== ROLES.ADMIN && user?.role !== ROLES.PRINCIPAL) {
-      toast.error('Only admin or principal can create notice categories.')
+    if (!canCreateNoticeCategory(user)) {
+      toast.error('You do not have permission to create notice categories.')
       return
     }
 
-    const createAsRole =
-      user.role === ROLES.ADMIN && adminCategoryScope === 'principal' ? ROLES.PRINCIPAL : user.role
-
-    const createCategoryKind =
-      user.role === ROLES.ADMIN
-        ? adminCategoryScope === 'principal'
-          ? NOTIFICATION_CATEGORIES.ACADEMIC
-          : NOTIFICATION_CATEGORIES.ADMINISTRATIVE
-        : NOTIFICATION_CATEGORIES.ACADEMIC
+    const { role: createAsRole, kind: createCategoryKind } = resolveCategoryCreateParams(
+      user,
+      adminCategoryScope,
+    )
 
     setSubmitting(true)
     try {
@@ -267,7 +289,7 @@ export default function CreateCategoryPage() {
             />
           </div>
           <div className="mt-6">
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !canCreate}>
               {submitting ? 'Creating…' : 'Create category'}
             </Button>
           </div>

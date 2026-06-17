@@ -1,5 +1,6 @@
 import { API_BASE_URL, ROLES } from '../utils/constants'
 import { getLinkedStudentIdsForParent, readParentsFromStoredAppData } from '../utils/parentUtils'
+import { parseMenuAccessFromApi } from './staffMenuPermissionsApi'
 
 function formatErrorPayload(data, status) {
   if (data == null || typeof data !== 'object') {
@@ -20,6 +21,7 @@ function normalizeRole(role) {
   const r = String(role ?? '')
     .trim()
     .toLowerCase()
+  if (r === 'coordinators') return ROLES.COORDINATOR
   if (Object.values(ROLES).includes(r)) return r
   return r || ROLES.TEACHER
 }
@@ -66,6 +68,9 @@ export async function loginRequest(email, password) {
         .toLowerCase(),
       fullName: String(rawUser.fullName || rawUser.name || rawUser.displayName || 'User').trim(),
       role,
+      menuAccess: parseMenuAccessFromApi(
+        rawUser.menuAccess ?? rawUser.menuPermissions ?? data.menuAccess ?? data.menuPermissions,
+      ),
     }
 
     if (role === ROLES.PARENT) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { ROLES } from '../../utils/constants'
+import { canUseAdminLiveBusesApi } from '../../utils/permissions'
 import { findLiveBusCacheByBusNumericId } from './liveBusesActiveCache'
 import { buildLiveBusListTitle } from './liveBusData'
 import {
@@ -51,6 +51,7 @@ function readSocketLiveBusRow(data) {
  * @param {{
  *   token: string | null | undefined,
  *   role: string,
+ *   menuAccess?: import('../../api/staffMenuPermissionsApi').NavPermissionsMap,
  *   knownBusNumericIds?: (number | null | undefined)[],
  *   enabled?: boolean,
  * }} options
@@ -58,10 +59,11 @@ function readSocketLiveBusRow(data) {
 export function useAdminLiveBusesSocket({
   token,
   role,
+  menuAccess,
   knownBusNumericIds = [],
   enabled = true,
 }) {
-  const isStaff = role === ROLES.ADMIN || role === ROLES.PRINCIPAL
+  const canUseAdminApi = canUseAdminLiveBusesApi(role, menuAccess)
   const socketUrl = getSocketTransportUrl()
 
   const [socketBuses, setSocketBuses] = useState(/** @type {import('./liveBusData').LiveBusListItem[]} */ ([]))
@@ -75,7 +77,7 @@ export function useAdminLiveBusesSocket({
     .join(',')
 
   useEffect(() => {
-    if (!enabled || !isStaff || !socketUrl || !token) {
+    if (!enabled || !canUseAdminApi || !socketUrl || !token) {
       rowsRef.current.clear()
       setSocketBuses([])
       return undefined
@@ -171,7 +173,7 @@ export function useAdminLiveBusesSocket({
       socket.disconnect()
       setSocketBuses([])
     }
-  }, [enabled, isStaff, socketUrl, token, knownIdsKey])
+  }, [enabled, canUseAdminApi, socketUrl, token, knownIdsKey])
 
   return { socketBuses, endedBusNumericIds }
 }

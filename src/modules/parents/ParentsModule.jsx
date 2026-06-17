@@ -95,7 +95,7 @@ export function ParentsModule() {
   const { user, token } = useAuth()
   const confirm = useConfirm()
   const { parents, students, classes, setParents, setStudents } = useAppData()
-  const manage = canManageParents(user.role)
+  const manage = canManageParents(user.role, user.menuAccess)
 
   /** When set (including `[]`), table uses GET /api/parents; when `undefined`, uses app context parents. */
   const [remoteParents, setRemoteParents] = useState(undefined)
@@ -852,7 +852,7 @@ export function ParentsModule() {
     },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (row) => (
         <div className="flex flex-wrap justify-center gap-2">
           {manage ? (

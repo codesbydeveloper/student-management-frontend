@@ -7,6 +7,10 @@ import {
   NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_STATUSES,
 } from '../../utils/notificationConstants'
+import {
+  formatNotificationApprovalAttribution,
+  isApprovedNoticeStatus,
+} from '../../api/notificationsApi'
 
 const categoryBadge = {
   [NOTIFICATION_CATEGORIES.ADMINISTRATIVE]:
@@ -95,6 +99,8 @@ export function ParentMessageDetailModal({
   const videoLines = showBody && item.videoUrls ? splitLines(item.videoUrls) : []
   const externalLines = showBody && item.externalLinks ? splitLines(item.externalLinks) : []
   const rejectionText = showBody ? rejectionDisplayText(item) : ''
+  const approvedBy = showBody ? formatNotificationApprovalAttribution(item) : null
+  const showApproval = showBody && isApprovedNoticeStatus(item.status) && Boolean(approvedBy)
   const showRejection =
     showBody &&
     (item.status === NOTIFICATION_STATUSES.REJECTED || Boolean(rejectionText || item.rejectedAt))
@@ -189,6 +195,15 @@ export function ParentMessageDetailModal({
               <p className="mt-0.5 text-xs text-slate-500">{item.sender.email}</p>
             ) : null}
           </div>
+
+          {showApproval ? (
+            <div className="border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Approved by
+              </p>
+              <p className="mt-1 font-medium text-indigo-900">{approvedBy}</p>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">For</span>

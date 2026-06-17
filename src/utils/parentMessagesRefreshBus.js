@@ -21,7 +21,6 @@ function firePing() {
 
 export function requestParentMessagesRefresh() {
   firePing()
-  window.setTimeout(firePing, 700)
 }
 
 /**

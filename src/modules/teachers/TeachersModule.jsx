@@ -177,7 +177,7 @@ export function TeachersModule() {
     return () => window.clearTimeout(t)
   }, [token, teacherPage, loadTeachersPage, debouncedServerSearchQuery])
 
-  const manage = canManageTeachers(user.role)
+  const manage = canManageTeachers(user.role, user.menuAccess)
   const baseTeachers = remoteTeachers !== undefined ? remoteTeachers : teachers
   const visibleTeachers = useMemo(
     () => filterTeachersForUser(user, baseTeachers),
@@ -957,7 +957,7 @@ export function TeachersModule() {
     },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (row) => (
         <div className="flex flex-wrap justify-center gap-2">
           {manage ? (

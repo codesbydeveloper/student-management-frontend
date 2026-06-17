@@ -53,6 +53,7 @@ import {
   TbCrown,
   TbUserCog,
   TbBuildingCommunity,
+  TbDesk,
 } from 'react-icons/tb'
 
 /** Child-friendly tile background (Tailwind) — like Canva green / pink / teal / purple */
@@ -75,6 +76,8 @@ export const NAV_TILE_COLOR_BY_KEY = {
   parents: 'bg-fuchsia-500',
   admins: 'bg-indigo-600',
   principals: 'bg-amber-500',
+  front_office_staff: 'bg-teal-600',
+  coordinators: 'bg-rose-500',
   admin_assign_bus: 'bg-emerald-600',
   admin_create_buses: 'bg-emerald-500',
   admin_pick_up_points: 'bg-lime-600',
@@ -127,6 +130,8 @@ const NAV_ICON_BY_KEY = {
   parents: TbUsers,
   admins: TbUserCog,
   principals: TbCrown,
+  front_office_staff: TbDesk,
+  coordinators: TbBuildingCommunity,
   admin_assign_bus: TbBus,
   admin_create_buses: TbBus,
   admin_pick_up_points: TbMapPin,

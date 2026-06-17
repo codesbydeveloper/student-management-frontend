@@ -52,16 +52,20 @@ export default function NotificationPrincipalApprovalPage() {
     openNotificationDetail,
   } = useNotificationDetailViewer(token, 'pending-principal')
 
-  const loadStats = useCallback(async () => {
+  const loadStats = useAsyncLoader(async ({ isStale } = {}) => {
     if (!token || user?.role !== ROLES.PRINCIPAL) {
       setStatsBundle(null)
       return
     }
     setStatsLoading(true)
-    const res = await fetchNotificationStats(token)
-    setStatsLoading(false)
-    if (res.ok) setStatsBundle(res.stats)
-    else setStatsBundle(null)
+    try {
+      const res = await fetchNotificationStats(token)
+      if (isStale?.()) return
+      if (res.ok) setStatsBundle(res.stats)
+      else setStatsBundle(null)
+    } finally {
+      if (!isStale?.()) setStatsLoading(false)
+    }
   }, [token, user?.role])
 
   const queueStats = useMemo(() => {
@@ -70,7 +74,7 @@ export default function NotificationPrincipalApprovalPage() {
     return statsBundle.principal ?? statsBundle.overall ?? empty
   }, [statsBundle])
 
-  const loadPending = useAsyncLoader(async () => {
+  const loadPending = useAsyncLoader(async ({ isStale } = {}) => {
     if (!token || user?.role !== ROLES.PRINCIPAL) {
       setServerPending([])
       setServerListOk(false)
@@ -80,25 +84,34 @@ export default function NotificationPrincipalApprovalPage() {
     }
     setListLoading(true)
     setListError(null)
-    const res = await fetchPendingPrincipalNotifications(token, { page, limit: PAGE_LIMIT })
-    setListLoading(false)
-    if (res.ok) {
-      setServerPending(res.notifications)
-      setTotal(res.total)
-      setHasNext(Boolean(res.hasNext))
-      setServerListOk(true)
-      setListError(null)
-      return
-    }
-    setServerPending([])
-    setTotal(0)
-    setHasNext(false)
-    setServerListOk(false)
-    setListError(res.error || 'Could not load pending list.')
-    if (!res.useClient) {
-      toast.error(res.error)
+    try {
+      const res = await fetchPendingPrincipalNotifications(token, { page, limit: PAGE_LIMIT })
+      if (isStale?.()) return
+      if (res.ok) {
+        setServerPending(res.notifications)
+        setTotal(res.total)
+        setHasNext(Boolean(res.hasNext))
+        setServerListOk(true)
+        setListError(null)
+        return
+      }
+      setServerPending([])
+      setTotal(0)
+      setHasNext(false)
+      setServerListOk(false)
+      setListError(res.error || 'Could not load pending list.')
+      if (!res.useClient) {
+        toast.error(res.error)
+      }
+    } finally {
+      if (!isStale?.()) setListLoading(false)
     }
   }, [token, user?.role, page])
+
+  const refreshAll = useCallback(() => {
+    void loadStats()
+    void loadPending()
+  }, [loadStats, loadPending])
 
   useEffect(() => {
     if (!token) setSettledRows([])
@@ -139,7 +152,7 @@ export default function NotificationPrincipalApprovalPage() {
       ])
     }
     requestParentMessagesRefresh()
-    await loadPending()
+    void loadPending()
     void loadStats()
   }
 
@@ -165,7 +178,7 @@ export default function NotificationPrincipalApprovalPage() {
           ])
         }
         closeRejectModal()
-        await loadPending()
+        void loadPending()
         void loadStats()
         return
       }

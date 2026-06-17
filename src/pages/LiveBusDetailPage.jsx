@@ -42,6 +42,7 @@ export default function LiveBusDetailPage() {
   const { position: socketPosition, lastUpdatedAt: socketUpdatedAt } = useLiveBusSocket({
     token,
     role: user?.role ?? '',
+    menuAccess: user?.menuAccess,
     busNumericId: socketBusNumericId,
     enabled: Boolean(token && socketBusNumericId),
   })
@@ -60,7 +61,10 @@ export default function LiveBusDetailPage() {
       if (!detailRef.current) setLoading(true)
 
       try {
-        const res = await fetchLiveBusDetail(token, user.role, tripId, { studentId })
+        const res = await fetchLiveBusDetail(token, user.role, tripId, {
+          studentId,
+          menuAccess: user.menuAccess,
+        })
         if (!res.ok) {
           if (res.conflict || (res.ended && detailRef.current)) {
             restPausedRef.current = true

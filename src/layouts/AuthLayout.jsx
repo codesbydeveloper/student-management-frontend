@@ -2,20 +2,24 @@ import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { PwaLoginInstallCard } from '../components/layout/PwaLoginInstallCard'
 import { useLoginBranding } from '../hooks/useLoginBranding'
+import { surfacePreviewStyle } from '../utils/appBackgroundTheme'
+import { loginBackgroundSurface } from '../utils/loginBranding'
 import { requestPwaInstallPromptOnLoginPage } from '../utils/pwaInstall'
 
 export function AuthLayout() {
   const branding = useLoginBranding()
+  const backgroundStyle = surfacePreviewStyle(loginBackgroundSurface(branding), { imageFit: 'repeat' })
 
   useEffect(() => {
     requestPwaInstallPromptOnLoginPage()
   }, [])
 
   return (
-    <div className="relative flex min-h-dvh flex-col bg-slate-100">
+    <div className="relative flex min-h-dvh flex-col">
+      <div className="pointer-events-none absolute inset-0" aria-hidden style={backgroundStyle} />
       <PwaLoginInstallCard />
       <div
-        className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:py-14"
+        className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:py-14"
         style={{
           paddingTop: 'max(2.5rem, env(safe-area-inset-top, 0px))',
           paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom, 0px))',
@@ -36,8 +40,16 @@ export function AuthLayout() {
               {branding.logoLetter}
             </div>
           )}
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{branding.title}</h1>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:mt-2.5">
+          <h1
+            className="text-2xl font-semibold tracking-tight sm:text-3xl"
+            style={{ color: branding.titleColor }}
+          >
+            {branding.title}
+          </h1>
+          <p
+            className="mx-auto mt-2 max-w-md text-sm leading-relaxed sm:mt-2.5"
+            style={{ color: branding.subtitleColor }}
+          >
             {branding.subtitle}
           </p>
         </header>

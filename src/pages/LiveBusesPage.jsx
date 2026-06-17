@@ -5,7 +5,7 @@ import { Card, CardHeader } from '../components/ui/Card'
 import { PageEmptyState } from '../components/ui/PageEmptyState'
 import { Button } from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
-import { ROLES } from '../utils/constants'
+import { canUseAdminLiveBusesApi } from '../utils/permissions'
 import {
   findLiveBusCacheByBusNumericId,
   markLiveBusCacheEnded,
@@ -21,7 +21,7 @@ export default function LiveBusesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const isStaff = user?.role === ROLES.ADMIN || user?.role === ROLES.PRINCIPAL
+  const canUseAdminLive = canUseAdminLiveBusesApi(user?.role, user?.menuAccess)
   const knownBusNumericIds = useMemo(() => {
     const ids = new Set()
     for (const bus of buses) {
@@ -35,8 +35,9 @@ export default function LiveBusesPage() {
   const { socketBuses, endedBusNumericIds } = useAdminLiveBusesSocket({
     token,
     role: user?.role ?? '',
+    menuAccess: user?.menuAccess,
     knownBusNumericIds,
-    enabled: isStaff,
+    enabled: canUseAdminLive,
   })
 
   const load = useAsyncLoader(async () => {
@@ -47,7 +48,7 @@ export default function LiveBusesPage() {
       return
     }
     setLoading(true)
-    const res = await fetchLiveBusesList(token, user.role)
+    const res = await fetchLiveBusesList(token, user.role, { menuAccess: user.menuAccess })
     if (!res.ok) {
       setError(res.error || 'Could not load live buses.')
       setBuses([])
@@ -58,10 +59,10 @@ export default function LiveBusesPage() {
       setCount(res.count ?? res.buses.length)
     }
     setLoading(false)
-  }, [token, user?.role])
+  }, [token, user?.role, user?.menuAccess])
 
   useEffect(() => {
-    if (!isStaff || endedBusNumericIds.length === 0) return
+    if (!canUseAdminLive || endedBusNumericIds.length === 0) return
     const endedSet = new Set(endedBusNumericIds)
     for (const busNumericId of endedBusNumericIds) {
       const cached = findLiveBusCacheByBusNumericId(busNumericId)
@@ -72,10 +73,10 @@ export default function LiveBusesPage() {
       setCount(next.length)
       return next
     })
-  }, [endedBusNumericIds, isStaff])
+  }, [endedBusNumericIds, canUseAdminLive])
 
   useEffect(() => {
-    if (!isStaff || socketBuses.length === 0) return
+    if (!canUseAdminLive || socketBuses.length === 0) return
     setBuses((prev) => {
       const merged = mergeLiveBusListItems(prev, socketBuses)
       if (merged.length === prev.length) {
@@ -86,7 +87,7 @@ export default function LiveBusesPage() {
       return merged
     })
     setCount((prev) => Math.max(prev, socketBuses.length))
-  }, [socketBuses, isStaff])
+  }, [socketBuses, canUseAdminLive])
 
   const handleRefresh = () => {
     setLoading(true)

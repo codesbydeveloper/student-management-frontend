@@ -32,7 +32,7 @@ import { SearchableSingleSelect } from '../../components/SearchableSingleSelect'
 import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { ROLES } from '../../utils/constants'
-import { canManageStudents, canDeleteStudent } from '../../utils/permissions'
+import { canManageStudents, canDeleteStudent, isMenuAccessRole, usesPrincipalDirectoryApis } from '../../utils/permissions'
 import { filterStudentsForUser } from '../../utils/roleFilters'
 import { required } from '../../utils/validators'
 import { parseCsv } from '../../utils/csvParse'
@@ -185,7 +185,7 @@ export function StudentsModule() {
   const confirm = useConfirm()
   const { students, classes, parents, teachers, setStudents, setParents } = useAppData()
 
-  const manage = canManageStudents(user.role)
+  const manage = canManageStudents(user.role, user.menuAccess)
   const allowDelete = canDeleteStudent(user.role)
   const readOnly = user.role === ROLES.PARENT
 
@@ -244,7 +244,9 @@ export function StudentsModule() {
           return
         }
 
-        const useAssigned = user.role === ROLES.TEACHER
+        const useAssigned =
+          user.role === ROLES.TEACHER &&
+          !usesPrincipalDirectoryApis(user.role, user.menuAccess, 'students')
         const res = useAssigned
           ? await fetchStudentsAssigned(token, {
               page: pageNum,
@@ -294,7 +296,7 @@ export function StudentsModule() {
 
   const visible = useMemo(() => {
     if (
-      (user.role === ROLES.TEACHER || user.role === ROLES.PARENT) &&
+      (user.role === ROLES.TEACHER || user.role === ROLES.PARENT || isMenuAccessRole(user.role)) &&
       remoteStudents !== undefined
     ) {
       return baseStudents
@@ -1170,7 +1172,7 @@ export function StudentsModule() {
       : [
           {
             key: 'actions',
-            header: '',
+            header: 'Actions',
             render: (row) => (
               <div className="flex flex-wrap justify-center gap-2">
                 {manage ? (

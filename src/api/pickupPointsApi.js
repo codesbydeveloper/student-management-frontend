@@ -32,10 +32,31 @@ function parseCoordinate(value) {
 export function normalizeTimeForInput(value) {
   if (value == null || value === '') return ''
   const s = String(value).trim()
+
+  const m12 = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i)
+  if (m12) {
+    let h = Number(m12[1])
+    const min = m12[2]
+    const ap = m12[4].toUpperCase()
+    if (ap === 'PM' && h < 12) h += 12
+    if (ap === 'AM' && h === 12) h = 0
+    return `${String(h).padStart(2, '0')}:${min}`
+  }
+
   const m = s.match(/^(\d{1,2}):(\d{2})/)
   if (!m) return s
   const h = String(Number(m[1])).padStart(2, '0')
   return `${h}:${m[2]}`
+}
+
+/** Show the API time string as returned (e.g. "9:00 AM"). */
+function timeDisplayFromApi(...candidates) {
+  for (const v of candidates) {
+    if (v == null || v === '') continue
+    const s = String(v).trim()
+    if (s) return s
+  }
+  return '—'
 }
 
 /** POST/PATCH body uses pickupTime / dropTime (HH:mm). */
@@ -190,7 +211,26 @@ export function mapPickupPointRow(raw) {
         dropLatitude == null &&
         dropLongitude == null &&
         !raw.dropLocation &&
-        !raw.drop_location),
+        !raw.drop_off_time &&
+        !raw.dropTime &&
+        !raw.dropOffTime),
+  )
+
+  const pickupTimeDisplay = timeDisplayFromApi(
+    pickupNested?.time,
+    pickupNested?.timeDisplay,
+    raw.pickupTime,
+    raw.pick_up_time,
+    raw.pickUpTime,
+    raw.pickup_time,
+  )
+  const dropTimeDisplay = timeDisplayFromApi(
+    dropNested?.time,
+    dropNested?.timeDisplay,
+    raw.dropTime,
+    raw.drop_time,
+    raw.dropOffTime,
+    raw.drop_off_time,
   )
 
   return {
@@ -200,11 +240,13 @@ export function mapPickupPointRow(raw) {
     city: String(raw.city ?? '').trim(),
     state: String(raw.state ?? raw.region ?? raw.province ?? '').trim(),
     pickupTime: normalizeTimeForInput(
-      pickupNested?.time ?? raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime,
+      pickupNested?.time ?? raw.pickupTime ?? raw.pick_up_time ?? raw.pickUpTime ?? raw.pickup_time,
     ),
+    pickupTimeDisplay,
     dropTime: normalizeTimeForInput(
-      dropNested?.time ?? raw.dropTime ?? raw.drop_time ?? raw.dropTime,
+      dropNested?.time ?? raw.dropTime ?? raw.drop_time ?? raw.dropOffTime ?? raw.drop_off_time,
     ),
+    dropTimeDisplay,
     studentId: studentId != null ? String(studentId) : '',
     studentIds,
     studentLabel,
@@ -344,11 +386,11 @@ export function mapPickupPointToPickerOption(raw, routeType = 'pick_up') {
   const row = mapPickupPointRow(raw)
   const isDrop = normalizePickerRouteType(routeType) === 'drop'
   const locationName = pickerStopLocation(raw, row, routeType)
-  const stopTime = isDrop ? row?.dropTime : row?.pickupTime
+  const stopTime = isDrop ? row?.dropTimeDisplay ?? row?.dropTime : row?.pickupTimeDisplay ?? row?.pickupTime
 
   const label = locationName || `Pick up point #${id}`
 
-  const subtext = stopTime ? `${isDrop ? 'Drop' : 'Pick'} ${stopTime}` : undefined
+  const subtext = stopTime && stopTime !== '—' ? `${isDrop ? 'Drop' : 'Pick'} ${stopTime}` : undefined
 
   return {
     value: String(id),
@@ -356,6 +398,8 @@ export function mapPickupPointToPickerOption(raw, routeType = 'pick_up') {
     locationName: locationName || undefined,
     pickupTime: row?.pickupTime,
     dropTime: row?.dropTime,
+    pickupTimeDisplay: row?.pickupTimeDisplay,
+    dropTimeDisplay: row?.dropTimeDisplay,
     subtext,
   }
 }

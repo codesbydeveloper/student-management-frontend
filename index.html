@@ -2,6 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('sm_site_branding_v1')
+          if (!raw) return
+          var data = JSON.parse(raw)
+          var name = String(data.siteName || '').trim()
+          if (name) {
+            document.title = name
+            var apple = document.querySelector('meta[name="apple-mobile-web-app-title"]')
+            if (apple) apple.setAttribute('content', name)
+            var app = document.querySelector('meta[name="application-name"]')
+            if (app) app.setAttribute('content', name)
+          }
+          var icon = String(data.faviconUrl || '').trim()
+          if (icon) {
+            var link = document.querySelector('link[rel="icon"]')
+            if (link) {
+              link.href = icon
+              if (icon.indexOf('.svg') !== -1) link.type = 'image/svg+xml'
+            }
+          }
+        } catch (e) {}
+      })()
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,10 +41,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="EduConsole" />
-    <meta name="application-name" content="EduConsole" />
+    <meta name="apple-mobile-web-app-title" content="School Management Suite" />
+    <meta name="application-name" content="School Management Suite" />
     <meta name="format-detection" content="telephone=no" />
-    <title>EduConsole — School Management</title>
+    <title>School Management Suite</title>
   </head>
   <body>
     <div id="root"></div>

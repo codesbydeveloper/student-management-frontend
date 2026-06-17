@@ -3,13 +3,13 @@ import { fetchPublicLoginBranding } from '../api/settingsApi'
 import {
   DEFAULT_LOGIN_BRANDING,
   getLoginBrandingSnapshot,
-  normalizeLoginBranding,
+  mergeLoginBrandingFromApi,
   subscribeLoginBranding,
 } from '../utils/loginBranding'
 import { useAsyncLoader } from './useAsyncLoader'
 
 /**
- * Login / institution branding from GET /api/login-appearance (with local fallback).
+ * Login branding from GET /api/login-appearance (title, subtitle, logo) plus local appearance overrides.
  */
 export function useLoginBranding() {
   const [branding, setBranding] = useState(() => ({ ...DEFAULT_LOGIN_BRANDING }))
@@ -17,7 +17,7 @@ export function useLoginBranding() {
   const load = useAsyncLoader(async () => {
     const remote = await fetchPublicLoginBranding()
     if (remote.ok && remote.branding) {
-      setBranding(normalizeLoginBranding(remote.branding))
+      setBranding(mergeLoginBrandingFromApi(remote.branding))
       return
     }
     setBranding(getLoginBrandingSnapshot())
@@ -28,7 +28,6 @@ export function useLoginBranding() {
 
   useEffect(() => {
     const unsub = subscribeLoginBranding(() => {
-      setBranding(getLoginBrandingSnapshot())
       void loadRef.current()
     })
     return unsub

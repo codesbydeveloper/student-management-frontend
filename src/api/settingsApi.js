@@ -1,9 +1,15 @@
 import { API_BASE_URL } from '../utils/constants'
 import {
+  DEFAULT_APP_BACKGROUND,
+  normalizeAppBackgroundTheme,
+} from '../utils/appBackgroundTheme'
+import {
   DEFAULT_LOGIN_BRANDING,
   normalizeLoginBranding,
+  sanitizeLoginBackgroundImage,
   sanitizeLogoImage,
 } from '../utils/loginBranding'
+import { DEFAULT_SITE_BRANDING, sanitizeFaviconUrl } from '../utils/siteBranding'
 
 function formatError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -22,8 +28,33 @@ function resolveServerAssetUrl(value) {
 }
 
 /**
- * Map GET/POST /api/login-appearance JSON to the shape used by {@link normalizeLoginBranding}.
+ * Map GET/PUT/POST /api/login-appearance JSON to the shape used by {@link normalizeLoginBranding}.
  */
+function mapLoginBackgroundFromApi(raw) {
+  const bg = raw?.background
+  if (!bg || typeof bg !== 'object') {
+    return {
+      backgroundMode: DEFAULT_LOGIN_BRANDING.backgroundMode,
+      backgroundColor: DEFAULT_LOGIN_BRANDING.backgroundColor,
+      backgroundOpacity: DEFAULT_LOGIN_BRANDING.backgroundOpacity,
+      backgroundImageUrl: '',
+    }
+  }
+  const typeRaw = bg.type ?? bg.mode
+  const backgroundMode = typeRaw === 'image' ? 'image' : 'color'
+  const imageRaw = bg.imageUrl ?? bg.image_url
+  const backgroundImageUrl =
+    imageRaw == null || imageRaw === ''
+      ? ''
+      : sanitizeLoginBackgroundImage(resolveServerAssetUrl(String(imageRaw).trim()))
+  const backgroundColor = String(bg.color ?? DEFAULT_LOGIN_BRANDING.backgroundColor).trim()
+  const opacity = Number(bg.opacity)
+  const backgroundOpacity = Number.isFinite(opacity)
+    ? Math.min(100, Math.max(0, Math.round(opacity)))
+    : DEFAULT_LOGIN_BRANDING.backgroundOpacity
+  return { backgroundMode, backgroundColor, backgroundOpacity, backgroundImageUrl }
+}
+
 function mapLoginAppearanceToBranding(data) {
   if (!data || typeof data !== 'object') return null
   const raw = data.data ?? data.branding ?? data.settings ?? data
@@ -35,12 +66,21 @@ function mapLoginAppearanceToBranding(data) {
 
   const title = String(raw.title ?? '').trim()
   const subtitle = String(raw.subtitle ?? raw.tagline ?? '').trim()
+  const backgroundFields = mapLoginBackgroundFromApi(raw)
+
+  const titleColor = String(raw.titleColor ?? raw.title_color ?? '').trim()
+  const subtitleColor = String(raw.subtitleColor ?? raw.subtitle_color ?? '').trim()
+  const buttonColor = String(raw.buttonColor ?? raw.button_color ?? '').trim()
 
   return {
     logoLetter: DEFAULT_LOGIN_BRANDING.logoLetter,
     logoImage,
     title: title || DEFAULT_LOGIN_BRANDING.title,
     subtitle: subtitle || DEFAULT_LOGIN_BRANDING.subtitle,
+    ...backgroundFields,
+    ...(titleColor ? { titleColor } : {}),
+    ...(subtitleColor ? { subtitleColor } : {}),
+    ...(buttonColor ? { buttonColor } : {}),
   }
 }
 
@@ -108,28 +148,31 @@ export async function fetchPublicLoginBranding() {
 }
 
 /**
- * POST (or PUT) — admin / principal only. Partial body is allowed.
- * Sends `logoUrl` only when it is **https** (server validation) or **null** to clear.
- * Dev-only `http://localhost…` preview URLs are omitted so title/subtitle saves still succeed.
- * Data URLs are omitted (`skippedLogoUrlForServer` true for UI hint).
+ * PUT /api/login-appearance — admin / principal only.
+ * Title, subtitle, background settings, and optional removeBackgroundImage.
  */
 export async function updateLoginBranding(token, body) {
   if (!token) return { ok: false, error: 'Not signed in' }
-  const apiBody = { title: body.title, subtitle: body.subtitle }
-  let skippedLogoUrlForServer = false
-  const img = String(body.logoImage || '').trim()
-  if (!img) {
-    apiBody.logoUrl = null
-  } else if (/^https:\/\//i.test(img)) {
-    apiBody.logoUrl = img
-  } else if (img.startsWith('data:')) {
-    skippedLogoUrlForServer = true
+  const apiBody = {}
+  if (body.title != null) apiBody.title = String(body.title).trim()
+  if (body.subtitle != null) apiBody.subtitle = String(body.subtitle).trim()
+  if (body.removeBackgroundImage === true) apiBody.removeBackgroundImage = true
+  if (body.background && typeof body.background === 'object') {
+    const type = body.background.type === 'image' ? 'image' : 'color'
+    const opacity = Number(body.background.opacity)
+    apiBody.background = {
+      type,
+      opacity: Number.isFinite(opacity)
+        ? Math.min(100, Math.max(0, Math.round(opacity)))
+        : 100,
+    }
+    if (type === 'color' && body.background.color) {
+      apiBody.background.color = String(body.background.color).trim()
+    }
   }
-  // else: http://localhost… from upload, or other — omit logoUrl (partial update)
-
   try {
     const res = await fetch(`${API_BASE_URL}/api/login-appearance`, {
-      method: 'POST',
+      method: 'PUT',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
@@ -140,7 +183,59 @@ export async function updateLoginBranding(token, body) {
     const data = await res.json().catch(() => null)
     if (!res.ok) return { ok: false, error: formatError(data, res.status), status: res.status }
     const branding = mapLoginAppearanceToBranding(data) ?? normalizeLoginBranding(body)
-    return { ok: true, branding, data, skippedLogoUrlForServer }
+    return { ok: true, branding, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
+/**
+ * POST /api/login-appearance/background-image — multipart `file`, Bearer (admin / principal).
+ */
+export async function uploadLoginAppearanceBackgroundImage(token, file) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  if (!file || typeof file !== 'object') return { ok: false, error: 'No file chosen' }
+  const form = new FormData()
+  form.append('file', file, file.name)
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/login-appearance/background-image`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), status: res.status }
+    const branding = mapLoginAppearanceToBranding(data)
+    return { ok: true, branding, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg }
+  }
+}
+
+/**
+ * DELETE /api/login-appearance/logo — revert to default logo.
+ */
+export async function deleteLoginAppearanceLogo(token) {
+  if (!token) return { ok: false, error: 'Not signed in' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/login-appearance/logo`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), status: res.status }
+    const branding = mapLoginAppearanceToBranding(data)
+    return { ok: true, branding, data }
   } catch (e) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
@@ -263,5 +358,324 @@ export async function testSmtpSettings(token, toEmail) {
     const msg =
       e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
     return { ok: false, error: msg }
+  }
+}
+
+/**
+ * Map GET/PUT/POST site-identity JSON for the app shell (name + favicon).
+ * @param {unknown} data
+ */
+export function mapSiteIdentityResponse(data) {
+  if (!data || typeof data !== 'object') return null
+  const raw = data.data ?? data.identity ?? data
+  if (!raw || typeof raw !== 'object') return null
+
+  const siteName = String(raw.siteName ?? raw.site_name ?? '').trim()
+  const faviconRaw = raw.faviconUrl ?? raw.favicon_url
+  const faviconUrl = faviconRaw
+    ? sanitizeFaviconUrl(resolveServerAssetUrl(String(faviconRaw).trim()))
+    : ''
+
+  return {
+    siteName: siteName || DEFAULT_SITE_BRANDING.siteName,
+    faviconUrl: faviconUrl || DEFAULT_SITE_BRANDING.faviconUrl,
+    updatedAt: raw.updatedAt ?? raw.updated_at ?? null,
+  }
+}
+
+/** Public GET — no auth. */
+export async function fetchPublicSiteIdentity() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/site-identity`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatError(data, res.status), identity: null, status: res.status }
+    }
+    const identity = mapSiteIdentityResponse(data)
+    if (!identity) return { ok: false, error: 'Invalid site identity response.', identity: null }
+    return { ok: true, identity, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, identity: null }
+  }
+}
+
+/** PUT /api/site-identity — Bearer (admin). */
+export async function updateSiteIdentity(token, body) {
+  if (!token) return { ok: false, error: 'Not signed in', identity: null }
+  const siteName = String(body?.siteName ?? '').trim()
+  if (!siteName) return { ok: false, error: 'Site name is required.', identity: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/site-identity`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ siteName }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), identity: null }
+    const identity = mapSiteIdentityResponse(data) ?? {
+      siteName,
+      faviconUrl: DEFAULT_SITE_BRANDING.faviconUrl,
+    }
+    return { ok: true, identity, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, identity: null }
+  }
+}
+
+/** POST /api/site-identity/favicon — multipart `file`, Bearer (admin). */
+export async function uploadSiteIdentityFavicon(token, file) {
+  if (!token) return { ok: false, error: 'Not signed in', identity: null }
+  if (!file || typeof file !== 'object') return { ok: false, error: 'No file chosen', identity: null }
+  const form = new FormData()
+  form.append('file', file, file.name)
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/site-identity/favicon`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), identity: null }
+    const identity = mapSiteIdentityResponse(data)
+    const message =
+      (data && typeof data === 'object' && typeof data.message === 'string' && data.message) ||
+      'Favicon uploaded.'
+    return { ok: true, identity, message, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, identity: null }
+  }
+}
+
+/** DELETE /api/site-identity/favicon — Bearer (admin). */
+export async function deleteSiteIdentityFavicon(token) {
+  if (!token) return { ok: false, error: 'Not signed in', identity: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/site-identity/favicon`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), identity: null }
+    const identity = mapSiteIdentityResponse(data)
+    return { ok: true, identity, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, identity: null }
+  }
+}
+
+/** POST /api/site-identity/reset — Bearer (admin). */
+export async function resetSiteIdentity(token) {
+  if (!token) return { ok: false, error: 'Not signed in', identity: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/site-identity/reset`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), identity: null }
+    const identity = mapSiteIdentityResponse(data) ?? {
+      siteName: DEFAULT_SITE_BRANDING.siteName,
+      faviconUrl: DEFAULT_SITE_BRANDING.faviconUrl,
+    }
+    return { ok: true, identity, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, identity: null }
+  }
+}
+
+function mapBackgroundSurfaceFromApi(raw, fallback) {
+  if (!raw || typeof raw !== 'object') {
+    return { ...fallback }
+  }
+  const typeRaw = raw.type ?? raw.mode
+  const mode = typeRaw === 'image' ? 'image' : 'color'
+  const color = String(raw.color ?? fallback.color).trim() || fallback.color
+  const opacity = Number(raw.opacity)
+  const imageRaw = raw.imageUrl ?? raw.image_url
+  const imageUrl =
+    imageRaw == null || imageRaw === '' ? '' : resolveServerAssetUrl(String(imageRaw).trim())
+  return normalizeAppBackgroundTheme({
+    sidebar: {
+      mode,
+      color,
+      opacity: Number.isFinite(opacity) ? opacity : fallback.opacity,
+      imageUrl,
+    },
+  }).sidebar
+}
+
+/** Map GET/PUT/POST /api/background-appearance JSON for the dashboard shell. */
+export function mapBackgroundAppearanceResponse(data) {
+  if (!data || typeof data !== 'object') return null
+  const raw = data.data ?? data.appearance ?? data
+  if (!raw || typeof raw !== 'object') return null
+
+  const theme = {
+    sidebar: mapBackgroundSurfaceFromApi(raw.sidebar, DEFAULT_APP_BACKGROUND.sidebar),
+    main: mapBackgroundSurfaceFromApi(raw.main, DEFAULT_APP_BACKGROUND.main),
+    updatedAt: raw.updatedAt ?? raw.updated_at ?? null,
+  }
+
+  if (raw.defaults && typeof raw.defaults === 'object') {
+    theme.defaults = {
+      sidebar: mapBackgroundSurfaceFromApi(raw.defaults.sidebar, DEFAULT_APP_BACKGROUND.sidebar),
+      main: mapBackgroundSurfaceFromApi(raw.defaults.main, DEFAULT_APP_BACKGROUND.main),
+    }
+  }
+
+  return theme
+}
+
+/** Public GET — no auth. */
+export async function fetchPublicBackgroundAppearance() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/background-appearance`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { ok: false, error: formatError(data, res.status), theme: null, status: res.status }
+    }
+    const theme = mapBackgroundAppearanceResponse(data)
+    if (!theme) return { ok: false, error: 'Invalid background appearance response.', theme: null }
+    return { ok: true, theme, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, theme: null }
+  }
+}
+
+/** PUT /api/background-appearance — Bearer (admin / principal). */
+export async function updateBackgroundAppearance(token, body) {
+  if (!token) return { ok: false, error: 'Not signed in', theme: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/background-appearance`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), theme: null }
+    const theme = mapBackgroundAppearanceResponse(data)
+    if (!theme) return { ok: false, error: 'Invalid background appearance response.', theme: null }
+    return { ok: true, theme, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, theme: null }
+  }
+}
+
+async function uploadBackgroundImage(token, path, file) {
+  if (!token) return { ok: false, error: 'Not signed in', theme: null }
+  if (!file || typeof file !== 'object') return { ok: false, error: 'No file chosen', theme: null }
+  const form = new FormData()
+  form.append('file', file, file.name)
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), theme: null }
+    const theme = mapBackgroundAppearanceResponse(data)
+    if (!theme) return { ok: false, error: 'Invalid background appearance response.', theme: null }
+    return { ok: true, theme, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, theme: null }
+  }
+}
+
+/** POST /api/background-appearance/sidebar-image */
+export function uploadBackgroundSidebarImage(token, file) {
+  return uploadBackgroundImage(token, '/api/background-appearance/sidebar-image', file)
+}
+
+/** POST /api/background-appearance/main-image */
+export function uploadBackgroundMainImage(token, file) {
+  return uploadBackgroundImage(token, '/api/background-appearance/main-image', file)
+}
+
+/** POST /api/background-appearance/reset — discard unsaved, reload last saved. */
+export async function resetBackgroundAppearance(token) {
+  if (!token) return { ok: false, error: 'Not signed in', theme: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/background-appearance/reset`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), theme: null }
+    const theme = mapBackgroundAppearanceResponse(data)
+    if (!theme) return { ok: false, error: 'Invalid background appearance response.', theme: null }
+    return { ok: true, theme, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, theme: null }
+  }
+}
+
+/** POST /api/background-appearance/reset-defaults */
+export async function resetBackgroundAppearanceDefaults(token) {
+  if (!token) return { ok: false, error: 'Not signed in', theme: null }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/background-appearance/reset-defaults`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: formatError(data, res.status), theme: null }
+    const theme = mapBackgroundAppearanceResponse(data)
+    if (!theme) return { ok: false, error: 'Invalid background appearance response.', theme: null }
+    return { ok: true, theme, data }
+  } catch (e) {
+    const msg =
+      e instanceof TypeError && e.message.includes('fetch') ? 'Cannot reach server.' : 'Network error.'
+    return { ok: false, error: msg, theme: null }
   }
 }

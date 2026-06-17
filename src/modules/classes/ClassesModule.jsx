@@ -21,7 +21,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Label } from '../../components/ui/Label'
-import { canManageClasses } from '../../utils/permissions'
+import { canManageClasses, usesPrincipalDirectoryApis, isMenuAccessRole } from '../../utils/permissions'
 import { ROLES } from '../../utils/constants'
 import { required } from '../../utils/validators'
 import { parseCsv } from '../../utils/csvParse'
@@ -75,7 +75,10 @@ export function ClassesModule() {
   const { user, token } = useAuth()
   const confirm = useConfirm()
   const { classes, teachers, students, setClasses, setTeachers, setStudents } = useAppData()
-  const manage = canManageClasses(user.role)
+  const manage = canManageClasses(user.role, user.menuAccess)
+  const useAssignedClassesApi =
+    user?.role === ROLES.TEACHER &&
+    !usesPrincipalDirectoryApis(user?.role, user?.menuAccess, 'classes')
 
   /** When set (including `[]`), table uses GET /api/classes; when `undefined`, uses app context classes. */
   const [remoteClasses, setRemoteClasses] = useState(undefined)
@@ -109,7 +112,7 @@ export function ClassesModule() {
         return
       }
 
-      if (user?.role === ROLES.TEACHER) {
+      if (useAssignedClassesApi) {
         const q = String(searchQuery ?? '').trim().toLowerCase()
         const applyTeacherSearch = (list) =>
           q
@@ -187,7 +190,7 @@ export function ClassesModule() {
         setClassTotal(0)
       }
     },
-    [token, user?.role],
+    [token, useAssignedClassesApi],
   )
 
   useEffect(() => {
@@ -545,7 +548,7 @@ export function ClassesModule() {
   }
 
   const openEdit = async (row) => {
-    if (!manage && token && user?.role === ROLES.TEACHER) {
+    if (!manage && token && (user?.role === ROLES.TEACHER || isMenuAccessRole(user?.role))) {
       setViewLoadingClassId(String(row.id))
       const res = await fetchClassById(token, row.id)
       setViewLoadingClassId(null)
@@ -724,7 +727,7 @@ export function ClassesModule() {
     },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (row) => (
         <div className="flex flex-wrap justify-center gap-2">
           {manage ? (
@@ -791,7 +794,7 @@ export function ClassesModule() {
         />
         {classesLoading && token ? (
           <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 sm:px-6">
-            {user?.role === ROLES.TEACHER
+            {useAssignedClassesApi
               ? 'Loading your assigned classes…'
               : 'Loading classes from server…'}
           </p>

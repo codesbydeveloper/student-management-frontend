@@ -47,7 +47,7 @@ export function DriversModule() {
   const { user, token } = useAuth()
   const { drivers, setDrivers } = useAppData()
   const confirm = useConfirm()
-  const manage = canManageDrivers(user.role)
+  const manage = canManageDrivers(user.role, user.menuAccess)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const quickAddOpenedRef = useRef(false)

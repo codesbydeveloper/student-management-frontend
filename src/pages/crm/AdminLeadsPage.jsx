@@ -327,7 +327,7 @@ export default function AdminLeadsPage() {
                   <th className="px-3 py-2">Teacher</th>
                   <th className="px-3 py-2">Stage</th>
                   <th className="px-3 py-2">Created by</th>
-                  <th className="px-3 py-2" />
+                  <th className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../utils/constants'
 import { LEAD_STAGES, normalizeLeadStage } from '../data/phase6Constants'
 import { EMPTY_ADMIN_DASHBOARD } from '../components/dashboard/adminDashboardTypes'
+import { parseNotificationTimestamp } from '../utils/notificationTimestamps'
 
 function formatAdminDashboardError(data, status) {
   if (data == null) return `Could not load dashboard (${status})`
@@ -48,13 +49,25 @@ function mapAdminDashboardNoticeRow(o) {
   const shortSummary = String(o.shortSummary ?? o.short_summary ?? '').trim() || undefined
   const subcategoryName =
     String(o.subcategoryName ?? o.subcategory_name ?? '').trim() || undefined
-  let createdAt = o.createdAt ?? o.created_at ?? o.submittedAt ?? o.submitted_at
-  if (typeof createdAt === 'string') {
-    const t = Date.parse(createdAt)
-    createdAt = Number.isFinite(t) ? t : createdAt
-  } else if (typeof createdAt === 'number' && createdAt > 0 && createdAt < 1e11) {
-    createdAt *= 1000
+  const submittedRaw =
+    o.submittedAtDisplay ??
+    o.submitted_at_display ??
+    o.submittedAt ??
+    o.submitted_at ??
+    o.createdAt ??
+    o.created_at ??
+    o.updatedAt ??
+    o.updated_at ??
+    o.sentAt ??
+    o.sent_at
+  let createdAt = null
+  if (typeof submittedRaw === 'number' && Number.isFinite(submittedRaw)) {
+    createdAt = submittedRaw < 1e12 ? submittedRaw * 1000 : submittedRaw
+  } else if (submittedRaw != null && submittedRaw !== '') {
+    createdAt = parseNotificationTimestamp(submittedRaw)
   }
+  const submittedAtDisplay =
+    typeof submittedRaw === 'string' && submittedRaw.trim() ? submittedRaw.trim() : undefined
   const actions =
     o.actions && typeof o.actions === 'object' && !Array.isArray(o.actions) ? o.actions : null
   return {
@@ -63,6 +76,7 @@ function mapAdminDashboardNoticeRow(o) {
     status,
     category,
     createdAt,
+    submittedAtDisplay,
     submittedBy,
     target,
     shortSummary,

@@ -6,8 +6,25 @@ import { getNavItemsForRole } from '../../utils/navigation'
  * Bottom dock for small screens — app-style primary navigation (PWA / mobile).
  * Pass `items` from the parent (same order as sidebar flat list) or `role` to build items here.
  */
-export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
+export function MobileDockNav({ items: itemsProp, role, onNavigate, visible = true, onToggleVisible }) {
   const items = itemsProp ?? getNavItemsForRole(role)
+
+  if (!visible) {
+    return (
+      <button
+        type="button"
+        className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-700/90 bg-slate-950/95 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-xl active:scale-[0.97] lg:hidden"
+        style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        aria-label="Show bottom navigation"
+        onClick={() => onToggleVisible?.(true)}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+          <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+        </svg>
+        Show menu
+      </button>
+    )
+  }
 
   return (
     <nav
@@ -15,6 +32,19 @@ export function MobileDockNav({ items: itemsProp, role, onNavigate }) {
       style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom, 0px))' }}
       aria-label="Primary navigation"
     >
+      <div className="flex items-center justify-end border-b border-slate-800/80 px-2 py-0.5">
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 transition hover:bg-slate-800/80 hover:text-slate-200"
+          aria-label="Hide bottom navigation"
+          onClick={() => onToggleVisible?.(false)}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Hide
+        </button>
+      </div>
       <div className="flex overflow-x-auto px-1 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
           <NavLink

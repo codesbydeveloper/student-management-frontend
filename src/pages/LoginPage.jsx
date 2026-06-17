@@ -13,6 +13,7 @@ import {
   resetForgottenPassword,
 } from '../api/authForgotPassword'
 import { email, minLength, required } from '../utils/validators'
+import { useLoginBranding } from '../hooks/useLoginBranding'
 import { resolvePostLoginPath } from '../utils/postLoginPath'
 
 function initialLoginForm(locationState) {
@@ -23,7 +24,14 @@ function initialLoginForm(locationState) {
 }
 
 export default function LoginPage() {
+  const branding = useLoginBranding()
   const { login, isAuthenticated, ready, user } = useAuth()
+  const signInButtonStyle = branding.buttonColor
+    ? {
+        backgroundColor: branding.buttonColor,
+        borderColor: branding.buttonColor,
+      }
+    : undefined
   const navigate = useNavigate()
   const location = useLocation()
   const fromPath = location.state?.from?.pathname
@@ -167,7 +175,7 @@ export default function LoginPage() {
   }
 
   if (ready && isAuthenticated) {
-    return <Navigate to={resolvePostLoginPath(fromPath, user?.role)} replace />
+    return <Navigate to={resolvePostLoginPath(fromPath, user?.role, user?.menuAccess)} replace />
   }
 
   const onSubmit = async (e) => {
@@ -187,7 +195,7 @@ export default function LoginPage() {
         return
       }
       toast.success('Welcome back — redirecting to your workspace.')
-      navigate(resolvePostLoginPath(fromPath, res.user?.role), { replace: true })
+      navigate(resolvePostLoginPath(fromPath, res.user?.role, res.user?.menuAccess), { replace: true })
     } catch {
       toast.error('Sign in failed. Please try again.')
     } finally {
@@ -234,7 +242,7 @@ export default function LoginPage() {
             </button>
           </p>
         </div>
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" className="w-full" style={signInButtonStyle} disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>

@@ -392,7 +392,7 @@ export default function TransportAssignmentsPage() {
                     <th className="px-3 py-2">users.id</th>
                     <th className="px-3 py-2">Vehicle id</th>
                     <th className="px-3 py-2">Source</th>
-                    <th className="px-3 py-2" />
+                    <th className="px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

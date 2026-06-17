@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
+import { parseMenuAccessFromApi } from './staffMenuPermissionsApi'
 
 function formatError(data, status) {
   if (data == null) return `Request failed (${status})`
@@ -60,6 +61,9 @@ export function normalizeProfile(data) {
       raw.notificationsEnabled ?? raw.notifications_enabled ?? true,
     ),
     updatedAt: raw.updatedAt ?? raw.updated_at ?? null,
+    menuAccess: parseMenuAccessFromApi(
+      raw.menuAccess ?? raw.menu_permissions ?? raw.menuPermissions ?? data.menuAccess,
+    ),
   }
 }
 

@@ -306,7 +306,7 @@ export function StaffRoleModule({ roleKey }) {
       },
       {
         key: 'actions',
-        header: '',
+        header: 'Actions',
         render: (row) => (
           <div className="flex flex-wrap justify-center gap-2">
             {manage ? (

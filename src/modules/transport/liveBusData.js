@@ -1,6 +1,7 @@
 import { fetchAdminLiveBusDetail, fetchAdminLiveBusesList } from '../../api/liveBusesApi'
 import { fetchParentMyBusLive } from '../../api/parentsApi'
 import { ROLES } from '../../utils/constants'
+import { canUseAdminLiveBusesApi } from '../../utils/permissions'
 import {
   readActiveLiveBusesCache,
   setLiveBusesCache,
@@ -475,7 +476,8 @@ export function mapParentLiveBusDetail(raw, studentId) {
  * @param {string} role
  */
 export async function fetchLiveBusesList(token, role, options = {}) {
-  if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL) {
+  const { menuAccess } = options
+  if (canUseAdminLiveBusesApi(role, menuAccess)) {
     const res = await fetchAdminLiveBusesList(token)
     if (!res.ok) {
       const cached = readActiveLiveBusesCache()
@@ -541,7 +543,8 @@ export async function fetchLiveBusesList(token, role, options = {}) {
  * @param {{ studentId?: string }} [options]
  */
 export async function fetchLiveBusDetail(token, role, tripId, options = {}) {
-  if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL) {
+  const { studentId, menuAccess } = options
+  if (canUseAdminLiveBusesApi(role, menuAccess)) {
     const res = await fetchAdminLiveBusDetail(token, tripId)
     if (!res.ok) {
       return {
@@ -571,7 +574,6 @@ export async function fetchLiveBusDetail(token, role, tripId, options = {}) {
   }
 
   if (role === ROLES.PARENT) {
-    const studentId = options.studentId
     const res = await fetchParentMyBusLive(token, studentId ? { studentId } : {})
     if (!res.ok) {
       return { ok: false, ended: false, error: res.error, detail: null }

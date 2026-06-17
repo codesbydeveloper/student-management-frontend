@@ -17,6 +17,7 @@
  * @property {string} [status]
  * @property {string} [category]
  * @property {string | number} [createdAt]
+ * @property {string} [submittedAtDisplay]
  * @property {string} [submittedBy]
  */
 

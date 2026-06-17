@@ -1,75 +1,216 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import {
+  deleteLoginAppearanceLogo,
   fetchPublicLoginBranding,
   updateLoginBranding,
+  uploadLoginAppearanceBackgroundImage,
   uploadLoginAppearanceLogo,
 } from '../../api/settingsApi'
 import {
   DEFAULT_LOGIN_BRANDING,
   getLoginBrandingSnapshot,
+  mergeLoginBrandingFromApi,
   normalizeLoginBranding,
+  pickLoginColorFields,
+  resetLoginAppearanceLocal,
   resetLoginBranding,
   sanitizeLogoImage,
+  setLoginAppearanceLocal,
   setLoginBranding,
 } from '../../utils/loginBranding'
+import { surfacePreviewStyle } from '../../utils/appBackgroundTheme'
 import { SettingsNav } from '../../components/settings/SettingsNav'
+import { BackgroundSurfaceEditor } from '../../components/settings/BackgroundSurfaceEditor'
+import { ColorPickerPanel } from '../../components/settings/ColorPickerPanel'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 
-/** Browser-only preview (data URL) when not signed in or upload fails. */
-const MAX_LOCAL_DATA_URL_BYTES = 380 * 1024
-/** POST /api/login-appearance/logo multipart */
 const MAX_LOGO_UPLOAD_BYTES = 5 * 1024 * 1024
+const MAX_BACKGROUND_UPLOAD_BYTES = 5 * 1024 * 1024
 
-function applyToForm(b, setLogoImage, setLogoUrlInput, setTitle, setSubtitle) {
+function brandingToBackground(b) {
+  return {
+    mode: b.backgroundMode,
+    color: b.backgroundColor,
+    opacity: b.backgroundOpacity,
+    imageUrl: b.backgroundImageUrl,
+  }
+}
+
+function applyToForm(b, setters) {
+  const {
+    setLogoImage,
+    setLogoUrlInput,
+    setTitle,
+    setSubtitle,
+    setBackground,
+    setTitleColor,
+    setSubtitleColor,
+    setButtonColor,
+  } = setters
   setLogoImage(b.logoImage || '')
   setLogoUrlInput('')
   setTitle(b.title)
   setSubtitle(b.subtitle)
+  setBackground(brandingToBackground(b))
+  setTitleColor(b.titleColor)
+  setSubtitleColor(b.subtitleColor)
+  setButtonColor(b.buttonColor)
+}
+
+function colorsFromForm({ titleColor, subtitleColor, buttonColor }) {
+  return pickLoginColorFields({ titleColor, subtitleColor, buttonColor })
+}
+
+function buildBackgroundPutBody(background, pendingBackgroundRemoval) {
+  if (pendingBackgroundRemoval) {
+    return {
+      removeBackgroundImage: true,
+      background: {
+        type: 'color',
+        color: background.color,
+        opacity: background.opacity,
+      },
+    }
+  }
+  if (background.mode === 'image') {
+    return {
+      background: {
+        type: 'image',
+        opacity: background.opacity,
+      },
+    }
+  }
+  return {
+    background: {
+      type: 'color',
+      color: background.color,
+      opacity: background.opacity,
+    },
+  }
+}
+
+function LoginScreenPreview({
+  logoImage,
+  title,
+  subtitle,
+  background,
+  titleColor,
+  subtitleColor,
+  buttonColor,
+}) {
+  const bgStyle = surfacePreviewStyle(background, { imageFit: 'repeat' })
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/90 shadow-sm">
+      <div className="pointer-events-none absolute inset-0" aria-hidden style={bgStyle} />
+      <div className="relative z-10 px-4 py-8 sm:px-8 sm:py-10">
+        <div className="mx-auto max-w-sm text-center">
+          {logoImage ? (
+            <div className="mx-auto mb-4 flex max-h-20 items-center justify-center">
+              <img src={logoImage} alt="" className="max-h-20 max-w-full object-contain" decoding="async" />
+            </div>
+          ) : (
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-800 text-lg font-semibold text-white">
+              {DEFAULT_LOGIN_BRANDING.logoLetter}
+            </div>
+          )}
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl" style={{ color: titleColor }}>
+            {title || DEFAULT_LOGIN_BRANDING.title}
+          </h2>
+          <p className="mx-auto mt-2 text-sm leading-relaxed" style={{ color: subtitleColor }}>
+            {subtitle || DEFAULT_LOGIN_BRANDING.subtitle}
+          </p>
+        </div>
+        <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+          <p className="text-lg font-semibold text-slate-900">Sign in</p>
+          <p className="mt-1 text-sm text-slate-600">Use the email and password for your school account.</p>
+          <div className="mt-4 space-y-3">
+            <div className="h-9 rounded-lg border border-slate-200 bg-slate-50" />
+            <div className="h-9 rounded-lg border border-slate-200 bg-slate-50" />
+            <div
+              className="flex h-10 items-center justify-center rounded-md text-sm font-medium text-white"
+              style={{ backgroundColor: buttonColor, borderColor: buttonColor }}
+            >
+              Sign in
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+async function loadBrandingIntoForm(formSetters) {
+  const remote = await fetchPublicLoginBranding()
+  if (remote.ok && remote.branding) {
+    applyToForm(mergeLoginBrandingFromApi(remote.branding), formSetters)
+    return
+  }
+  applyToForm(getLoginBrandingSnapshot(), formSetters)
 }
 
 export default function LoginBrandingSettingsPage() {
   const { token } = useAuth()
   const fileRef = useRef(null)
+  const logoBlobRef = useRef('')
+  const bgBlobRef = useRef('')
   const [logoImage, setLogoImage] = useState('')
   const [logoUrlInput, setLogoUrlInput] = useState('')
   const [title, setTitle] = useState(DEFAULT_LOGIN_BRANDING.title)
   const [subtitle, setSubtitle] = useState(DEFAULT_LOGIN_BRANDING.subtitle)
-  const [logoUploading, setLogoUploading] = useState(false)
+  const [background, setBackground] = useState(() => brandingToBackground(DEFAULT_LOGIN_BRANDING))
+  const [titleColor, setTitleColor] = useState(DEFAULT_LOGIN_BRANDING.titleColor)
+  const [subtitleColor, setSubtitleColor] = useState(DEFAULT_LOGIN_BRANDING.subtitleColor)
+  const [buttonColor, setButtonColor] = useState(DEFAULT_LOGIN_BRANDING.buttonColor)
+  const [pendingLogoFile, setPendingLogoFile] = useState(null)
+  const [pendingLogoRemoval, setPendingLogoRemoval] = useState(false)
+  const [pendingBackgroundFile, setPendingBackgroundFile] = useState(null)
+  const [pendingBackgroundRemoval, setPendingBackgroundRemoval] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const formSetters = {
+    setLogoImage,
+    setLogoUrlInput,
+    setTitle,
+    setSubtitle,
+    setBackground,
+    setTitleColor,
+    setSubtitleColor,
+    setButtonColor,
+  }
+
+  const revokeLogoBlob = () => {
+    if (logoBlobRef.current?.startsWith('blob:')) {
+      URL.revokeObjectURL(logoBlobRef.current)
+      logoBlobRef.current = ''
+    }
+  }
+
+  const revokeBgBlob = () => {
+    if (bgBlobRef.current?.startsWith('blob:')) {
+      URL.revokeObjectURL(bgBlobRef.current)
+      bgBlobRef.current = ''
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const remote = await fetchPublicLoginBranding()
+      await loadBrandingIntoForm(formSetters)
       if (cancelled) return
-      if (remote.ok && remote.branding) {
-        applyToForm(
-          normalizeLoginBranding(remote.branding),
-          setLogoImage,
-          setLogoUrlInput,
-          setTitle,
-          setSubtitle,
-        )
-        return
-      }
-      applyToForm(
-        getLoginBrandingSnapshot(),
-        setLogoImage,
-        setLogoUrlInput,
-        setTitle,
-        setSubtitle,
-      )
     })()
     return () => {
       cancelled = true
+      revokeLogoBlob()
+      revokeBgBlob()
     }
   }, [])
 
-  const onPickFile = async (e) => {
+  const onPickFile = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -77,61 +218,19 @@ export default function LoginBrandingSettingsPage() {
       toast.error('Please choose an image file.')
       return
     }
-
-    if (token) {
-      if (file.size > MAX_LOGO_UPLOAD_BYTES) {
-        toast.error('Image is too large to upload (max 5 MB).')
-        return
-      }
-      setLogoUploading(true)
-      try {
-        const up = await uploadLoginAppearanceLogo(token, file)
-        if (!up.ok) {
-          toast.error(up.error || 'Logo upload failed.')
-          return
-        }
-        const remote = await fetchPublicLoginBranding()
-        if (remote.ok && remote.branding) {
-          applyToForm(
-            normalizeLoginBranding(remote.branding),
-            setLogoImage,
-            setLogoUrlInput,
-            setTitle,
-            setSubtitle,
-          )
-        } else {
-          const fallback = sanitizeLogoImage(String(up.logoUrl || '').trim())
-          if (fallback) {
-            setLogoImage(fallback)
-            setLogoUrlInput('')
-          }
-        }
-        toast.success('Logo uploaded. Sign-in pages will show it after refresh.')
-        window.dispatchEvent(new Event('sm-login-branding-changed'))
-      } finally {
-        setLogoUploading(false)
-      }
+    if (file.size > MAX_LOGO_UPLOAD_BYTES) {
+      toast.error('Image is too large (max 5 MB).')
       return
     }
 
-    if (file.size > MAX_LOCAL_DATA_URL_BYTES) {
-      toast.error('Image is too large for offline preview. Sign in to upload up to 5 MB, or use an https URL.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '')
-      const cleaned = sanitizeLogoImage(dataUrl)
-      if (!cleaned) {
-        toast.error('That image is too large to store in the browser.')
-        return
-      }
-      setLogoImage(cleaned)
-      setLogoUrlInput('')
-      toast.success('Logo loaded for preview only. Sign in to upload to the server, then Save.')
-    }
-    reader.onerror = () => toast.error('Could not read that file.')
-    reader.readAsDataURL(file)
+    revokeLogoBlob()
+    const url = URL.createObjectURL(file)
+    logoBlobRef.current = url
+    setPendingLogoFile(file)
+    setPendingLogoRemoval(false)
+    setLogoImage(url)
+    setLogoUrlInput('')
+    toast.info('Logo selected. Click Save to apply.')
   }
 
   const onApplyUrl = () => {
@@ -140,55 +239,154 @@ export default function LoginBrandingSettingsPage() {
       toast.error('Use a full https:// link to an image (PNG, JPG, WebP, SVG, or GIF).')
       return
     }
+    revokeLogoBlob()
+    setPendingLogoFile(null)
+    setPendingLogoRemoval(false)
     setLogoImage(cleaned)
-    toast.success('Logo URL set. Click Save to apply.')
+    toast.info('Logo URL set for preview. Click Save to apply.')
   }
 
   const onRemoveImage = () => {
+    revokeLogoBlob()
+    setPendingLogoFile(null)
+    setPendingLogoRemoval(true)
     setLogoImage('')
     setLogoUrlInput('')
     if (fileRef.current) fileRef.current.value = ''
+    toast.info('Logo will be removed when you click Save.')
   }
+
+  const onBackgroundFile = (file) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file.')
+      return
+    }
+    if (file.size > MAX_BACKGROUND_UPLOAD_BYTES) {
+      toast.error('Background image is too large (max 5 MB).')
+      return
+    }
+
+    revokeBgBlob()
+    const url = URL.createObjectURL(file)
+    bgBlobRef.current = url
+    setPendingBackgroundFile(file)
+    setPendingBackgroundRemoval(false)
+    setBackground((prev) => ({ ...prev, mode: 'image', imageUrl: url }))
+  }
+
+  const onClearBackgroundImage = () => {
+    revokeBgBlob()
+    setPendingBackgroundFile(null)
+    setPendingBackgroundRemoval(true)
+    setBackground((prev) => {
+      if (prev.imageUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.imageUrl)
+      }
+      return { ...prev, imageUrl: '', mode: 'color' }
+    })
+  }
+
+  const backgroundImageHint = pendingBackgroundFile
+    ? 'Background image selected. Click Save to upload and apply.'
+    : pendingBackgroundRemoval
+      ? 'Background will be removed when you click Save.'
+      : ''
 
   const onSave = async () => {
-    const payload = normalizeLoginBranding({
-      logoLetter: DEFAULT_LOGIN_BRANDING.logoLetter,
-      title,
-      subtitle,
-      logoImage,
-    })
-    if (token) {
-      const res = await updateLoginBranding(token, payload)
-      if (res.ok) {
-        if (res.skippedLogoUrlForServer) {
-          toast.success(
-            'Saved title and subtitle on the server. Use an https image URL (or clear the logo) to sync the logo for everyone — file uploads stay in this browser only.',
-          )
-        } else {
-          toast.success('Saved to server. Login page will update for everyone.')
+    setSaving(true)
+    try {
+      const colors = colorsFromForm({ titleColor, subtitleColor, buttonColor })
+
+      if (token) {
+        if (pendingLogoRemoval) {
+          const del = await deleteLoginAppearanceLogo(token)
+          if (!del.ok) {
+            toast.error(del.error || 'Could not remove logo.')
+            return
+          }
+        } else if (pendingLogoFile) {
+          const up = await uploadLoginAppearanceLogo(token, pendingLogoFile)
+          if (!up.ok) {
+            toast.error(up.error || 'Logo upload failed.')
+            return
+          }
         }
-        window.dispatchEvent(new Event('sm-login-branding-changed'))
+
+        if (pendingBackgroundFile) {
+          const bgUp = await uploadLoginAppearanceBackgroundImage(token, pendingBackgroundFile)
+          if (!bgUp.ok) {
+            toast.error(bgUp.error || 'Background image upload failed.')
+            return
+          }
+        }
+
+        const putBody = {
+          title,
+          subtitle,
+          ...buildBackgroundPutBody(background, pendingBackgroundRemoval),
+        }
+        const res = await updateLoginBranding(token, putBody)
+        if (!res.ok) {
+          toast.error(res.error || 'Could not save login appearance.')
+          return
+        }
+
+        setLoginAppearanceLocal(colors)
+        revokeLogoBlob()
+        revokeBgBlob()
+        setPendingLogoFile(null)
+        setPendingLogoRemoval(false)
+        setPendingBackgroundFile(null)
+        setPendingBackgroundRemoval(false)
+        await loadBrandingIntoForm(formSetters)
+        toast.success('Saved. The login page will update for everyone.')
         return
       }
-      toast.error(`${res.error || 'Server save failed.'} Saving in this browser only.`)
+
+      const payload = normalizeLoginBranding({
+        logoLetter: DEFAULT_LOGIN_BRANDING.logoLetter,
+        title,
+        subtitle,
+        logoImage: pendingLogoRemoval ? '' : logoImage,
+        backgroundMode: background.mode,
+        backgroundColor: background.color,
+        backgroundOpacity: background.opacity,
+        backgroundImageUrl: pendingBackgroundRemoval ? '' : background.imageUrl,
+        ...colors,
+      })
+      setLoginBranding(payload)
+      setLoginAppearanceLocal(colors)
+      revokeLogoBlob()
+      revokeBgBlob()
+      setPendingLogoFile(null)
+      setPendingLogoRemoval(false)
+      setPendingBackgroundFile(null)
+      setPendingBackgroundRemoval(false)
+      toast.success('Saved in this browser.')
+    } finally {
+      setSaving(false)
     }
-    setLoginBranding(payload)
-    window.dispatchEvent(new Event('sm-login-branding-changed'))
-    toast.success('Saved in this browser.')
   }
 
-  const onReset = () => {
-    resetLoginBranding()
-    applyToForm(
-      getLoginBrandingSnapshot(),
-      setLogoImage,
-      setLogoUrlInput,
-      setTitle,
-      setSubtitle,
-    )
+  const onReset = async () => {
+    revokeLogoBlob()
+    revokeBgBlob()
+    setPendingLogoFile(null)
+    setPendingLogoRemoval(false)
+    setPendingBackgroundFile(null)
+    setPendingBackgroundRemoval(false)
     if (fileRef.current) fileRef.current.value = ''
-    window.dispatchEvent(new Event('sm-login-branding-changed'))
-    toast.info('Restored defaults (this browser).')
+
+    if (token) {
+      resetLoginAppearanceLocal()
+      await loadBrandingIntoForm(formSetters)
+      toast.info('Reset text and button colors. Title, subtitle, logo, and background unchanged on the server.')
+      return
+    }
+
+    resetLoginBranding()
+    applyToForm(getLoginBrandingSnapshot(), formSetters)
+    toast.info('Restored defaults in this browser.')
   }
 
   return (
@@ -196,26 +394,27 @@ export default function LoginBrandingSettingsPage() {
       <SettingsNav active="login" />
 
       <Card>
-        <CardHeader
-          title="Login page appearance"
-            
-        />
-        <div className="space-y-6">
+        <CardHeader title="Login page appearance" />
+        <div className="space-y-8">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Preview</p>
-            <div className="mt-2 flex min-h-[5.5rem] items-center justify-center rounded-2xl border border-slate-200/90 bg-slate-950 px-4 py-6">
-              {logoImage ? (
-                <img
-                  src={logoImage}
-                  alt=""
-                  className="max-h-28 max-w-full object-contain"
-                  decoding="async"
-                />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 text-xl font-bold text-white shadow-lg ring-2 ring-white/15">
-                  {DEFAULT_LOGIN_BRANDING.logoLetter}
-                </div>
-              )}
+            <p className="mt-1 text-sm text-slate-600">
+              Preview updates as you edit. The live login page changes only after you click Save.
+            </p>
+            <div className="mt-3">
+              <LoginScreenPreview
+                logoImage={pendingLogoRemoval ? '' : logoImage}
+                title={title}
+                subtitle={subtitle}
+                background={
+                  pendingBackgroundRemoval
+                    ? { ...background, mode: 'color', imageUrl: '' }
+                    : background
+                }
+                titleColor={titleColor}
+                subtitleColor={subtitleColor}
+                buttonColor={buttonColor}
+              />
             </div>
           </div>
 
@@ -224,31 +423,43 @@ export default function LoginBrandingSettingsPage() {
             <input
               ref={fileRef}
               type="file"
-              disabled={logoUploading}
+              disabled={saving}
               accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/svg+xml"
               className="max-w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-indigo-700 disabled:opacity-50"
-              onChange={(ev) => void onPickFile(ev)}
+              onChange={onPickFile}
             />
-            {logoUploading ? (
-              <p className="text-xs text-slate-500">Uploading logo…</p>
-            ) : null}
             <p className="text-xs text-slate-500">
-              Or use an <strong className="font-semibold text-slate-700">https</strong> image URL.
+              {token
+                ? 'Choose a file, then click Save to upload it to the server.'
+                : 'Sign in to upload a logo to the server. Until then, changes stay in this browser only.'}
             </p>
-            <div className="flex flex-wrap gap-2 sm:max-w-xl">
-              <Input
-                className="min-w-[12rem] flex-1"
-                type="url"
-                inputMode="url"
-                placeholder="https://yourschool.edu/logo.png"
-                value={logoUrlInput}
-                onChange={(e) => setLogoUrlInput(e.target.value)}
-              />
-              <Button type="button" variant="secondary" size="sm" onClick={onApplyUrl}>
-                Use URL
-              </Button>
-            </div>
-            <Button type="button" variant="secondary" size="sm" onClick={onRemoveImage} disabled={!logoImage}>
+            {!token ? (
+              <>
+                <p className="text-xs text-slate-500">
+                  Or use an <strong className="font-semibold text-slate-700">https</strong> image URL.
+                </p>
+                <div className="flex flex-wrap gap-2 sm:max-w-xl">
+                  <Input
+                    className="min-w-[12rem] flex-1"
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://yourschool.edu/logo.png"
+                    value={logoUrlInput}
+                    onChange={(e) => setLogoUrlInput(e.target.value)}
+                  />
+                  <Button type="button" variant="secondary" size="sm" onClick={onApplyUrl}>
+                    Use URL
+                  </Button>
+                </div>
+              </>
+            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onRemoveImage}
+              disabled={saving || (!logoImage && !pendingLogoRemoval && !pendingLogoFile)}
+            >
               Remove image
             </Button>
           </div>
@@ -271,18 +482,65 @@ export default function LoginBrandingSettingsPage() {
             />
           </div>
 
+          <BackgroundSurfaceEditor
+            label="Login screen background"
+            description="Full page area behind the logo, text, and sign-in form. Images tile horizontally and vertically. Upload an image, then click Save."
+            surface={background}
+            onChange={(patch) => {
+              setBackground((prev) => {
+                const next = { ...prev, ...patch }
+                if (
+                  patch.mode === 'color' &&
+                  prev.imageUrl &&
+                  !prev.imageUrl.startsWith('blob:') &&
+                  !prev.imageUrl.startsWith('data:')
+                ) {
+                  setPendingBackgroundRemoval(true)
+                  setPendingBackgroundFile(null)
+                  revokeBgBlob()
+                  next.imageUrl = ''
+                }
+                return next
+              })
+            }}
+            onImageFileSelect={onBackgroundFile}
+            onClearImage={onClearBackgroundImage}
+            disabled={saving}
+            imageFit="repeat"
+            imageHint={backgroundImageHint}
+          />
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+              <p className="text-base font-bold text-slate-900">Title text color</p>
+              <p className="mt-1 text-sm text-slate-600">School name line below the logo.</p>
+              <div className="mt-4">
+                <ColorPickerPanel value={titleColor} onChange={setTitleColor} />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+              <p className="text-base font-bold text-slate-900">Subtitle text color</p>
+              <p className="mt-1 text-sm text-slate-600">Second line under the title.</p>
+              <div className="mt-4">
+                <ColorPickerPanel value={subtitleColor} onChange={setSubtitleColor} />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+              <p className="text-base font-bold text-slate-900">Sign in button color</p>
+              <p className="mt-1 text-sm text-slate-600">Primary action on the login form.</p>
+              <div className="mt-4">
+                <ColorPickerPanel value={buttonColor} onChange={setButtonColor} />
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void onSave()}>
-              Save
+            <Button type="button" onClick={() => void onSave()} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
             </Button>
-            <Button type="button" variant="secondary" onClick={onReset}>
+            <Button type="button" variant="secondary" onClick={() => void onReset()} disabled={saving}>
               Reset to defaults
             </Button>
-            <Link to="/login" target="_blank" rel="noopener noreferrer">
-              <Button type="button" variant="secondary">
-                Open login in new tab
-              </Button>
-            </Link>
           </div>
         </div>
       </Card>

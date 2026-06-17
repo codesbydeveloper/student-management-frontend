@@ -4,6 +4,7 @@ import { BellIcon } from '../icons/BellIcon'
 import {
   dismissPushPermissionForToday,
   getNotificationPermission,
+  setPushPermissionRequestInFlight,
   shouldShowPushPermissionBanner,
 } from '../../utils/pushPermission'
 import { handlePushNotificationYes } from '../../utils/webpushrSetup'
@@ -23,7 +24,6 @@ function completeSuccess(setVisible, webpushrSyncFailed) {
  */
 export function PushNotificationPermissionBanner() {
   const [visible, setVisible] = useState(false)
-  const [busy, setBusy] = useState(false)
 
   const syncVisible = useCallback(() => {
     setVisible(shouldShowPushPermissionBanner())
@@ -41,39 +41,40 @@ export function PushNotificationPermissionBanner() {
     setVisible(false)
   }
 
-  const onYes = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      const result = await handlePushNotificationYes()
+  const onYes = () => {
+    setVisible(false)
+    setPushPermissionRequestInFlight(true)
 
-      if (result.ok) {
-        completeSuccess(setVisible, Boolean(result.webpushrSyncFailed))
-        return
-      }
+    void (async () => {
+      try {
+        const result = await handlePushNotificationYes()
 
-      if (result.reason === 'denied') {
-        toast.info('Notifications were not enabled.')
-        setVisible(false)
+        if (result.ok) {
+          completeSuccess(setVisible, Boolean(result.webpushrSyncFailed))
+          return
+        }
+
+        if (result.reason === 'denied') {
+          toast.info('Notifications were not enabled.')
+          return
+        }
+
+        if (result.reason === 'unsupported') {
+          toast.error('This browser does not support notifications.')
+          return
+        }
+
+        if (getNotificationPermission() === 'granted') {
+          completeSuccess(setVisible, true)
+          return
+        }
+
+        toast.error('Could not enable notifications. Please try again.')
+      } finally {
+        setPushPermissionRequestInFlight(false)
         window.dispatchEvent(new Event('push-permission-changed'))
-        return
       }
-
-      if (result.reason === 'unsupported') {
-        toast.error('This browser does not support notifications.')
-        return
-      }
-
-      if (getNotificationPermission() === 'granted') {
-        completeSuccess(setVisible, true)
-        return
-      }
-
-      toast.error('Could not enable notifications. Please try again.')
-    } finally {
-      setBusy(false)
-      syncVisible()
-    }
+    })()
   }
 
   if (!visible) return null
@@ -96,19 +97,17 @@ export function PushNotificationPermissionBanner() {
             <div className="mt-4 flex items-center justify-end gap-5 sm:mt-5 sm:gap-6">
               <button
                 type="button"
-                disabled={busy}
-                className="text-xs font-semibold uppercase tracking-wide text-sky-500 transition hover:text-sky-700 disabled:opacity-50"
+                className="text-xs font-semibold uppercase tracking-wide text-sky-500 transition hover:text-sky-700"
                 onClick={onNotYet}
               >
                 Not yet
               </button>
               <button
                 type="button"
-                disabled={busy}
-                className="min-w-[4.25rem] rounded-sm bg-sky-500 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-sky-600 disabled:opacity-60"
-                onClick={() => void onYes()}
+                className="min-w-[4.25rem] rounded-sm bg-sky-500 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-sky-600"
+                onClick={onYes}
               >
-                {busy ? '…' : 'Yes'}
+                Yes
               </button>
             </div>
           </div>

@@ -26,7 +26,7 @@ function formatApiError(data, status, fallback) {
 }
 
 /**
- * GET /api/transport/live-buses — admin / principal running trips.
+ * GET /api/transport/live-buses — admin, principal, and staff with Live buses access.
  * @param {string} token
  */
 export async function fetchAdminLiveBusesList(token) {
@@ -60,7 +60,7 @@ export async function fetchAdminLiveBusesList(token) {
 }
 
 /**
- * GET /api/transport/live-buses/:tripId — admin / principal trip detail.
+ * GET /api/transport/live-buses/:tripId — admin, principal, and staff with Live buses access.
  * @param {string} token
  * @param {number | string} tripId
  */

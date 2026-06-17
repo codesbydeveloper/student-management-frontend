@@ -1,4 +1,7 @@
 import { ROLES } from '../../utils/constants'
+import { hasMenuScreenAccess, isMenuAccessRole } from '../../utils/permissions'
+import { parseMenuAccessFromApi } from '../../api/staffMenuPermissionsApi'
+import { getFirstAllowedPathForMenuAccess } from '../../utils/navigation'
 import {
   getParentTransportTrackingLink,
   getTransportBellStudentId,
@@ -25,13 +28,24 @@ import {
 
 /**
  * @param {string | undefined} role
+ * @param {import('../../api/staffMenuPermissionsApi').NavPermissionsMap | undefined} [menuAccess]
  * @returns {string}
  */
-export function getHeaderNotificationsViewAllPath(role) {
+export function getHeaderNotificationsViewAllPath(role, menuAccess) {
   if (role === ROLES.PARENT) return '/parent-notifications'
   if (role === ROLES.TEACHER) return '/notifications'
   if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL) return '/notifications/history'
+  if (isMenuAccessRole(role)) {
+    const parsed = parseMenuAccessFromApi(menuAccess)
+    if (hasMenuScreenAccess(parsed, 'notice_history')) return '/notifications/history'
+    if (hasMenuScreenAccess(parsed, 'notifications')) return '/notifications'
+    return getFirstAllowedPathForMenuAccess(role, menuAccess)
+  }
   return '/notifications'
+}
+
+function staffCanOpenNoticeHistory(role, menuAccess) {
+  return isMenuAccessRole(role) && hasMenuScreenAccess(parseMenuAccessFromApi(menuAccess), 'notice_history')
 }
 
 function routingBlob(item) {
@@ -105,10 +119,11 @@ function ptmRequestIdFromItem(item) {
  * Where a header bell item should navigate based on API type/link fields.
  * @param {string | undefined} role
  * @param {HeaderNotificationItem | null | undefined} item
+ * @param {import('../../api/staffMenuPermissionsApi').NavPermissionsMap | undefined} [menuAccess]
  * @returns {string | { pathname: string, state?: Record<string, string> }}
  */
-export function getHeaderNotificationItemLink(role, item) {
-  if (!item) return { pathname: getHeaderNotificationsViewAllPath(role) }
+export function getHeaderNotificationItemLink(role, item, menuAccess) {
+  if (!item) return { pathname: getHeaderNotificationsViewAllPath(role, menuAccess) }
 
   const explicit = pickExplicitPath(item)
   const kind = resolveBellKind(item)
@@ -129,24 +144,37 @@ export function getHeaderNotificationItemLink(role, item) {
     if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL) {
       return { pathname: '/ptm-requests/staff', state }
     }
+    if (isMenuAccessRole(role) && hasMenuScreenAccess(parseMenuAccessFromApi(menuAccess), 'staff_ptm_requests')) {
+      return { pathname: '/ptm-requests/staff', state }
+    }
   }
 
   if (kind === 'lead') {
     const leadId = item.leadId ?? item.entityId
-    if (leadId && role !== ROLES.PARENT) return `/leads/${leadId}`
+    if (leadId && role !== ROLES.PARENT) {
+      if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL) return `/leads/${leadId}`
+      if (isMenuAccessRole(role) && hasMenuScreenAccess(parseMenuAccessFromApi(menuAccess), 'admin_leads')) {
+        return `/leads/${leadId}`
+      }
+    }
   }
 
   if (kind === 'visitor') {
     if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL || role === ROLES.TEACHER) {
       return '/visitor-logs'
     }
+    if (isMenuAccessRole(role) && hasMenuScreenAccess(parseMenuAccessFromApi(menuAccess), 'admin_visitor_logs')) {
+      return '/visitor-logs'
+    }
   }
 
-  if (kind === 'approval') {
-    if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL) return '/notifications/history'
+  if (kind === 'approval' || kind === 'notice') {
+    if (role === ROLES.ADMIN || role === ROLES.PRINCIPAL || staffCanOpenNoticeHistory(role, menuAccess)) {
+      return '/notifications/history'
+    }
   }
 
-  const pathname = getHeaderNotificationsViewAllPath(role)
+  const pathname = getHeaderNotificationsViewAllPath(role, menuAccess)
   if (role === ROLES.PARENT && item.id) {
     return { pathname: '/parent-notifications', state: { openMessageId: String(item.id) } }
   }

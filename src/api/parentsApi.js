@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../utils/constants'
+import { extractNotificationApproverFields } from './notificationsApi'
 import { parseDashboardTimestampMs } from '../utils/dashboardDateParse'
 import { pickLastActivityFromApi } from '../utils/lastActivityDisplay'
 import { NOTIFICATION_CATEGORIES } from '../utils/notificationConstants'
@@ -643,6 +644,8 @@ export function mapApiParentMessageToFeedItem(raw) {
   const category = normalizeParentMessageCategory(raw.category)
   const { ids, names } = childNamesAndIdsFromMessageRaw(raw)
   const displayNames = names.length ? names : ['Your children']
+  const approver = extractNotificationApproverFields(raw)
+  const statusRaw = String(raw.status ?? 'approved').trim().toLowerCase()
 
   const pickedBanner = pickNotificationMediaUrl(raw)
   const bannerDisplayUrl = resolvePublicAssetUrl(pickedBanner) || undefined
@@ -667,12 +670,15 @@ export function mapApiParentMessageToFeedItem(raw) {
     title,
     message,
     category,
-    status: 'approved',
+    status: statusRaw || 'approved',
     bannerDisplayUrl,
     targetUrl,
     videoUrls,
     externalLinks,
     sender,
+    approvedByName: approver.approvedByName || undefined,
+    approvedByRole: approver.approvedByRole || undefined,
+    approvedByRoleLabel: approver.approvedByRoleLabel || undefined,
     submittedAt: raw.submittedAt ?? raw.createdAt ?? raw.sentAt ?? null,
     approvedAt: raw.approvedAt ?? null,
     updatedAt: raw.updatedAt ?? null,

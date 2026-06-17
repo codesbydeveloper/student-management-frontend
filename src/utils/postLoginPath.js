@@ -1,12 +1,17 @@
 import { ROLES } from './constants'
+import { isMenuAccessRole } from './permissions'
+import { getFirstAllowedPathForMenuAccess } from './navigation'
 
 const GENERIC_HOME_PATHS = new Set(['/dashboard', '/login', '/'])
 
 /**
- * Default landing page after sign-in (when user did not open a deep link first).
  * @param {string | undefined} role
+ * @param {unknown} [menuAccess]
  */
-export function getDefaultPathForRole(role) {
+export function getDefaultPathForRole(role, menuAccess) {
+  if (isMenuAccessRole(role)) {
+    return getFirstAllowedPathForMenuAccess(role, menuAccess)
+  }
   switch (role) {
     case ROLES.DRIVER:
       return '/driver/map'
@@ -18,13 +23,14 @@ export function getDefaultPathForRole(role) {
 }
 
 /**
- * @param {string | undefined} fromPath — `location.state.from.pathname` from login guard
+ * @param {string | undefined} fromPath
  * @param {string | undefined} role
+ * @param {unknown} [menuAccess]
  */
-export function resolvePostLoginPath(fromPath, role) {
+export function resolvePostLoginPath(fromPath, role, menuAccess) {
   const trimmed = typeof fromPath === 'string' ? fromPath.trim() : ''
   if (!trimmed || GENERIC_HOME_PATHS.has(trimmed)) {
-    return getDefaultPathForRole(role)
+    return getDefaultPathForRole(role, menuAccess)
   }
   return trimmed
 }

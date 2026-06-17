@@ -103,10 +103,20 @@ export function isAndroidLike() {
 }
 
 export function isPwaInstallBannerPermanentlyDismissed() {
+  // Only hide while the app is actually open as an installed PWA.
+  // localStorage alone is not reliable — uninstalling the app does not clear it.
+  return isRunningAsInstalledPwa()
+}
+
+/** Clear stale install flag when user is back in the browser (e.g. after uninstall). */
+function clearStaleInstallDoneFlag() {
+  if (isRunningAsInstalledPwa()) return
   try {
-    return localStorage.getItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_DONE) === '1'
+    if (localStorage.getItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_DONE) === '1') {
+      localStorage.removeItem(STORAGE_KEYS.PWA_MOBILE_INSTALL_DONE)
+    }
   } catch {
-    return false
+    /* ignore */
   }
 }
 
@@ -143,7 +153,7 @@ export function requestPwaInstallPromptOnLogin() {
 export function shouldShowPwaInstallPrompt() {
   if (typeof window === 'undefined') return false
   if (isRunningAsInstalledPwa()) return false
-  if (isPwaInstallBannerPermanentlyDismissed()) return false
+  clearStaleInstallDoneFlag()
   if (wasPwaInstallDismissedToday()) return false
   return true
 }

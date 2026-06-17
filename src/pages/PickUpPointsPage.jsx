@@ -21,25 +21,15 @@ import { Button } from '../components/ui/Button'
 
 const PAGE_LIMIT = 10
 
-function formatTimeForDisplay(value) {
-  if (!value) return '—'
-  const [h, m] = value.split(':')
-  const hour = Number(h)
-  if (Number.isNaN(hour)) return value
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const h12 = hour % 12 || 12
-  return `${h12}:${m || '00'} ${ampm}`
-}
-
 function coordsValid(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng)
 }
 
-function locationCell(name, time, { sameAsPickUp = false } = {}) {
+function locationCell(name, timeDisplay, { sameAsPickUp = false } = {}) {
   return (
     <div>
       <p className="font-medium text-slate-800">{name || '—'}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{formatTimeForDisplay(time)}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{timeDisplay || '—'}</p>
       {sameAsPickUp ? (
         <p className="mt-1 text-[11px] italic text-slate-400">Same as pick up</p>
       ) : null}
@@ -162,28 +152,33 @@ export default function PickUpPointsPage() {
     setStudentOptions(res.options)
   }, [token])
 
-  const loadList = useAsyncLoader(async () => {
+  const loadList = useAsyncLoader(async ({ isStale } = {}) => {
     if (!token) {
       setPoints([])
       setTotal(0)
       setHasNext(false)
+      setListLoading(false)
       return
     }
     setListLoading(true)
     setListError(null)
-    const res = await fetchPickupPointsList(token, { page, limit: PAGE_LIMIT })
-    setListLoading(false)
-    if (!res.ok) {
-      setPoints([])
-      setTotal(0)
-      setHasNext(false)
-      setListError(res.error || 'Could not load pick up points.')
-      return
+    try {
+      const res = await fetchPickupPointsList(token, { page, limit: PAGE_LIMIT })
+      if (isStale?.()) return
+      if (!res.ok) {
+        setPoints([])
+        setTotal(0)
+        setHasNext(false)
+        setListError(res.error || 'Could not load pick up points.')
+        return
+      }
+      setPoints(res.points)
+      setTotal(res.total)
+      setHasNext(res.hasNextPage)
+      syncPageFromApi(setPage, res.page)
+    } finally {
+      if (!isStale?.()) setListLoading(false)
     }
-    setPoints(res.points)
-    setTotal(res.total)
-    setHasNext(res.hasNextPage)
-    syncPageFromApi(setPage, res.page)
   }, [token, page])
 
   const findOnMap = async (kind, fields, { forEdit = false } = {}) => {
@@ -729,7 +724,22 @@ export default function PickUpPointsPage() {
 
           {points.length > 0 ? (
             <>
-              <div className="overflow-x-auto rounded-xl border border-slate-200/90">
+              <div
+                className={`relative overflow-x-auto rounded-xl border border-slate-200/90 transition-opacity duration-200 ${
+                  listLoading ? 'opacity-55' : ''
+                }`}
+              >
+                {listLoading ? (
+                  <div
+                    className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-white/50"
+                    aria-hidden
+                  >
+                    <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200/90">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                      Refreshing list…
+                    </span>
+                  </div>
+                ) : null}
                 <table className="app-data-table">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <tr>
@@ -755,10 +765,10 @@ export default function PickUpPointsPage() {
                             {(page - 1) * PAGE_LIMIT + idx + 1}
                           </td>
                           <td className="px-4 py-3">
-                            {locationCell(pickUpPlace, row.pickupTime)}
+                            {locationCell(pickUpPlace, row.pickupTimeDisplay)}
                           </td>
                           <td className="px-4 py-3">
-                            {locationCell(dropPlace, row.dropTime, {
+                            {locationCell(dropPlace, row.dropTimeDisplay, {
                               sameAsPickUp: row.dropOffSameAsPickup !== false,
                             })}
                           </td>
@@ -769,7 +779,7 @@ export default function PickUpPointsPage() {
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                disabled={deletingId != null}
+                                disabled={deletingId != null || listLoading}
                                 onClick={() => void openEdit(row)}
                               >
                                 Edit
@@ -778,7 +788,7 @@ export default function PickUpPointsPage() {
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                disabled={deletingId != null}
+                                disabled={deletingId != null || listLoading}
                                 onClick={() => void onDelete(row)}
                               >
                                 {deletingId === row.id ? 'Deleting…' : 'Delete'}

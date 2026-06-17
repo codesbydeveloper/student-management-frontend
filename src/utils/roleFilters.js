@@ -1,7 +1,12 @@
 import { ROLES } from './constants'
+import { hasMenuScreenAccess, isMenuAccessRole } from './permissions'
 
 export function filterStudentsForUser(user, students, teachers, parents) {
-  if (user.role === ROLES.ADMIN || user.role === ROLES.PRINCIPAL) {
+  if (
+    user.role === ROLES.ADMIN ||
+    user.role === ROLES.PRINCIPAL ||
+    (isMenuAccessRole(user.role) && hasMenuScreenAccess(user.menuAccess, 'students'))
+  ) {
     return students
   }
   if (user.role === ROLES.TEACHER) {

@@ -1,8 +1,18 @@
 import { ROLES } from './constants'
-import { canAccessRoute } from './permissions'
+import { canAccessRoute, hasMenuScreenAccess, isMenuAccessRole } from './permissions'
+import { parseMenuAccessFromApi } from '../api/staffMenuPermissionsApi'
 
-/** Admin / principal: grouped under "Academics" (Classes -> Teachers -> Students -> Parents -> Admins -> Principals). */
-export const ACADEMICS_NAV_KEYS = ['classes', 'teachers', 'students', 'parents', 'admins', 'principals']
+/** Admin / principal: grouped under "Academics" (Classes -> Teachers -> Students -> Parents -> Admins -> Principals -> Front office staff -> Coordinators). */
+export const ACADEMICS_NAV_KEYS = [
+  'classes',
+  'teachers',
+  'students',
+  'parents',
+  'admins',
+  'principals',
+  'front_office_staff',
+  'coordinators',
+]
 
 /** Admin / principal: grouped under "Transport" in the sidebar. */
 export const TRANSPORT_NAV_KEYS = [
@@ -107,6 +117,8 @@ const items = [
   { key: 'parents', to: '/parents', label: 'Parents' },
   { key: 'admins', to: '/admins', label: 'Admins' },
   { key: 'principals', to: '/principals', label: 'Principals' },
+  { key: 'front_office_staff', to: '/front-office-staff', label: 'Front office staff' },
+  { key: 'coordinators', to: '/coordinators', label: 'Coordinators' },
  // { key: 'admin_assign_bus', to: '/transport/assign-bus', label: 'Assign bus' },
   { key: 'admin_create_buses', to: '/transport/buses', label: 'Create buses' },
   { key: 'admin_pick_up_points', to: '/transport/pick-up-points', label: 'Pick up points' },
@@ -133,9 +145,23 @@ const items = [
 /**
  * Flat nav list (mobile dock + default order). Admin/principal: Dashboard, academics block,
  * transport, notices, operations, PTM (request + history), then the rest.
+ * @param {string} role
+ * @param {import('../api/staffMenuPermissionsApi').NavPermissionsMap} [menuAccess]
  */
-export function buildFlatNav(role) {
-  const filtered = items.filter((item) => canAccessRoute(role, item.key))
+export function buildFlatNav(role, menuAccess = {}) {
+  const filtered = items.filter((item) => canAccessRoute(role, item.key, menuAccess))
+
+  if (isMenuAccessRole(role)) {
+    const dash = filtered.find((item) => item.key === 'dashboard')
+    const rest = filtered.filter((item) => item.key !== 'dashboard')
+    const academics = ACADEMICS_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const transport = TRANSPORT_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const notices = NOTICES_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const operations = OPERATIONS_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const ptm = PTM_NAV_KEYS.map((k) => rest.find((i) => i.key === k)).filter(Boolean)
+    const tail = rest.filter((i) => !groupedNavKeys().has(i.key))
+    return dash ? [dash, ...academics, ...transport, ...notices, ...operations, ...ptm, ...tail] : filtered
+  }
 
   if (role === ROLES.PARENT) {
     const dash = filtered.find((i) => i.key === 'dashboard')
@@ -192,12 +218,12 @@ function buildGroupedSidebarEntries(dash, rest, groups, tailKeys) {
 }
 
 /** Sidebar: admin/principal and teacher get collapsible groups; others get a flat list. */
-export function getNavSidebarEntries(role) {
-  const flat = buildFlatNav(role)
+export function getNavSidebarEntries(role, menuAccess = {}) {
+  const flat = buildFlatNav(role, menuAccess)
   const dash = flat.find((i) => i.key === 'dashboard')
   const rest = flat.filter((i) => i.key !== 'dashboard')
 
-  if (isAdminOrPrincipal(role)) {
+  if (isAdminOrPrincipal(role) || isMenuAccessRole(role)) {
     return buildGroupedSidebarEntries(dash, rest, [
       { key: 'academics', label: 'Academics', keys: ACADEMICS_NAV_KEYS },
       { key: 'transport', label: 'Transport', keys: TRANSPORT_NAV_KEYS },
@@ -230,8 +256,33 @@ export function getNavSidebarEntries(role) {
   return flat.map((item) => ({ type: 'link', ...item }))
 }
 
-export function getNavItemsForRole(role) {
-  return buildFlatNav(role)
+export function getNavItemsForRole(role, menuAccess = {}) {
+  return buildFlatNav(role, menuAccess)
+}
+
+const NAV_ITEM_BY_KEY = Object.fromEntries(items.map((item) => [item.key, item]))
+
+function mapNavKeysToItems(keys) {
+  return keys
+    .map((key) => NAV_ITEM_BY_KEY[key])
+    .filter(Boolean)
+    .map(({ key, label }) => ({ key, label }))
+}
+
+/**
+ * Sidebar sections assignable when creating front office staff / coordinators.
+ * Mirrors the admin & principal sidebar (image 2).
+ * @returns {{ key: string, label: string, items: { key: string, label: string }[] }[]}
+ */
+export function getStaffAssignableNavGroups() {
+  return [
+    { key: 'dashboard', label: 'Dashboard', items: mapNavKeysToItems(['dashboard']) },
+    { key: 'academics', label: 'Academics', items: mapNavKeysToItems(ACADEMICS_NAV_KEYS) },
+    { key: 'transport', label: 'Transport', items: mapNavKeysToItems(TRANSPORT_NAV_KEYS) },
+    { key: 'notices', label: 'Notices', items: mapNavKeysToItems(NOTICES_NAV_KEYS) },
+    { key: 'operations', label: 'Operations', items: mapNavKeysToItems(OPERATIONS_NAV_KEYS) },
+    { key: 'ptm', label: 'PTM', items: mapNavKeysToItems(PTM_NAV_KEYS) },
+  ].filter((group) => group.items.length > 0)
 }
 
 /** Paths where the dashboard already shows icon tiles — skip the main-content header. */
@@ -256,6 +307,43 @@ const PATH_NAV_EXTRAS = [
   { prefix: '/settings', navKey: 'admins', label: 'Settings' },
   { prefix: '/profile', navKey: 'dashboard', label: 'Profile' },
 ]
+
+function normalizePathname(pathname) {
+  return String(pathname || '')
+    .split('?')[0]
+    .replace(/\/$/, '') || '/'
+}
+
+function pathMatchesNavTarget(path, to) {
+  const base = String(to).replace(/\/$/, '') || '/'
+  return path === base || path.startsWith(`${base}/`)
+}
+
+/** Staff/coordinator: URL allowed when it matches a sidebar item they can open. */
+export function isPathAllowedForMenuAccessRole(role, menuAccess, pathname) {
+  if (!isMenuAccessRole(role)) return true
+
+  const path = normalizePathname(pathname)
+  if (path === '/profile' || path === '/dashboard') return true
+
+  const parsed = parseMenuAccessFromApi(menuAccess)
+  for (const item of getNavItemsForRole(role, parsed)) {
+    if (pathMatchesNavTarget(path, item.to)) return true
+  }
+
+  for (const extra of PATH_NAV_EXTRAS) {
+    if (path === extra.prefix || path.startsWith(`${extra.prefix}/`)) {
+      if (extra.navKey && hasMenuScreenAccess(parsed, extra.navKey)) return true
+    }
+  }
+
+  return false
+}
+
+export function getFirstAllowedPathForMenuAccess(role, menuAccess) {
+  const parsed = parseMenuAccessFromApi(menuAccess)
+  return getNavItemsForRole(role, parsed)[0]?.to || '/dashboard'
+}
 
 /**
  * Resolve sidebar-style icon + label for the current URL (main content header).

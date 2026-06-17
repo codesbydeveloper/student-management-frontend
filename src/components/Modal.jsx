@@ -12,6 +12,7 @@ export function Modal({
   hideCloseButton = false,
   closeOnBackdrop = true,
   headerActions = null,
+  bodyClassName = '',
 }) {
   useEffect(() => {
     if (!open || hideCloseButton) return
@@ -66,7 +67,11 @@ export function Modal({
             )}
           </div>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
+        <div
+          className={`max-h-[70vh] overflow-y-auto overscroll-contain px-5 py-4 ${bodyClassName}`.trim()}
+        >
+          {children}
+        </div>
         {footer ? (
           <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
             {footer}

@@ -31,7 +31,10 @@ export function HeaderNotificationBell() {
   const [dismissingKey, setDismissingKey] = useState('')
   const rootRef = useRef(null)
 
-  const viewAllPath = useMemo(() => getHeaderNotificationsViewAllPath(user?.role), [user?.role])
+  const viewAllPath = useMemo(
+    () => getHeaderNotificationsViewAllPath(user?.role, user?.menuAccess),
+    [user?.role, user?.menuAccess],
+  )
 
   const prevOpenRef = useRef(false)
 
@@ -185,7 +188,7 @@ export function HeaderNotificationBell() {
                       )
                     }
 
-                    const to = getHeaderNotificationItemLink(user?.role, item)
+                    const to = getHeaderNotificationItemLink(user?.role, item, user?.menuAccess)
                     return (
                       <li key={item.id}>
                         <Link

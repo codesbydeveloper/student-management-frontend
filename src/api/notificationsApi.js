@@ -1,4 +1,4 @@
-import { API_BASE_URL, ROLES } from '../utils/constants'
+import { API_BASE_URL, ROLE_LABELS, ROLES } from '../utils/constants'
 import {
   formatNotificationTimeAgo,
   formatTransportSafetyTime,
@@ -715,6 +715,177 @@ function extractNotificationSubmitterName(raw) {
   return fromNested
 }
 
+function pickNestedObject(raw, keys) {
+  if (!raw || typeof raw !== 'object') return null
+  for (const k of keys) {
+    const v = raw[k]
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v
+  }
+  return null
+}
+
+function normalizeNotificationApproverRoleLabel(roleRaw) {
+  const r = String(roleRaw ?? '')
+    .trim()
+    .toLowerCase()
+  if (!r) return ''
+  if (ROLE_LABELS[r]) return ROLE_LABELS[r]
+  if (r === 'administrator' || r === 'school_admin' || r === 'schooladmin') return ROLE_LABELS[ROLES.ADMIN]
+  if (r === 'school_principal') return ROLE_LABELS[ROLES.PRINCIPAL]
+  return r.charAt(0).toUpperCase() + r.slice(1)
+}
+
+function extractApproverFromHistoryLists(raw) {
+  const lists = [raw.approvalHistory, raw.approvals, raw.approvalTrail, raw.statusHistory]
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue
+    for (let i = list.length - 1; i >= 0; i--) {
+      const entry = list[i]
+      if (!entry || typeof entry !== 'object') continue
+      const action = String(entry.action ?? entry.status ?? entry.type ?? entry.event ?? '').toLowerCase()
+      if (!action.includes('approv')) continue
+      const block = pickNestedObject(entry, [
+        'approvedBy',
+        'user',
+        'actor',
+        'reviewedBy',
+        'performedBy',
+      ])
+      const name = String(
+        entry.approvedByName ??
+          entry.approverName ??
+          entry.userName ??
+          entry.actorName ??
+          personNameFromApiObject(block) ??
+          '',
+      ).trim()
+      const roleRaw = String(
+        entry.approvedByRole ??
+          entry.approverRole ??
+          entry.userRole ??
+          entry.actorRole ??
+          block?.role ??
+          '',
+      ).trim()
+      if (name || roleRaw) {
+        return {
+          approvedByName: name || null,
+          approvedByRole: roleRaw.toLowerCase() || null,
+          approvedByRoleLabel: normalizeNotificationApproverRoleLabel(roleRaw) || null,
+        }
+      }
+    }
+  }
+  return null
+}
+
+export function extractNotificationApproverFields(raw) {
+  const block = pickNestedObject(raw, [
+    'approvedBy',
+    'approved_by',
+    'approvedByUser',
+    'approvedByStaff',
+    'staffApprover',
+    'staffApprovedBy',
+    'approver',
+    'approverUser',
+    'reviewedBy',
+    'reviewedByUser',
+    'acceptedBy',
+    'acceptedByUser',
+    'approvedByAdmin',
+    'approvedByPrincipal',
+  ])
+
+  let roleRaw = String(
+    raw.approvedByRole ??
+      raw.approved_by_role ??
+      raw.approverRole ??
+      raw.approver_role ??
+      raw.staffApproverRole ??
+      raw.reviewerRole ??
+      raw.acceptedByRole ??
+      raw.approvedByType ??
+      raw.approverType ??
+      block?.role ??
+      block?.userRole ??
+      block?.type ??
+      '',
+  ).trim()
+
+  if (!roleRaw && raw.principalApproved === true) roleRaw = ROLES.PRINCIPAL
+  if (!roleRaw && raw.adminApproved === true) roleRaw = ROLES.ADMIN
+
+  const principalBlock = pickNestedObject(raw, [
+    'approvedByPrincipal',
+    'principalApprover',
+    'principalApproval',
+  ])
+  const adminBlock = pickNestedObject(raw, ['approvedByAdmin', 'adminApprover', 'adminApproval'])
+  if (!roleRaw && principalBlock) roleRaw = ROLES.PRINCIPAL
+  if (!roleRaw && adminBlock) roleRaw = ROLES.ADMIN
+
+  let name = String(
+    raw.approvedByName ??
+      raw.approved_by_name ??
+      raw.approverName ??
+      raw.approver_name ??
+      raw.acceptedByName ??
+      raw.reviewedByName ??
+      block?.fullName ??
+      block?.name ??
+      block?.displayName ??
+      principalBlock?.approvedByName ??
+      principalBlock?.fullName ??
+      principalBlock?.name ??
+      adminBlock?.approvedByName ??
+      adminBlock?.fullName ??
+      adminBlock?.name ??
+      '',
+  ).trim()
+
+  if (!name && block) name = personNameFromApiObject(block)
+  if (!name && principalBlock) {
+    name = personNameFromApiObject(principalBlock.approvedBy) || personNameFromApiObject(principalBlock)
+  }
+  if (!name && adminBlock) {
+    name = personNameFromApiObject(adminBlock.approvedBy) || personNameFromApiObject(adminBlock)
+  }
+
+  const roleKey = roleRaw.toLowerCase()
+  let result = {
+    approvedByName: name || null,
+    approvedByRole: roleKey || null,
+    approvedByRoleLabel: normalizeNotificationApproverRoleLabel(roleKey) || null,
+  }
+
+  if (!result.approvedByName && !result.approvedByRoleLabel) {
+    const fromHistory = extractApproverFromHistoryLists(raw)
+    if (fromHistory) result = fromHistory
+  }
+
+  return result
+}
+
+export function isApprovedNoticeStatus(status) {
+  const s = String(status ?? '').toLowerCase()
+  return (
+    s === NOTIFICATION_STATUSES.APPROVED ||
+    s === 'delivered' ||
+    s.includes('approved')
+  )
+}
+
+/** One line for UI: "Name (Admin)" */
+export function formatNotificationApprovalAttribution(item) {
+  if (!item) return null
+  const name = item.approvedByName ? String(item.approvedByName).trim() : ''
+  const role = item.approvedByRoleLabel ? String(item.approvedByRoleLabel).trim() : ''
+  if (!name && !role) return null
+  if (name && role) return `${name} (${role})`
+  return name || role
+}
+
 /**
  * Map one pending-admin row from the API into the shape used by ApprovalTable / notificationFormat.
  * @param {object} raw
@@ -796,6 +967,10 @@ export function mapPendingAdminNotificationFromApi(raw) {
   }
   const approvedAt = pickApprovedAtMs(raw)
   if (approvedAt != null) row.approvedAt = approvedAt
+  const approver = extractNotificationApproverFields(raw)
+  if (approver.approvedByName) row.approvedByName = approver.approvedByName
+  if (approver.approvedByRole) row.approvedByRole = approver.approvedByRole
+  if (approver.approvedByRoleLabel) row.approvedByRoleLabel = approver.approvedByRoleLabel
   const rejectedRaw = raw.rejectedAt ?? raw.rejected_at
   if (typeof rejectedRaw === 'string' && rejectedRaw.trim()) {
     row.rejectedAtDisplay = rejectedRaw.trim()
@@ -1189,6 +1364,11 @@ export function mapAdminNotificationDetailToModalItem(raw) {
     rejectionReason: rejectionReason || undefined,
     rejectedMessage: rejectedMessage || undefined,
     rejectedAt: rejectedAt || undefined,
+    approvedByName: row.approvedByName || undefined,
+    approvedByRole: row.approvedByRole || undefined,
+    approvedByRoleLabel: row.approvedByRoleLabel || undefined,
+    approvedAtDisplay: row.approvedAtDisplay || undefined,
+    approvedAt: row.approvedAt,
   }
 }
 

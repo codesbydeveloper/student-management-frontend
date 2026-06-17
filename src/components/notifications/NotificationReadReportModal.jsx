@@ -62,42 +62,46 @@ export function NotificationReadReportModal({
   const [hasNext, setHasNext] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
-  const load = useAsyncLoader(async () => {
-    const id = String(notificationId ?? '').trim()
-    if (!open || !token || !id) {
-      setParents([])
-      setSummary({ total: null, read: null, unread: null })
-      setError(null)
-      setApiPending(false)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    const res = await fetchNotificationReadReport(token, id, {
-      page,
-      limit: REPORT_PAGE_SIZE,
-      filter,
-    })
-    setLoading(false)
-    if (!res.ok) {
-      setParents([])
-      setSummary({ total: null, read: null, unread: null })
-      setError(res.error || 'Could not load read report.')
-      setApiPending(Boolean(res.pendingApi))
-      return
-    }
-    setApiPending(false)
-    setSummary(res.summary)
-    setParents(res.parents)
-    setTotalPages(res.totalPages || 1)
-    setHasNext(Boolean(res.hasNextPage))
-  }, [open, token, notificationId, page, filter])
+  const reportId = String(notificationId ?? '').trim()
+  const reportEnabled = open && Boolean(token && reportId)
 
   useEffect(() => {
     if (!open) return
     setPage(1)
     setFilter('all')
-  }, [open, notificationId])
+  }, [open, reportId])
+
+  const load = useAsyncLoader(
+    async ({ isStale } = {}) => {
+      if (!reportEnabled) return
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetchNotificationReadReport(token, reportId, {
+          page,
+          limit: REPORT_PAGE_SIZE,
+          filter,
+        })
+        if (isStale?.()) return
+        if (!res.ok) {
+          setParents([])
+          setSummary({ total: null, read: null, unread: null })
+          setError(res.error || 'Could not load read report.')
+          setApiPending(Boolean(res.pendingApi))
+          return
+        }
+        setApiPending(false)
+        setSummary(res.summary)
+        setParents(res.parents)
+        setTotalPages(res.totalPages || 1)
+        setHasNext(Boolean(res.hasNextPage))
+      } finally {
+        if (!isStale?.()) setLoading(false)
+      }
+    },
+    [reportEnabled, token, reportId, page, filter],
+    { enabled: reportEnabled },
+  )
 
   const title = notificationTitle?.trim() || 'School notice'
 

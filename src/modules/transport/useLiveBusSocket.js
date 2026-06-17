@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { ROLES } from '../../utils/constants'
+import { canUseAdminLiveBusesApi } from '../../utils/permissions'
 import {
   getSocketIOClientOptions,
   getSocketTransportUrl,
@@ -41,14 +41,15 @@ function readBusLocationPayload(data, knownBusNumericId) {
  * @param {{
  *   token: string | null | undefined,
  *   role: string,
+ *   menuAccess?: import('../../api/staffMenuPermissionsApi').NavPermissionsMap,
  *   busNumericId: number | null | undefined,
  *   enabled?: boolean,
  * }} options
  */
-export function useLiveBusSocket({ token, role, busNumericId, enabled = true }) {
+export function useLiveBusSocket({ token, role, menuAccess, busNumericId, enabled = true }) {
   const numericId = toPositiveNumber(busNumericId)
   const socketUrl = getSocketTransportUrl()
-  const isStaff = role === ROLES.ADMIN || role === ROLES.PRINCIPAL
+  const isStaff = canUseAdminLiveBusesApi(role, menuAccess)
 
   const [position, setPosition] = useState(/** @type {[number, number] | null} */ (null))
   const [lastUpdatedAt, setLastUpdatedAt] = useState(/** @type {string | null} */ (null))
